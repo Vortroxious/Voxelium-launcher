@@ -42,6 +42,7 @@ final class LauncherModel: ObservableObject {
             log.info("app", "Data directory: \(p.root.path)")
             log.info("app", "JIT/debugger attached: \(DeviceInfo.isDebuggerAttached)")
             log.info("app", "JIT: \(ZLJVMBridge.jitDescription())")
+            log.info("app", "GLFW bridge: \(ZLGLFWSelfCheck())")
             exportJITScript()
             refreshInstalled()
             await loadManifest()

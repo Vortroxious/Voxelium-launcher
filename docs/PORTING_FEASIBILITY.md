@@ -20,7 +20,8 @@ Overall: Minecraft Java on iOS is *plausible*, because Amethyst-iOS exists and i
 - Natives must therefore be **bundled in the IPA**, not downloaded.
 - Requires Xcode (now installed, license pending).
 
-## C. Can LWJGL's required functionality be provided? — UNKNOWN
+## C. Can LWJGL's required functionality be provided? — PASS for GLFW window/context/input (2026-10-16)
+- Verified: LWJGL's GLFW binding bound to the app's own GLFW 3.4 implementation (117/117 functions) drives a full-screen ANGLE/MobileGlues window from Java on device. OpenAL is not done yet.
 - Upstream's approach (which works on Android): replace `org.lwjgl.glfw.GLFW` with a Java shim whose window/input calls go to the host app (`CallbackBridge`).
 - PojavLauncher-iOS used the same design on iOS.
 - Not attempted here.
@@ -32,7 +33,8 @@ Overall: Minecraft Java on iOS is *plausible*, because Amethyst-iOS exists and i
 - Minecraft 1.17+ needs OpenGL 3.2 core, so a translation layer is mandatory. Candidates: MobileGlues, gl4es→GLES, ANGLE(Metal).
 - No candidate has been built or tested.
 
-## E. Input (touch, keyboard, mouse, controller)? — UNKNOWN
+## E. Input (touch, keyboard, mouse, controller)? — PARTIAL PASS (2026-10-16)
+- Verified: touch → GLFW mouse button and cursor callbacks, captured-cursor relative mode implemented, close request. Not verified: hardware keyboard, controllers, on-screen gameplay controls.
 - UIKit provides touch; GameController.framework provides keyboard, mouse and controllers.
 - Mapping these to GLFW callbacks is straightforward in principle, but nothing is implemented.
 
@@ -63,6 +65,6 @@ Verified on one device (iPhone 15 Pro Max, iOS 27.0, free Apple ID, StikDebug 3.
 - D passes for OpenGL ES 3.0.
 
 Remaining high-risk work before a Minecraft launch attempt:
-- a GLFW window/input bridge (C, E);
+- touch controls for gameplay and keyboard verification (E);
 - OpenAL;
 - memory limits under a free account.

@@ -1,0 +1,109 @@
+# jvm.log section copied from the iPhone with devicectl on 2026-10-16 23:19 WIB
+# Device: iPhone 15 Pro Max (iPhone16,2), iOS 27.0 (24A437); build 0.1.0 (202610161611); StikDebug 3.1.14 + universal.js
+===== Java test 2026-10-16T16:18:43Z flags=0x5 (iOS26=1 mirrored=0 TXM=1) CS_DEBUGGED=1 debuggerNow=1 needsScript=1
+[JVMBridge] flags=0x5 (iOS26=1 mirrored=0 TXM=1) CS_DEBUGGED=1 debuggerNow=1 needsScript=1
+[JVMBridge] JIT26 probe: debugger replied (x0=0xcccccccc690000e0)
+[JVMBridge] JIT26 extension sent; debugger will detach after the JVM's mapping request
+[JVMBridge] JNI_CreateJavaVM with 18 options
+[JVMBridge]   -Xms64M
+[JVMBridge]   -Xmx256M
+[JVMBridge]   -Djava.io.tmpdir=/private/var/mobile/Containers/Data/Application/065908A0-67D0-4A64-82C8-57D59ADA3723/tmp/
+[JVMBridge]   -Duser.home=/var/mobile/Containers/Data/Application/065908A0-67D0-4A64-82C8-57D59ADA3723/Library/Application Support/ZalithIOS
+[JVMBridge]   -Duser.dir=/var/mobile/Containers/Data/Application/065908A0-67D0-4A64-82C8-57D59ADA3723/Library/Application Support/ZalithIOS
+[JVMBridge]   -XX:ErrorFile=/var/mobile/Containers/Data/Application/065908A0-67D0-4A64-82C8-57D59ADA3723/Library/Application Support/ZalithIOS/logs/hs_err_pid%p.log
+[JVMBridge]   -XX:+UnlockExperimentalVMOptions
+[JVMBridge]   -XX:+DisablePrimordialThreadGuardPages
+[JVMBridge]   -XX:-UseCompressedClassPointers
+[JVMBridge]   -XX:+MirrorMappedCodeCache
+[JVMBridge]   -Dorg.lwjgl.glfw.libname=/private/var/containers/Bundle/Application/CD4705BB-A391-427F-BE47-AFEAC70F4CA3/ZalithIOS.app/ZalithIOS
+[JVMBridge]   -Dorg.lwjgl.glfw.checkThread0=false
+[JVMBridge]   -Dorg.lwjgl.opengl.libname=/private/var/containers/Bundle/Application/CD4705BB-A391-427F-BE47-AFEAC70F4CA3/ZalithIOS.app/Frameworks/libmobileglues.dylib
+[JVMBridge]   -Dorg.lwjgl.librarypath=/private/var/containers/Bundle/Application/CD4705BB-A391-427F-BE47-AFEAC70F4CA3/ZalithIOS.app/java/lwjgl
+[JVMBridge]   -Dorg.lwjgl.system.allocator=system
+[JVMBridge]   -Dorg.lwjgl.util.Debug=true
+[JVMBridge]   -Dorg.lwjgl.util.DebugLoader=true
+[JVMBridge]   -Djava.class.path=/private/var/containers/Bundle/Application/CD4705BB-A391-427F-BE47-AFEAC70F4CA3/ZalithIOS.app/java/zalith-glestest.jar:/private/var/containers/Bundle/Application/CD4705BB-A391-427F-BE47-AFEAC70F4CA3/ZalithIOS.app/java/lwjgl/lwjgl.jar:/private/var/containers/Bundle/Application/CD4705BB-A391-427F-BE47-AFEAC70F4CA3/ZalithIOS.app/java/lwjgl/lwjgl-glfw.jar:/private/var/containers/Bundle/Application/CD4705BB-A391-427F-BE47-AFEAC70F4CA3/ZalithIOS.app/java/lwjgl/lwjgl-opengl.jar
+[JIT26] Requesting 240 MB for JIT mapping
+[JIT26] Got JIT mapping 0x11eab4000 from debugger
+[JIT26] mapping at RW=0x12dab4000, RX=0x11eab4000
+LWJGL 3.3.3-snapshot+SNAPSHOT glfw.libname=/private/var/containers/Bundle/Application/CD4705BB-A391-427F-BE47-AFEAC70F4CA3/ZalithIOS.app/ZalithIOS
+[LWJGL] Version: 3.3.3-snapshot+SNAPSHOT
+	 OS: Mac OS X v27.0
+	JRE: macOS aarch64 17.0.20-internal
+	JVM: OpenJDK 64-Bit Server VM v17.0.20-internal+0-adhoc.ci.openjdk-17 by Oracle Corporation
+java.lang.UnsatisfiedLinkError: Expecting an absolute path of the library: null/AngelAuraAmethyst
+	at java.base/java.lang.Runtime.load0(Unknown Source)
+	at java.base/java.lang.System.load(Unknown Source)
+	at org.lwjgl.system.Library.<clinit>(Library.java:58)
+	at org.lwjgl.system.MemoryUtil.<clinit>(MemoryUtil.java:100)
+	at org.lwjgl.system.Pointer$Default.<clinit>(Pointer.java:67)
+	at org.lwjgl.system.Callback.<clinit>(Callback.java:40)
+	at io.github.zalithios.GlfwSmokeTest.main(GlfwSmokeTest.java:33)
+[LWJGL] Loading JNI library: lwjgl
+	Module: org.lwjgl
+	Loaded from org.lwjgl.librarypath: /private/var/containers/Bundle/Application/CD4705BB-A391-427F-BE47-AFEAC70F4CA3/ZalithIOS.app/java/lwjgl/liblwjgl.dylib
+[LWJGL] Closure Registry: ConcurrentHashMap
+[LWJGL] MemoryUtil allocator: StdlibAllocator
+[LWJGL] Loading library: /private/var/containers/Bundle/Application/CD4705BB-A391-427F-BE47-AFEAC70F4CA3/ZalithIOS.app/ZalithIOS
+	Module: org.lwjgl.glfw
+	Success
+2026-10-16 23:18:44.931 ZalithIOS[4037:647468] [ZLGLFW] initialised: ANGLE Metal display, screen 2796x1290 @120 Hz
+GLFW 3.4.0 Zalith iOS (UIKit + ANGLE/EGL) platform=0x60005
+2026-10-16 23:18:44.942 ZalithIOS[4037:647468] [ZLGLFW] window "Zalith GLFW test" on-screen: 430x932 pt, framebuffer 1290x2796 px (requested 854x480, GL 3.2 profile 0x32001)
+window 430x932 framebuffer 1290x2796
+[LWJGL] Loading JNI library: lwjgl_opengl
+	Module: org.lwjgl.opengl
+	Loaded from org.lwjgl.librarypath: /private/var/containers/Bundle/Application/CD4705BB-A391-427F-BE47-AFEAC70F4CA3/ZalithIOS.app/java/lwjgl/liblwjgl_opengl.dylib
+[LWJGL] Loading library: /private/var/containers/Bundle/Application/CD4705BB-A391-427F-BE47-AFEAC70F4CA3/ZalithIOS.app/Frameworks/libmobileglues.dylib
+	Module: org.lwjgl.opengl
+Initializing MobileGlues ...
+The Open Source License of MobileGlues: 
+  GNU LGPL-2.1 License
+[MobileGlues] Setting: enableAngle                 = false
+[MobileGlues] Setting: ignoreError                 = 1
+[MobileGlues] Setting: enableExtComputeShader      = false
+[MobileGlues] Setting: enableExtGL43               = false
+[MobileGlues] Setting: enableExtTimerQuery         = false
+[MobileGlues] Setting: enableExtDirectStateAccess  = true
+[MobileGlues] Setting: maxGlslCacheSize            = 30
+[MobileGlues] Setting: angleDepthClearFixMode      = 0
+[MobileGlues] Setting: bufferCoherentAsFlush       = 0
+[MobileGlues] Setting: customGLVersion             = (default)
+[MobileGlues] Setting: fsr1Setting                 = 0
+EGL initialized successfully
+OpenGL ES Version: OpenGL ES 3.0 (300)
+Not Detected GL_EXT_multi_draw_indirect!
+[MobileGlues] Setting: multidrawMode               = Auto
+multidrawMode = Auto
+    -> BaseVertex (Auto detected)
+	Success
+GL_RENDERER=ANGLE (Apple, ANGLE Metal Renderer: Apple A17 Pro GPU, Version 27.0 (Build 24A437)) | OpenGL ES 3.0
+GL_VERSION=4.0.0 MobileGlues 1.3.3 core33=true
+current context ok=true
+framebuffer resized to 1290x2796
+framebuffer resized to 1290x2796
+framebuffer resized to 2796x1290
+read-back frame 5 = (26,77,153) ok=true
+mouse button 0 action 1
+2026-10-16 23:18:47.684 ZalithIOS[4037:647275] [ZLGLFW] touchesMoved 457.7,196.3
+2026-10-16 23:18:47.701 ZalithIOS[4037:647275] [ZLGLFW] touchesMoved 459.3,196.7
+2026-10-16 23:18:47.702 ZalithIOS[4037:647275] [ZLGLFW] touchesMoved 470.0,191.0
+mouse button 0 action 0
+mouse button 0 action 1
+mouse button 1 action 1
+mouse button 0 action 0
+mouse button 1 action 0
+mouse button 0 action 1
+mouse button 0 action 0
+mouse button 0 action 1
+mouse button 1 action 1
+mouse button 1 action 0
+mouse button 0 action 0
+mouse button 0 action 1
+mouse button 0 action 0
+mouse button 0 action 1
+mouse button 0 action 0
+frames=1792 in 30.0s (59.7 fps) events: key=0 char=0 button=16 cursor=1476 scroll=0 resize=3
+2026-10-16 23:19:15.059 ZalithIOS[4037:647468] [ZLGLFW] touches: began=8 moved=1507 movedAccepted=1470 ended=8 cancelled=0
+ZALITH_GLFW_OK
+2026-10-16 23:19:15.069 ZalithIOS[4037:647315] [JVMBridge] io/github/zalithios/GlfwSmokeTest.main returned normally

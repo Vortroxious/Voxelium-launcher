@@ -21,7 +21,8 @@
 | OpenGL ES via ANGLE (native test) | **Yes, passed on iPhone** (2026-10-16) | ANGLE Metal on A17 Pro GPU, GLES 3.0, pixel read-back exact, 59.2 fps. `docs/evidence/2026-10-16-angle-gl-test.log` |
 | OpenGL ES via LWJGL (Java test) | **Yes, passed on iPhone** (2026-10-16) | Java → LWJGL 3.3.3 → ANGLE → Metal, GLES 3.0, pixel read-back exact. `docs/evidence/2026-10-16-lwjgl-gles-test.log` |
 | Desktop GL via MobileGlues (native + Java/LWJGL) | **Yes, passed on iPhone** (2026-10-16, build 202610161548) | GL 4.0.0 MobileGlues 1.3.3 on ANGLE/Metal, exact pixels. `docs/evidence/2026-10-16-*desktopgl*.log` |
-| Minecraft main menu / gameplay | No | not implemented |
+| GLFW bridge (window, context, input) | **Yes, passed on iPhone** (2026-10-16, build 202610161611) | 60 fps, exact pixels, 1476 cursor events from drags, landscape, close button. `docs/evidence/2026-10-16-glfw-*.log` |
+| Minecraft main menu / gameplay | No | not attempted |
 
 ## IPA
 | Field | Value |

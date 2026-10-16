@@ -175,3 +175,39 @@
   - The context-restore patch fixed the Java path, which failed deterministically without it.
   - **Java → LWJGL desktop GL → MobileGlues → ANGLE → Metal works on device:** the graphics path Minecraft 1.17+ needs.
   - **Still open:** ANGLE grants only GLES 3.0 (no 3.1/3.2), so MobileGlues lacks multi-draw-indirect, compute and GL43 extras. The GLFW window/input bridge (3d) is next.
+- **Milestone 6 step 3d: GLFW bridge implemented** (`App/ZalithIOS/Native/ZLGLFW.m`). Not yet run on a device.
+  - **How it plugs in:** the fork's `org.lwjgl.glfw.GLFW` is LWJGL's standard binding. It resolves 117 required `glfw*` functions via `apiGetFunctionAddress` from `-Dorg.lwjgl.glfw.libname`. Like Amethyst, we point that at the app executable, which exports a GLFW 3.4 implementation compiled against upstream `glfw3.h` (tag 3.4, zlib). The export trie of build `202610161603` contains **117/117**.
+  - **Windows and context:** the first window is a full-screen `UIWindow` (level normal+1) with a CAMetalLayer view and an ANGLE EGL ES 3.x context, made current with `glfwMakeContextCurrent`. Desktop GL comes from MobileGlues (LWJGL's OpenGL library). Further or invisible windows use pbuffers and shared contexts.
+  - **Sizes and platform:** window size in points, framebuffer in pixels; `ZALITH_RENDER_SCALE` env (0.1–1.0) can lower render resolution. `glfwGetPlatform` = `GLFW_PLATFORM_NULL`, to keep Cocoa/AppKit paths away.
+  - **Input:** queued from UIKit and delivered in `glfwPollEvents`/`glfwWaitEvents`.
+    - One finger = cursor + left button; a second finger = right button.
+    - `GLFW_CURSOR_DISABLED` switches to relative (mouse-look) deltas; a three-finger tap triggers window close.
+    - Hardware keyboard: `UIPress` HID usage → GLFW keys, `UIKey.characters` → char callbacks.
+    - Joysticks are not implemented.
+  - **Requirements:** needs `-Dorg.lwjgl.glfw.checkThread0=false`, because calls come from the JVM thread.
+  - **Startup check:** the app now logs a self-check, `dlopen(executable)` + `dlsym(glfwInit)`, because dlopen-ing the main executable is assumed (Amethyst relies on it) but **not yet verified on iOS 27**.
+  - **Java test:** `GlfwSmokeTest` requests 3.2 core / forward-compatible hints as Minecraft does, creates the window, runs `GL.createCapabilities()` through MobileGlues after `glfwMakeContextCurrent` (the real load order), and runs an interactive 30 s loop with frame-5 read-back → `ZALITH_GLFW_OK`.
+- **MILESTONE 6 STEP 3d FIRST DEVICE RUN (16:07 UTC, build `202610161603`): `ZALITH_GLFW_OK`** (`docs/evidence/2026-10-16-glfw-bridge-test.log`).
+  - Startup self-check: `dlopen(executable) ok; glfwInit=ok glfwSwapBuffers=ok`, so **iOS 27 allows dlopen-ing the main executable**.
+  - LWJGL's GLFW bound to the app executable: `GLFW 3.4.0 Zalith iOS`, platform 0x60005 (NULL).
+  - The window was on-screen, 430×932 pt / 1290×2796 px, on a 120 Hz display.
+  - `glfwMakeContextCurrent` → `GL.createCapabilities()` loaded MobileGlues **with our context still current afterwards** (`current context ok=true`). This is Minecraft's real order, and it confirms the context-restore patch.
+  - GL 4.0 core; frame-5 read-back exact; **1815 frames in 30.0 s (60.5 fps, swap interval 1)**; mouse-button callbacks delivered (6).
+  - **Problems:**
+    - (1) Only 3 cursor events (one per touch-down), but the user later said they probably did not drag, so this is **not a confirmed bug**. Touch-phase counters were added to settle it next run.
+    - (2) The three-finger-tap exit never fired. iOS reserves three-finger taps for system undo/redo editing gestures, which was a poor choice; it needs an explicit close control.
+    - (3) Portrait framebuffer, while Minecraft expects landscape.
+- **GLFW bridge follow-up:** build `202610161611` (SHA-256 `45d31cecb758bea6baa4d707ca97a8ee7dc90f468285796c39e8e177b85d9185`).
+  - Adds a ✕ close button on the game window (sends a GLFW close request).
+  - The game window requests landscape (iOS 16+ geometry request).
+  - Adds touch-phase counters logged on window destroy, which land in jvm.log.
+  - 117/117 GLFW exports; all bundled libraries are iOS. Not yet run on a device.
+- **GLFW re-test with drags (16:18 UTC, build `202610161611`): `ZALITH_GLFW_OK`** (`docs/evidence/2026-10-16-glfw-input-test.log`).
+  - **Drags work:** `touches: began=8 moved=1507 movedAccepted=1470 ended=8 cancelled=0`, giving 1476 cursor callbacks and 16 mouse-button callbacks in Java. The earlier "3 cursor events" were taps only.
+  - **Landscape works:** framebuffer 1290×2796 → 2796×1290, delivered through the framebuffer-size callback.
+  - 1792 frames in 30.0 s (59.7 fps), exact read-back.
+  - **Close button: not confirmed.** The run lasted the full 30 s and all 8 touches reached the game view, none the ✕ button. Either the tap missed the button or came after the timer.
+- **Close button confirmed (16:21 UTC, build `202610161611`):** the run ended after **5.9 s** (359 frames, 60.8 fps) when the user tapped ✕, so the GLFW close request reached `glfwWindowShouldClose` (`docs/evidence/2026-10-16-glfw-close-button.log`). The earlier full-30 s run was a tap after the time limit, as the user clarified.
+  - Same run: 1 drag gave 229/229 moves accepted and 230 cursor callbacks; landscape rotation and pixel read-back OK.
+  - **Milestone 6 step 3d verified on device:** window, context, MobileGlues in the real load order, touch→mouse input, landscape and close.
+  - **Not yet covered:** hardware keyboard (no keyboard attached), scroll and touch controls for gameplay, joysticks.
