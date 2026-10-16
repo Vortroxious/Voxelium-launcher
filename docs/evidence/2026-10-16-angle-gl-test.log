@@ -1,0 +1,14 @@
+# gl.log copied from the iPhone with devicectl on 2026-10-16 22:03 WIB
+# Device: iPhone 15 Pro Max (iPhone16,2), iOS 27.0 (24A437). IPA SHA-256 c8d459c89f74ad6a75536066b2694b3e186182db847523b25be00ed103849435
+===== GL test 2026-10-16T15:02:59Z
+loaded libEGL
+EGL 1.5 vendor=Google Inc. (Apple) version=1.5 (ANGLE 2.1.1 git hash: 33f8caff4b77)
+EGL client APIs: OpenGL_ES
+GL_VENDOR=Google Inc. (Apple)
+GL_RENDERER=ANGLE (Apple, ANGLE Metal Renderer: Apple A17 Pro GPU, Version 27.0 (Build 24A437))
+GL_VERSION=OpenGL ES 3.0 (ANGLE 2.1.1 git hash: 33f8caff4b77)
+GL_SHADING_LANGUAGE_VERSION=OpenGL ES GLSL ES 3.00 (ANGLE 2.1.1 git hash: 33f8caff4b77)
+surface 1290x2796
+read-back centre=(255,128,0,255) corner=(26,77,153,255) glError=0x0
+rendered 120 frames in 2.03s (59.2 fps)
+ZALITH_GL_OK

@@ -9,7 +9,30 @@ final class JavaTestModel: ObservableObject {
     enum State: Equatable {
         case idle
         case running
-        case finished(ok: Bool, message: String)
+        case finished(ok: Bool, message: String, marker: String)
+    }
+
+    /// The Java programs bundled for on-device tests. Only one can run per
+    /// app launch (JNI allows a single JVM per process).
+    enum Program {
+        /// Milestone 5: plain Java (properties, JIT-hot loop, a thread).
+        case smoke
+        /// Milestone 6 step 2: LWJGL EGL + OpenGL ES bindings on ANGLE, offscreen.
+        case lwjglGles
+
+        var mainClass: String {
+            switch self {
+            case .smoke: "io.github.zalithios.JavaSmokeTest"
+            case .lwjglGles: "io.github.zalithios.LwjglGlesSmokeTest"
+            }
+        }
+
+        var marker: String {
+            switch self {
+            case .smoke: "ZALITH_JAVA_OK"
+            case .lwjglGles: "ZALITH_LWJGL_GLES_OK"
+            }
+        }
     }
 
     @Published private(set) var state: State = .idle
@@ -26,6 +49,19 @@ final class JavaTestModel: ObservableObject {
         Bundle.main.resourceURL?.appendingPathComponent("java/zalith-javatest.jar")
     }
 
+    static var bundledLWJGLDir: URL? {
+        Bundle.main.resourceURL?.appendingPathComponent("java/lwjgl", isDirectory: true)
+    }
+
+    /// LWJGL natives, jars and the graphics test jar are all present.
+    var lwjglBundled: Bool {
+        guard let dir = Self.bundledLWJGLDir, let res = Bundle.main.resourceURL else { return false }
+        let fm = FileManager.default
+        return fm.fileExists(atPath: dir.appendingPathComponent("liblwjgl.dylib").path)
+            && fm.fileExists(atPath: res.appendingPathComponent("java/zalith-glestest.jar").path)
+            && ZLGLTestRuntimeBundled()
+    }
+
     var runtimeBundled: Bool {
         guard let home = Self.bundledJavaHome else { return false }
         return FileManager.default.fileExists(atPath: home.appendingPathComponent("lib/server/libjvm.dylib").path)
@@ -33,8 +69,28 @@ final class JavaTestModel: ObservableObject {
 
     func refreshJIT() { jitDescription = ZLJVMBridge.jitDescription() }
 
-    func run(paths: AppPaths) {
-        guard state != .running, let home = Self.bundledJavaHome, let jar = Self.bundledTestJar else { return }
+    func run(paths: AppPaths, program: Program = .smoke) {
+        guard state != .running, let home = Self.bundledJavaHome, let jar = Self.bundledTestJar,
+              let res = Bundle.main.resourceURL else { return }
+        var classpath = jar.path
+        var args: [String] = []
+        var options = Self.jvmOptions(paths: paths)
+        if program == .lwjglGles {
+            guard let lw = Self.bundledLWJGLDir, let frameworks = Bundle.main.privateFrameworksURL else { return }
+            let jars = ["lwjgl", "lwjgl-egl", "lwjgl-opengles"].map { lw.appendingPathComponent("\($0).jar").path }
+            classpath = ([res.appendingPathComponent("java/zalith-glestest.jar").path] + jars).joined(separator: ":")
+            args = [
+                frameworks.appendingPathComponent("libEGL.framework/libEGL").path,
+                frameworks.appendingPathComponent("libGLESv2.framework/libGLESv2").path,
+            ]
+            options += [
+                "-Dorg.lwjgl.librarypath=\(lw.path)",
+                // No jemalloc build for iOS; same choice as Amethyst.
+                "-Dorg.lwjgl.system.allocator=system",
+                "-Dorg.lwjgl.util.Debug=true",
+                "-Dorg.lwjgl.util.DebugLoader=true",
+            ]
+        }
         refreshJIT()
         let logURL = paths.logsDir.appendingPathComponent("jvm.log")
         // Append, never wipe: a crashed run's output is the evidence we need.
@@ -46,26 +102,25 @@ final class JavaTestModel: ObservableObject {
         } else {
             FileManager.default.createFile(atPath: logURL.path, contents: Data(header.utf8))
         }
-        let options = Self.jvmOptions(paths: paths)
-        logger.info("java", "Starting JVM test: \(jitDescription)")
+        logger.info("java", "Starting JVM test \(program.mainClass): \(jitDescription)")
         state = .running
 
         Task.detached(priority: .userInitiated) {
             let result = ZLJVMBridge.run(
                 javaHome: home.path,
-                classpath: jar.path,
-                mainClass: "io.github.zalithios.JavaSmokeTest",
-                args: [],
+                classpath: classpath,
+                mainClass: program.mainClass,
+                args: args,
                 jvmOptions: options,
                 logPath: logURL.path
             )
             let all = (try? String(contentsOf: logURL, encoding: .utf8)) ?? ""
             // Only this run's section.
             let text = all.range(of: header).map { String(all[$0.upperBound...]) } ?? all
-            let ok = result.status == .OK && text.contains("ZALITH_JAVA_OK")
+            let ok = result.status == .OK && text.contains(program.marker)
             await MainActor.run {
                 self.log = text
-                self.state = .finished(ok: ok, message: result.message)
+                self.state = .finished(ok: ok, message: result.message, marker: program.marker)
                 self.logger.log(ok ? .info : .error, "java", "JVM test finished (status \(result.status.rawValue)): \(result.message)")
             }
         }
@@ -105,10 +160,12 @@ struct JavaTestSection: View {
             case .idle:
                 Button("Run Java test") { if let paths { test.run(paths: paths) } }
                     .disabled(!test.runtimeBundled || paths == nil)
+                Button("Run Java graphics test (LWJGL → ANGLE)") { if let paths { test.run(paths: paths, program: .lwjglGles) } }
+                    .disabled(!test.runtimeBundled || !test.lwjglBundled || paths == nil)
             case .running:
                 HStack { ProgressView(); Text("Running Java…") }
-            case .finished(let ok, let message):
-                Label(ok ? "Java ran: ZALITH_JAVA_OK" : "Java test failed", systemImage: ok ? "checkmark.seal.fill" : "xmark.octagon.fill")
+            case .finished(let ok, let message, let marker):
+                Label(ok ? "Java ran: \(marker)" : "Java test failed", systemImage: ok ? "checkmark.seal.fill" : "xmark.octagon.fill")
                     .foregroundStyle(ok ? Color.green : Color.red)
                 Text(message).font(.caption)
                 Text("Restart the app to run the test again (one JVM per process).").font(.caption2).foregroundStyle(.secondary)
@@ -122,7 +179,7 @@ struct JavaTestSection: View {
         } header: {
             Text("Java runtime test (Milestone 5)")
         } footer: {
-            Text("Needs JIT: open StikDebug, assign the Universal JIT script to this app, and launch it from StikDebug.")
+            Text("Needs JIT: launch this app from StikDebug with universal.js assigned. One test per launch.")
         }
         .onAppear { test.refreshJIT() }
     }

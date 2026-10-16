@@ -18,6 +18,8 @@
 | Game version install on device | **Yes: 1.20.1** (old build, app in foreground) | 3575/3575 assets, client jar, 38/38 classpath libraries present on device |
 | JIT (debugger attached) | **Yes** | TXM path: 240 MB mirrored code-cache mapping obtained from the debugger |
 | Java runtime executed | **Yes: smoke test on iPhone** (2026-10-16) | OpenJDK 17.0.20 in-process with JIT via StikDebug 3.1.14 + `universal.js`; printed `ZALITH_JAVA_OK`. See `docs/evidence/2026-10-16-java-smoke-test.log` |
+| OpenGL ES via ANGLE (native test) | **Yes, passed on iPhone** (2026-10-16) | ANGLE Metal on A17 Pro GPU, GLES 3.0, pixel read-back exact, 59.2 fps. `docs/evidence/2026-10-16-angle-gl-test.log` |
+| OpenGL ES via LWJGL (Java test) | **Yes, passed on iPhone** (2026-10-16) | Java → LWJGL 3.3.3 → ANGLE → Metal, GLES 3.0, pixel read-back exact. `docs/evidence/2026-10-16-lwjgl-gles-test.log` |
 | Minecraft main menu / gameplay | No | not implemented |
 
 ## IPA

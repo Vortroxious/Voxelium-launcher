@@ -8,16 +8,17 @@
 | SwiftUI | SDK | Apple | Apple SDK license | iOS 16+ | App target only |
 | swift-testing | bundled with toolchain | Apple | Apache-2.0 | macOS (tests) | |
 
-There are **no third-party packages**.
+There are no third-party Swift packages. Native and Java components bundled in the app are listed below.
 
-## Planned / required for game launch (NOT integrated, NOT verified)
+## Bundled or planned components for game launch
 | Component | Candidate | License | Status |
 |---|---|---|---|
-| JVM for iOS arm64 | Amethyst's iOS OpenJDK builds (URL verified reachable) | GPL-2.0 + Classpath Exception (OpenJDK, as usually distributed; **not verified** for these builds) | Not downloaded or tested |
-| GL on iOS | MobileGlues (used by Amethyst), gl4es, ANGLE (Metal backend) | various (to verify) | Not evaluated |
-| LWJGL Java + natives for iOS | LWJGL 3.3.x with a custom GLFW bridge (PojavLauncher/ZalithLauncher approach) | BSD-3-Clause | Not started |
+| JVM for iOS arm64 | AngelAuraMC iOS OpenJDK 17.0.20 (`scripts/fetch-runtime.sh`, SHA-256 pinned) | GPL-2.0 + Classpath Exception (per the runtime's `legal/` files) | **Bundled; smoke test passed on device 2026-10-16** |
+| GL on iOS (GLES provider) | ANGLE `33f8caff4b77`, Metal backend, built from source by `scripts/build-angle.sh` | BSD-3-Clause | **Built**; bundled; device test pending |
+| Desktop GL on top of GLES | MobileGlues (LGPL-2.1), as used by Amethyst | LGPL-2.1 | Not started |
+| LWJGL Java + natives for iOS | LWJGL 3.3.3 from AngelAuraMC/lwjgl3 `6a564a8b4b14`, built by `scripts/build-lwjgl.sh` (Ant 1.10.18, libffi 3.4.8) | BSD-3-Clause (libffi MIT) | **Built**; bundled; device test pending. GLFW bridge not started |
 | OpenAL | openal-soft | LGPL-2.0+ | Not started |
-| JIT enabling | StikDebug (AGPL-3.0) / SideStore / Xcode debugger | external app | Not tested |
+| JIT enabling | StikDebug 3.1.14 + built-in `universal.js` (external app, AGPL-3.0); Amethyst's `UniversalJIT26Extension.js` bundled (GPL-3.0) | — | **Verified on iPhone 15 Pro Max / iOS 27.0** |
 
 ## Upstream ZalithLauncher2 2.6.1 (from `gradle/libs.versions.toml`, selected)
 | Library | Version | License (per upstream README) | iOS usable? |

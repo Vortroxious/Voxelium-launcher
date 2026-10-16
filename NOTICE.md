@@ -13,3 +13,6 @@ It is an independent iOS project **inspired by** [ZalithLauncher2](https://githu
 - **UniversalJIT26.js, UniversalJIT26Extension.js** from Amethyst-iOS (GPL-3.0), unmodified apart from a header comment.
 - **jni.h, jni_md.h** from OpenJDK 17u (GPL-2.0 with the Classpath Exception).
 - `App/ZalithIOS/Native/JITSupport.m` adapts JIT detection and breakpoint helpers from Amethyst-iOS `Natives/utils.m` (GPL-3.0).
+- **ANGLE** (libEGL.framework, libGLESv2.framework), built from https://chromium.googlesource.com/angle/angle at `33f8caff4b77`. License: BSD-3-Clause (ANGLE `LICENSE`). Third-party code compiled into those libraries has its own notices under ANGLE's `third_party/`; a full notices file must be gathered before any public release (open item).
+- **Khronos EGL/GLES headers** (`App/ZalithIOS/Native/khronos/`), copied from ANGLE's `include/`. EGL headers are Apache-2.0, GLES headers MIT, and `eglext_angle.h`/`gl2ext_angle.h` BSD (ANGLE).
+- **LWJGL 3.3.3** (jars in `java/lwjgl/`, natives `liblwjgl*.dylib`), built from AngelAuraMC/lwjgl3 `6a564a8b4b14`. License: BSD-3-Clause (LWJGL `LICENSE.md`). Bundled third-party code: **libffi 3.4.8** (MIT, statically linked into `liblwjgl`), **stb** (public domain/MIT) and **tinyfiledialogs** (zlib), with license texts in the LWJGL source tree. All must be included in a notices file before any public release.

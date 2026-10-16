@@ -14,7 +14,8 @@ Overall: Minecraft Java on iOS is *plausible*, because Amethyst-iOS exists and i
   - `MachO.isLoadableOnIOSDevice` (implemented) checks the binaries first.
 - Remaining: real workloads (Minecraft) and memory limits on a free account.
 
-## B. Can the native libraries be built for arm64-iOS? — UNKNOWN
+## B. Can the native libraries be built for arm64-iOS? — PASS for LWJGL core/opengl/opengles/stb/tinyfd (2026-10-16)
+- Verified: built from source by `scripts/build-lwjgl.sh` (iOS platform, minOS 16.0). `liblwjgl` and `liblwjgl_opengles` load and work on device. OpenAL is not built yet.
 - LWJGL core, OpenAL and the GL layer must be iOS dylibs/frameworks signed with the app (iOS refuses unsigned dylibs loaded at runtime).
 - Natives must therefore be **bundled in the IPA**, not downloaded.
 - Requires Xcode (now installed, license pending).
@@ -24,7 +25,8 @@ Overall: Minecraft Java on iOS is *plausible*, because Amethyst-iOS exists and i
 - PojavLauncher-iOS used the same design on iOS.
 - Not attempted here.
 
-## D. Can rendering work on iOS/Metal? — UNKNOWN
+## D. Can rendering work on iOS/Metal? — PARTIAL PASS: OpenGL ES 3.0 works (2026-10-16)
+- Verified: ANGLE (built from source) renders GLES 3.0 on Metal on the A17 Pro, both natively on a CAMetalLayer at 59 fps and from Java through LWJGL. Desktop GL 3.2+ (needed by Minecraft 1.17+) is not available: upstream ANGLE rejects it. MobileGlues on top of ANGLE is the next candidate.
 - Facts: iOS has no desktop OpenGL; OpenGL ES is deprecated but still present; Metal is the supported API.
 - Minecraft 1.17+ needs OpenGL 3.2 core, so a translation layer is mandatory. Candidates: MobileGlues, gl4es→GLES, ANGLE(Metal).
 - No candidate has been built or tested.
@@ -54,4 +56,13 @@ Overall: Minecraft Java on iOS is *plausible*, because Amethyst-iOS exists and i
 - JIT alone does not make Minecraft run; gates A–E must also pass.
 
 ## Conclusion
-Gates A, F, G and H have passed on one device: iPhone 15 Pro Max, iOS 27.0, free Apple ID, StikDebug 3.1.14. Gates B–E (LWJGL natives, OpenGL on Metal, window and input) are the remaining high-risk work, and Milestone 6 must prove them before any Minecraft launch attempt.
+Verified on one device (iPhone 15 Pro Max, iOS 27.0, free Apple ID, StikDebug 3.1.14):
+- A, F, G and H pass.
+- B passes for the LWJGL modules built so far.
+- D passes for OpenGL ES 3.0.
+
+Remaining high-risk work before a Minecraft launch attempt:
+- desktop GL 3.2+ on top of ANGLE (MobileGlues);
+- a GLFW window/input bridge (C, E);
+- OpenAL;
+- memory limits under a free account.

@@ -79,3 +79,54 @@
   - a second JVM run per process (JNI does not allow it);
   - long runs and memory pressure under a free account (no increased-memory entitlement);
   - what happens after StikDebug detaches when more code-cache space is needed. The debugger detaches after the single mapping request, so the 240 MB reservation must last the whole run.
+- **Milestone 6 step 1: GL layer choice (from source):**
+  - Amethyst's iOS renderers: gl4es (desktop GL ≤ 2.1, too old for 1.20.1), MobileGlues (GL 4 → GLES 3, links `-framework libEGL -framework libGLESv2`, i.e. ANGLE), tinygl4angle (desktop GL on ANGLE), and Zink.
+  - Every 1.20.1-capable path sits on **ANGLE**. Upstream ANGLE rejects desktop GL (`validationEGL.cpp`: "Desktop GL is not supported by ANGLE"), so step 1 targets OpenGL ES 3 on ANGLE/Metal. Desktop GL comes later from MobileGlues.
+  - The iOS 27 SDK still ships the deprecated `OpenGLES.framework`; it is not used.
+- **ANGLE built from source:**
+  - depot_tools `382c208`; upstream ANGLE `33f8caff4b77667bc50d8484401af01291de119d` (2026-10-15).
+  - gn args adapted from AngelAuraMC/angle `out/ios-arm64/args.gn`: Metal only, release, no tests. `angle_enable_d3d9` was dropped (no longer exists upstream).
+  - First `gclient sync` hit a gsutil lock race in hooks. A resumed sync with `-j 4` succeeded (12 GB checkout). `ensure_bootstrap` was needed because `DEPOT_TOOLS_UPDATE=0`.
+  - `autoninja libEGL libGLESv2` took 406 s on the M4, producing `libEGL.framework` (118 KB) and `libGLESv2.framework` (5.9 MB): arm64, platform iOS, minOS 18.0, linking only system frameworks.
+  - libEGL loads `<exe dir>/Frameworks/libGLESv2.framework/libGLESv2` at runtime (`system_utils_posix.cpp` + `system_utils_ios.cpp`); the bundle layout matches.
+  - Reproducible with `scripts/build-angle.sh`.
+- **Graphics test (native, no Java):** `GLTest.m`, Diagnostics → "Run graphics test". It uses an EGL platform display (ANGLE Metal) on a CAMetalLayer view and a GLES 3.0 context, draws 120 frames, and checks pixels with glReadPixels (centre triangle, corner clear colour), logging `ZALITH_GL_OK` to `logs/gl.log`.
+  - IPA (step 1 only): `build/ipa/ZalithIOS-m6step1-unsigned.ipa`, SHA-256 `18ba50ef…aac3`, 39.4 MB.
+  - **Not yet tested on the device** (user's phone unavailable).
+- **Milestone 6 step 2: LWJGL 3.3.3 built from source** (`scripts/build-lwjgl.sh`):
+  - **Source:** AngelAuraMC/lwjgl3 `wip/rebase_3.3.3` at `6a564a8b4b14` (BSD-3-Clause, PojavLauncher lineage). Its `config/macos/build.xml` targets the iPhoneOS SDK, and generated sources are committed, so the Kotlin generator is skipped.
+  - **Tools:** Apache Ant 1.10.18, SHA-512 verified against Apache's published hash.
+  - **libffi 3.4.8,** SHA-256 matching Homebrew's formula. 3.4.6, which the fork's CI uses, fails to assemble `sysv.S` with Xcode 27 clang ("invalid CFI advance_loc expression"). Its Xcode project needed `IPHONEOS_DEPLOYMENT_TARGET` raised (8.0 is rejected) and empty armv7 header placeholders.
+  - **Build fixes:**
+    - LWJGL 3.3.3 only recognises JDKs ≤ 21, so on JDK 26 `jni.headers` is passed explicitly.
+    - `yes | ant` SIGPIPE under pipefail is fixed.
+    - The minimum iOS version is set to 16.0 to match the app.
+  - **Natives built for iOS** (platform 2, minOS 16.0, linking only libSystem and CoreFoundation, libffi static): `liblwjgl` (1793 JNI exports), `liblwjgl_opengl`, `liblwjgl_opengles` (872 JNI exports), `liblwjgl_stb`, `liblwjgl_tinyfd`.
+  - **Jars:** lwjgl, egl, glfw, jemalloc, openal, opengl, opengles, stb, tinyfd. Built in "JDK 8 mode", so without the optional Java 9 multi-release classes.
+  - **Caution:** the `release` target also *downloads* official macOS/Linux/Windows natives from build.lwjgl.org (e.g. macOS `libglfw`, `libopenal`, `libjemalloc`, platform 1). The script copies only the five iOS natives and refuses any non-iOS binary.
+  - **Fork quirk:** `org.lwjgl.system.Library`'s static initialiser does `System.load($BUNDLE_PATH + "/AngelAuraAmethyst")` on macOS (Amethyst's GLFW bridge). It is caught as UnsatisfiedLinkError here, so it's harmless for the GLES test, but step 3 (GLFW bridge) must patch it.
+- **Java graphics test** (`JavaTest/gles/…/LwjglGlesSmokeTest.java`, Diagnostics → "Run Java graphics test (LWJGL → ANGLE)"): LWJGL EGL bindings on ANGLE's libEGL (Metal platform display), a 256×256 pbuffer, a GLES 3.0 context through LWJGL's GLES bindings, a triangle, and `glReadPixels` checks → `ZALITH_LWJGL_GLES_OK`.
+  - Uses `-Dorg.lwjgl.librarypath`, `-Dorg.lwjgl.system.allocator=system`, and LWJGL debug logging.
+  - Could not run on macOS (iOS-only natives; no macOS ANGLE build).
+- **IPA with both step-1 and step-2 tests:** `build/ipa/ZalithIOS-unsigned.ipa`, 42185688 bytes, SHA-256 `c8d459c89f74ad6a75536066b2694b3e186182db847523b25be00ed103849435`. All 38 Mach-O libraries in the app are platform iOS, with no symlinks. **Neither graphics test has run on a device yet.**
+- **MILESTONE 6 STEP 1 PASSED ON DEVICE (15:02 UTC, IPA `c8d459c8…9435`):** native ANGLE test (`docs/evidence/2026-10-16-angle-gl-test.log`).
+  - EGL 1.5 "Google Inc. (Apple)", `GL_RENDERER=ANGLE (Apple, ANGLE Metal Renderer: Apple A17 Pro GPU, Version 27.0 (Build 24A437))`, OpenGL ES 3.0 / GLSL ES 3.00, git hash `33f8caff4b77`, i.e. our build.
+  - Surface 1290×2796. Read-back: centre (255,128,0,255), corner (26,77,153,255), glError 0. 120 frames in 2.03 s (59.2 fps). `ZALITH_GL_OK`.
+  - It ran without JIT being required (it was launched from StikDebug anyway).
+- **Step 2 first device run (15:02 UTC): FAILED in my test code, not in LWJGL.**
+  - JIT mapping obtained; LWJGL 3.3.3 loaded `liblwjgl.dylib` from `org.lwjgl.librarypath`; LWJGL's EGL binding loaded ANGLE's libEGL ("Success").
+  - Then `IllegalStateException: EGL has already been created`: `EGL`'s static initialiser auto-creates unless `Configuration.EGL_EXPLICIT_INIT` is set, and the test called `EGL.create()` again. Fixed by setting `EGL_EXPLICIT_INIT`.
+  - Also logged: the expected caught `UnsatisfiedLinkError` for `null/AngelAuraAmethyst` (fork quirk).
+  - Also logged: "[LWJGL] [ERROR] Incompatible Java and native library versions". This is a warning only (`Library.checkHash` prints and continues). The jars carry SHA-1s of the official natives downloaded by the release step (`aca9d32c…` vs our iOS `b4144326…`). `build-lwjgl.sh` now strips `META-INF/*.sha1|*.git` from the jars.
+  - Rebuilt IPA SHA-256 `83fc0631a78f2decfc18f308693b71ec8a2b9130394969bb933eaded7134270c`; **step 2 not yet re-run.**
+- **Step 2 second device run (15:09 UTC, IPA `83fc0631…`, new install folder `0FF9017C`):** the hash warning is gone, and EGL now loads once ("Loading library …/libEGL … Success").
+  - Failed with an NPE in `Checks.check` inside `EXTPlatformBase.neglGetPlatformDisplayEXT`. LWJGL's generated `eglGetPlatformDisplay(EXT)` wrappers require a non-NULL `native_display`, but `EGL_DEFAULT_DISPLAY` is NULL (valid for ANGLE, and the native test uses it).
+  - Fixed by calling the function pointer through `JNI.callPPP`, exactly what the wrapper does after its checks.
+  - Audited the other EGL wrappers the test uses: they only check `dpy`/`config`, which are non-NULL there.
+  - Rebuilt IPA SHA-256 `79c3d60807ef48b5a7d216b787c26d2f29e43b149b630b7e803c91d8feb52d9e`. **Re-run pending.**
+- **MILESTONE 6 STEP 2 PASSED ON DEVICE (15:16 UTC, IPA `79c3d608…2d9e`):** full log in `docs/evidence/2026-10-16-lwjgl-gles-test.log`.
+  - JIT mapping obtained; LWJGL 3.3.3 loaded our iOS `liblwjgl.dylib` and `liblwjgl_opengles.dylib` plus ANGLE's libEGL/libGLESv2.
+  - EGL 1.5 "Google Inc. (Apple)", `GL_RENDERER=ANGLE (Apple, ANGLE Metal Renderer: Apple A17 Pro GPU …)`, `GL_VERSION=OpenGL ES 3.0 (ANGLE 2.1.1 git hash: 33f8caff4b77)`, GLES30=true.
+  - Offscreen 256×256 pbuffer read-back: centre (255,128,0,255), corner (26,77,153,255), glError 0 → `ZALITH_LWJGL_GLES_OK`; `main` returned normally.
+  - **Java → LWJGL → ANGLE → Metal works on device.**
+  - Remaining for step 3: GLFW bridge (window/input), patching the fork's `AngelAuraAmethyst` load, and desktop GL for Minecraft via MobileGlues.

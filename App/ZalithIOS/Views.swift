@@ -118,6 +118,7 @@ struct AccountView: View {
 struct DiagnosticsView: View {
     @EnvironmentObject var model: LauncherModel
     @StateObject private var javaTest = JavaTestModel()
+    @StateObject private var graphicsTest = GraphicsTestModel()
 
     var body: some View {
         NavigationStack {
@@ -131,6 +132,7 @@ struct DiagnosticsView: View {
                     LabeledContent("Debugger attached (JIT prerequisite)", value: DeviceInfo.isDebuggerAttached ? "Yes" : "No")
                 }
                 JavaTestSection(test: javaTest, paths: model.paths)
+                GraphicsTestSection(test: graphicsTest, paths: model.paths)
                 Section("Downloaded Java runtimes") {
                     if model.runtimes.isEmpty {
                         Text("None downloaded. The test above uses the runtime bundled in the app.").foregroundStyle(.secondary)
