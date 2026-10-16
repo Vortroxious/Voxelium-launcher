@@ -1,6 +1,6 @@
 # Build Report — 2026-10-15
 
-**Result: an unsigned development IPA was built and passed the structural checks below. It is NOT signed, NOT installed, NOT device-tested, and cannot launch Minecraft. It is not release-ready.**
+**Result: the IPA was built from commit `b8c0f21`. The user signed and installed it with Sideloadly (free Apple ID) on an iPhone 15 Pro Max running iOS 27.0. It starts and downloads Mojang's version list. It cannot launch Minecraft and is not release-ready.**
 
 ## Achievements (kept separate on purpose)
 | Achievement | Status | Evidence |
@@ -12,10 +12,12 @@
 | App compiled: iOS device arm64 (Release) | **Yes**, BUILD SUCCEEDED, 0 project warnings | `build/logs/xcodebuild-Release.log` |
 | App launched in Simulator | **No** | No simulator runtime installed (`simctl list runtimes` is empty); 11 GiB free disk |
 | IPA packaged | **Yes, unsigned** | see below |
-| IPA signed | **No** | 0 signing identities on this Mac |
-| IPA installed on iPhone | No | |
-| Launched on physical iPhone | No | |
-| Java runtime executed | No | not implemented (gate A) |
+| IPA signed | **Yes, by Sideloadly** (free Apple ID; expires after 7 days) | The unsigned IPA in `build/ipa/` is still unsigned |
+| IPA installed on iPhone | **Yes** | `devicectl device info apps` → `io.github.zalithios.launcher.BANQ4R4Z6N` 0.1.0 |
+| Launched on physical iPhone | **Yes**: starts and stays running; version list downloaded | PID 58997; `launcher.log` has no errors; the cached manifest copied off the device parses to 919 versions |
+| Game version install on device | **Yes: 1.20.1** (old build, app in foreground) | 3575/3575 assets, client jar, 38/38 classpath libraries present on device |
+| JIT (debugger attached) | **Yes** | TXM path: 240 MB mirrored code-cache mapping obtained from the debugger |
+| Java runtime executed | **Yes: smoke test on iPhone** (2026-10-16) | OpenJDK 17.0.20 in-process with JIT via StikDebug 3.1.14 + `universal.js`; printed `ZALITH_JAVA_OK`. See `docs/evidence/2026-10-16-java-smoke-test.log` |
 | Minecraft main menu / gameplay | No | not implemented |
 
 ## IPA
@@ -23,7 +25,7 @@
 |---|---|
 | Path | `build/ipa/ZalithIOS-unsigned.ipa` |
 | Size | 341,581 bytes |
-| SHA-256 | `5eb43dc8ffdb4cff588203d1fe2550f8067af6e11a055219e95e078dd010cc70` |
+| SHA-256 | `f5b27b4e6a442985b7737957f155666a261ad222eaaf2a461ae9326e6ace8231` (rebuilt from `b8c0f21`) |
 | Bundle ID | `io.github.zalithios.launcher` (change it to your own when signing) |
 | Version | 0.1.0 (build 1) |
 | Minimum iOS | 16.0 |
@@ -38,7 +40,7 @@ The SHA-256 and metadata are also written by the script to `build/ipa/ZalithIOS-
 ## Build configuration
 - macOS 27.0 (26A428), Apple M4. Xcode 27.0 (27A266a), iPhoneOS SDK 27.0 (24A430). Swift 6 language mode.
 - Release, `generic/platform=iOS`, `CODE_SIGNING_ALLOWED=NO`.
-- Source revision: **no commits yet**. The build came from an uncommitted working tree.
+- Source revision: `b8c0f2107bc8caeb5367f63f14110e27b759933d`.
 
 ## Exact commands
 ```bash
@@ -57,13 +59,12 @@ scripts/build-ipa.sh
 - The script's commit field printed garbage in a repo with no commits. Fixed.
 
 ## Known limitations / unresolved
-- Not verified on any device or simulator. UI behaviour is untested at runtime.
+- On the device: only startup and the version-list download are verified. UI interactions and game installs are untested.
 - No real large-file download test: the multi-file downloader has been exercised only with the mock transport plus one small live metadata file.
 - No JVM, LWJGL, GL or input. Microsoft sign-in is not implemented.
 - Free Apple ID signing expires after 7 days. Increased-memory entitlements may be unavailable (unverified).
 - The project name is close to "ZalithLauncher" (GPLv3 §7 terms, see NOTICE.md).
 
-## Next steps to reach "device-tested"
-1. In Xcode, set your Personal Team and a unique bundle ID, connect the iPhone, enable Developer Mode, and Run.
-2. Record the iOS version, device model, and Diagnostics-tab output in `docs/ENGINEERING_LOG.md`.
-3. Install version 1.20.1 on the device and record the download result.
+## Next steps
+1. Milestone 6: LWJGL + GLFW bridge + an OpenGL-on-Metal layer (gates B–E).
+2. Then Milestone 7: launch 1.20.1.

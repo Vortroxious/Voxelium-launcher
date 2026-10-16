@@ -1,0 +1,33 @@
+# jvm.log section copied from the iPhone with devicectl on 2026-10-16 07:16 WIB
+# Device: iPhone 15 Pro Max (iPhone16,2), iOS 27.0 (24A437); StikDebug 3.1.14 with built-in universal.js
+# IPA SHA-256 e24672114b74f357136dcbdc2f5ba19e007037f36255843b96c795f21c171fc2
+===== Java test 2026-10-16T00:16:26Z flags=0x5 (iOS26=1 mirrored=0 TXM=1) CS_DEBUGGED=1 debuggerNow=1 needsScript=1
+[JVMBridge] flags=0x5 (iOS26=1 mirrored=0 TXM=1) CS_DEBUGGED=1 debuggerNow=1 needsScript=1
+[JVMBridge] JIT26 probe: debugger replied (x0=0xcccccccc690000e0)
+[JVMBridge] JIT26 extension sent; debugger will detach after the JVM's mapping request
+[JVMBridge] JNI_CreateJavaVM with 11 options
+[JVMBridge]   -Xms64M
+[JVMBridge]   -Xmx256M
+[JVMBridge]   -Djava.io.tmpdir=/private/var/mobile/Containers/Data/Application/789D87E2-EC39-423D-99E9-24FA63D5A265/tmp/
+[JVMBridge]   -Duser.home=/var/mobile/Containers/Data/Application/789D87E2-EC39-423D-99E9-24FA63D5A265/Library/Application Support/ZalithIOS
+[JVMBridge]   -Duser.dir=/var/mobile/Containers/Data/Application/789D87E2-EC39-423D-99E9-24FA63D5A265/Library/Application Support/ZalithIOS
+[JVMBridge]   -XX:ErrorFile=/var/mobile/Containers/Data/Application/789D87E2-EC39-423D-99E9-24FA63D5A265/Library/Application Support/ZalithIOS/logs/hs_err_pid%p.log
+[JVMBridge]   -XX:+UnlockExperimentalVMOptions
+[JVMBridge]   -XX:+DisablePrimordialThreadGuardPages
+[JVMBridge]   -XX:-UseCompressedClassPointers
+[JVMBridge]   -XX:+MirrorMappedCodeCache
+[JVMBridge]   -Djava.class.path=/private/var/containers/Bundle/Application/3D10FE3A-FBC4-453F-93A4-B2E3537BC79D/ZalithIOS.app/java/zalith-javatest.jar
+[JIT26] Requesting 240 MB for JIT mapping
+[JIT26] Got JIT mapping 0x11e6b4000 from debugger
+[JIT26] mapping at RW=0x12d6b4000, RX=0x11e6b4000
+java.version=17.0.20-internal
+java.vm.name=OpenJDK 64-Bit Server VM
+java.vm.version=17.0.20-internal+0-adhoc.ci.openjdk-17
+java.home=/private/var/containers/Bundle/Application/3D10FE3A-FBC4-453F-93A4-B2E3537BC79D/ZalithIOS.app/java/jre17
+os.name=Mac OS X
+os.arch=aarch64
+availableProcessors=6 maxMemoryMB=256
+compute sum=-4367980764034832780 timeMs=9
+thread ok length=10000
+ZALITH_JAVA_OK
+2026-10-16 07:16:27.544 ZalithIOS[1862:178796] [JVMBridge] io/github/zalithios/JavaSmokeTest.main returned normally

@@ -31,13 +31,27 @@ public struct GameInstaller: Sendable {
 
     public enum Stage: Sendable, Equatable { case gameFiles, assets }
 
-    /// Downloads everything. `dryRun` returns the planned items without downloading.
+    /// Marker written only after every file of a version downloaded and
+    /// verified. A version JSON alone does not mean the install finished
+    /// (the app can be killed or suspended mid-download).
+    public func completionMarker(_ id: String) throws -> URL {
+        try paths.versionDir(id).appendingPathComponent(".zalith-install-complete")
+    }
+
+    public func isInstalled(_ id: String) -> Bool {
+        (try? completionMarker(id)).map { FileManager.default.fileExists(atPath: $0.path) } ?? false
+    }
+
+    /// Downloads everything; files that are already valid are skipped, so
+    /// re-running resumes an interrupted install.
     @discardableResult
     public func install(
         _ version: VersionInfo,
         concurrency: Int = 8,
         progress: (@Sendable (Stage, DownloadProgress) -> Void)? = nil
     ) async throws -> DownloadReport {
+        let marker = try completionMarker(version.id)
+        try? FileManager.default.removeItem(at: marker)
         let base = try planner.installItems(for: version)
         var report = try await downloader.run(base, concurrency: concurrency) { progress?(.gameFiles, $0) }
         guard report.succeeded, let idx = version.assetIndex else { return report }
@@ -46,6 +60,10 @@ public struct GameInstaller: Sendable {
         let assets = try await downloader.run(try planner.assetItems(for: index, base: assetBase), concurrency: concurrency) { progress?(.assets, $0) }
         report.outcomes.merge(assets.outcomes) { $1 }
         report.failures.merge(assets.failures) { $1 }
+        if report.succeeded {
+            try FileManager.default.createDirectory(at: marker.deletingLastPathComponent(), withIntermediateDirectories: true)
+            try Data().write(to: marker)
+        }
         return report
     }
 }

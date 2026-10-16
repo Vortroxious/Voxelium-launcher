@@ -39,11 +39,30 @@ final class LauncherModel: ObservableObject {
             installer = GameInstaller(paths: p)
             log.info("app", "Data directory: \(p.root.path)")
             log.info("app", "JIT/debugger attached: \(DeviceInfo.isDebuggerAttached)")
+            log.info("app", "JIT: \(ZLJVMBridge.jitDescription())")
+            exportJITScript()
             refreshInstalled()
             await loadManifest()
         } catch {
             log.error("app", "Startup failed: \(error)")
             manifestError = "Startup failed: \(error)"
+        }
+    }
+
+    /// Puts UniversalJIT26.js in Documents (visible in Files and StikDebug's
+    /// script picker) so it can be assigned to this app.
+    private func exportJITScript() {
+        let fm = FileManager.default
+        guard let src = Bundle.main.url(forResource: "UniversalJIT26", withExtension: "js"),
+              let docs = fm.urls(for: .documentDirectory, in: .userDomainMask).first else { return }
+        let dest = docs.appendingPathComponent("UniversalJIT26.js")
+        if fm.contentsEqual(atPath: src.path, andPath: dest.path) { return }
+        try? fm.removeItem(at: dest)
+        do {
+            try fm.copyItem(at: src, to: dest)
+            log.info("app", "Exported JIT script to \(dest.path)")
+        } catch {
+            log.warning("app", "Could not export JIT script: \(error)")
         }
     }
 
@@ -65,11 +84,9 @@ final class LauncherModel: ObservableObject {
     }
 
     func refreshInstalled() {
-        guard let paths else { return }
+        guard let paths, let installer else { return }
         let ids = (try? FileManager.default.contentsOfDirectory(atPath: paths.versionsDir.path)) ?? []
-        installed = Set(ids.filter { id in
-            (try? paths.versionJSON(id)).map { FileManager.default.fileExists(atPath: $0.path) } ?? false
-        })
+        installed = Set(ids.filter(installer.isInstalled))
     }
 
     func install(_ entry: VersionManifest.Entry) async {

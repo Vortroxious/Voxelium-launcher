@@ -56,6 +56,7 @@
 				A10000000000000000000061 /* Sources */,
 				A10000000000000000000040 /* Frameworks */,
 				A10000000000000000000062 /* Resources */,
+				A10000000000000000000063 /* Bundle Java runtime */,
 			);
 			buildRules = (
 			);
@@ -113,6 +114,28 @@
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 /* End PBXResourcesBuildPhase section */
+
+/* Begin PBXShellScriptBuildPhase section */
+		A10000000000000000000063 /* Bundle Java runtime */ = {
+			isa = PBXShellScriptBuildPhase;
+			alwaysOutOfDate = 1;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			inputFileListPaths = (
+			);
+			inputPaths = (
+			);
+			name = "Bundle Java runtime";
+			outputFileListPaths = (
+			);
+			outputPaths = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+			shellPath = /bin/sh;
+			shellScript = "set -e\nSRC=\"${PROJECT_DIR}/../build/runtime\"\nDEST=\"${TARGET_BUILD_DIR}/${UNLOCALIZED_RESOURCES_FOLDER_PATH}/java\"\nif [ ! -f \"$SRC/jre17/lib/server/libjvm.dylib\" ] || [ ! -f \"$SRC/zalith-javatest.jar\" ]; then\n  echo \"error: Java runtime not found in build/runtime. Run scripts/fetch-runtime.sh first.\"\n  exit 1\nfi\nrm -rf \"$DEST\"\nmkdir -p \"$DEST\"\n# -L: legal/ uses symlinks, which app signing does not like\ncp -RL \"$SRC/jre17\" \"$DEST/jre17\"\ncp \"$SRC/zalith-javatest.jar\" \"$DEST/\"\n# Xcode signs only the main binary and frameworks; sign the loose dylibs too\n# when signing is enabled (sideloading tools re-sign everything anyway).\nif [ \"${CODE_SIGNING_ALLOWED}\" = \"YES\" ] && [ -n \"${EXPANDED_CODE_SIGN_IDENTITY}\" ]; then\n  find \"$DEST\" -name \"*.dylib\" -exec codesign --force --sign \"${EXPANDED_CODE_SIGN_IDENTITY}\" --timestamp=none {} \;\nfi\n";
+		};
+/* End PBXShellScriptBuildPhase section */
 
 /* Begin PBXSourcesBuildPhase section */
 		A10000000000000000000061 /* Sources */ = {
@@ -178,6 +201,8 @@
 				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
 				SUPPORTS_MACCATALYST = NO;
 				SWIFT_EMIT_LOC_STRINGS = NO;
+				ENABLE_USER_SCRIPT_SANDBOXING = NO;
+				SWIFT_OBJC_BRIDGING_HEADER = "ZalithIOS/ZalithIOS-Bridging-Header.h";
 				SWIFT_VERSION = 6.0;
 				TARGETED_DEVICE_FAMILY = "1,2";
 			};
@@ -203,6 +228,8 @@
 				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
 				SUPPORTS_MACCATALYST = NO;
 				SWIFT_EMIT_LOC_STRINGS = NO;
+				ENABLE_USER_SCRIPT_SANDBOXING = NO;
+				SWIFT_OBJC_BRIDGING_HEADER = "ZalithIOS/ZalithIOS-Bridging-Header.h";
 				SWIFT_VERSION = 6.0;
 				TARGETED_DEVICE_FAMILY = "1,2";
 			};

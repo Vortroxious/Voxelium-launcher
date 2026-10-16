@@ -117,6 +117,7 @@ struct AccountView: View {
 
 struct DiagnosticsView: View {
     @EnvironmentObject var model: LauncherModel
+    @StateObject private var javaTest = JavaTestModel()
 
     var body: some View {
         NavigationStack {
@@ -129,16 +130,17 @@ struct DiagnosticsView: View {
                     }
                     LabeledContent("Debugger attached (JIT prerequisite)", value: DeviceInfo.isDebuggerAttached ? "Yes" : "No")
                 }
-                Section("Java runtimes") {
+                JavaTestSection(test: javaTest, paths: model.paths)
+                Section("Downloaded Java runtimes") {
                     if model.runtimes.isEmpty {
-                        Text("None installed. The iOS JVM integration is not implemented yet.").foregroundStyle(.secondary)
+                        Text("None downloaded. The test above uses the runtime bundled in the app.").foregroundStyle(.secondary)
                     }
                     ForEach(model.runtimes, id: \.home) { rt in
                         LabeledContent(rt.name, value: "Java \(rt.javaVersion)")
                     }
                 }
                 Section("Status") {
-                    Text("This build can download and verify game files. It cannot start Java or Minecraft yet.")
+                    Text("This build can download and verify game files and run a Java smoke test. It cannot start Minecraft.")
                         .font(.footnote)
                 }
                 if let root = model.paths?.root {
