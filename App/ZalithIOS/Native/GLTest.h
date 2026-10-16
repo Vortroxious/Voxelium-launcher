@@ -14,9 +14,19 @@ NS_ASSUME_NONNULL_BEGIN
 /// Lines are also appended to this file when set.
 @property (nonatomic, copy, nullable) NSString *logPath;
 
+/// Milestone 6 step 3b: route every GL call through MobileGlues (desktop GL
+/// on top of ANGLE's GLES) with `#version 330 core` shaders.
+@property (nonatomic) BOOL useMobileGlues;
+
+/// MobileGlues config/log directory (MG_DIR_PATH).
+@property (nonatomic, copy, nullable) NSString *mobileGluesDir;
+
 @end
 
 /// True when ANGLE's libEGL is present in the app bundle.
 BOOL ZLGLTestRuntimeBundled(void);
+
+/// True when libmobileglues.dylib is present in the app bundle.
+BOOL ZLMobileGluesBundled(void);
 
 NS_ASSUME_NONNULL_END

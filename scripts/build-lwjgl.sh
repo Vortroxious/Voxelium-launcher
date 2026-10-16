@@ -114,7 +114,7 @@ ls -la "$DEPS/lwjgl-out/natives" "$DEPS/lwjgl-out/jars"
 # Java graphics smoke test (Milestone 6 step 2), compiled against these jars.
 CLS="$(mktemp -d)"
 J="$DEPS/lwjgl-out/jars"
-javac --release 17 -cp "$J/lwjgl.jar:$J/lwjgl-egl.jar:$J/lwjgl-opengles.jar" -d "$CLS" \
+javac --release 17 -cp "$J/lwjgl.jar:$J/lwjgl-egl.jar:$J/lwjgl-opengles.jar:$J/lwjgl-opengl.jar" -d "$CLS" \
   "$ROOT"/JavaTest/gles/io/github/zalithios/*.java
 jar --create --file "$DEPS/lwjgl-out/zalith-glestest.jar" -C "$CLS" .
 rm -rf "$CLS"

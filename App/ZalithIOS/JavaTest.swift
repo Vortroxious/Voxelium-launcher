@@ -19,11 +19,14 @@ final class JavaTestModel: ObservableObject {
         case smoke
         /// Milestone 6 step 2: LWJGL EGL + OpenGL ES bindings on ANGLE, offscreen.
         case lwjglGles
+        /// Milestone 6 step 3c: LWJGL desktop OpenGL bindings via MobileGlues on ANGLE.
+        case lwjglDesktopGL
 
         var mainClass: String {
             switch self {
             case .smoke: "io.github.zalithios.JavaSmokeTest"
             case .lwjglGles: "io.github.zalithios.LwjglGlesSmokeTest"
+            case .lwjglDesktopGL: "io.github.zalithios.LwjglDesktopGLSmokeTest"
             }
         }
 
@@ -31,6 +34,7 @@ final class JavaTestModel: ObservableObject {
             switch self {
             case .smoke: "ZALITH_JAVA_OK"
             case .lwjglGles: "ZALITH_LWJGL_GLES_OK"
+            case .lwjglDesktopGL: "ZALITH_LWJGL_DESKTOPGL_OK"
             }
         }
     }
@@ -75,14 +79,24 @@ final class JavaTestModel: ObservableObject {
         var classpath = jar.path
         var args: [String] = []
         var options = Self.jvmOptions(paths: paths)
-        if program == .lwjglGles {
+        if program != .smoke {
             guard let lw = Self.bundledLWJGLDir, let frameworks = Bundle.main.privateFrameworksURL else { return }
-            let jars = ["lwjgl", "lwjgl-egl", "lwjgl-opengles"].map { lw.appendingPathComponent("\($0).jar").path }
+            let modules = program == .lwjglGles ? ["lwjgl", "lwjgl-egl", "lwjgl-opengles"] : ["lwjgl", "lwjgl-egl", "lwjgl-opengl"]
+            let jars = modules.map { lw.appendingPathComponent("\($0).jar").path }
             classpath = ([res.appendingPathComponent("java/zalith-glestest.jar").path] + jars).joined(separator: ":")
-            args = [
-                frameworks.appendingPathComponent("libEGL.framework/libEGL").path,
-                frameworks.appendingPathComponent("libGLESv2.framework/libGLESv2").path,
-            ]
+            let egl = frameworks.appendingPathComponent("libEGL.framework/libEGL").path
+            if program == .lwjglGles {
+                args = [egl, frameworks.appendingPathComponent("libGLESv2.framework/libGLESv2").path]
+            } else {
+                MobileGluesSession.used = true
+                args = [egl]
+                // LWJGL's "OpenGL library" is MobileGlues (fork patch reads this property on macOS).
+                options.append("-Dorg.lwjgl.opengl.libname=\(frameworks.appendingPathComponent("libmobileglues.dylib").path)")
+                // MobileGlues reads its config/log directory from the environment when loaded.
+                let mgDir = paths.logsDir.appendingPathComponent("mobileglues", isDirectory: true)
+                try? FileManager.default.createDirectory(at: mgDir, withIntermediateDirectories: true)
+                setenv("MG_DIR_PATH", mgDir.path, 1)
+            }
             options += [
                 "-Dorg.lwjgl.librarypath=\(lw.path)",
                 // No jemalloc build for iOS; same choice as Amethyst.
@@ -162,6 +176,8 @@ struct JavaTestSection: View {
                     .disabled(!test.runtimeBundled || paths == nil)
                 Button("Run Java graphics test (LWJGL → ANGLE)") { if let paths { test.run(paths: paths, program: .lwjglGles) } }
                     .disabled(!test.runtimeBundled || !test.lwjglBundled || paths == nil)
+                Button("Run Java desktop GL test (LWJGL → MobileGlues → ANGLE)") { if let paths { test.run(paths: paths, program: .lwjglDesktopGL) } }
+                    .disabled(!test.runtimeBundled || !test.lwjglBundled || !ZLMobileGluesBundled() || MobileGluesSession.used || paths == nil)
             case .running:
                 HStack { ProgressView(); Text("Running Java…") }
             case .finished(let ok, let message, let marker):

@@ -1,0 +1,79 @@
+# jvm.log section copied from the iPhone with devicectl on 2026-10-16 22:52 WIB
+# Device: iPhone 15 Pro Max (iPhone16,2), iOS 27.0 (24A437); build 0.1.0 (202610161548), IPA SHA-256 7c8972e481848a0fba558213e045e62b352f140f26deb4fcd74a07effe15567d; StikDebug 3.1.14 + universal.js
+===== Java test 2026-10-16T15:52:16Z flags=0x5 (iOS26=1 mirrored=0 TXM=1) CS_DEBUGGED=1 debuggerNow=1 needsScript=1
+[JVMBridge] flags=0x5 (iOS26=1 mirrored=0 TXM=1) CS_DEBUGGED=1 debuggerNow=1 needsScript=1
+[JVMBridge] JIT26 probe: debugger replied (x0=0xcccccccc690000e0)
+[JVMBridge] JIT26 extension sent; debugger will detach after the JVM's mapping request
+[JVMBridge] JNI_CreateJavaVM with 16 options
+[JVMBridge]   -Xms64M
+[JVMBridge]   -Xmx256M
+[JVMBridge]   -Djava.io.tmpdir=/private/var/mobile/Containers/Data/Application/8D4ACD64-264E-4E00-8C01-0FD04F40EE8C/tmp/
+[JVMBridge]   -Duser.home=/var/mobile/Containers/Data/Application/8D4ACD64-264E-4E00-8C01-0FD04F40EE8C/Library/Application Support/ZalithIOS
+[JVMBridge]   -Duser.dir=/var/mobile/Containers/Data/Application/8D4ACD64-264E-4E00-8C01-0FD04F40EE8C/Library/Application Support/ZalithIOS
+[JVMBridge]   -XX:ErrorFile=/var/mobile/Containers/Data/Application/8D4ACD64-264E-4E00-8C01-0FD04F40EE8C/Library/Application Support/ZalithIOS/logs/hs_err_pid%p.log
+[JVMBridge]   -XX:+UnlockExperimentalVMOptions
+[JVMBridge]   -XX:+DisablePrimordialThreadGuardPages
+[JVMBridge]   -XX:-UseCompressedClassPointers
+[JVMBridge]   -XX:+MirrorMappedCodeCache
+[JVMBridge]   -Dorg.lwjgl.opengl.libname=/private/var/containers/Bundle/Application/A2AB4A36-221A-40C7-A3CD-B982667B14D9/ZalithIOS.app/Frameworks/libmobileglues.dylib
+[JVMBridge]   -Dorg.lwjgl.librarypath=/private/var/containers/Bundle/Application/A2AB4A36-221A-40C7-A3CD-B982667B14D9/ZalithIOS.app/java/lwjgl
+[JVMBridge]   -Dorg.lwjgl.system.allocator=system
+[JVMBridge]   -Dorg.lwjgl.util.Debug=true
+[JVMBridge]   -Dorg.lwjgl.util.DebugLoader=true
+[JVMBridge]   -Djava.class.path=/private/var/containers/Bundle/Application/A2AB4A36-221A-40C7-A3CD-B982667B14D9/ZalithIOS.app/java/zalith-glestest.jar:/private/var/containers/Bundle/Application/A2AB4A36-221A-40C7-A3CD-B982667B14D9/ZalithIOS.app/java/lwjgl/lwjgl.jar:/private/var/containers/Bundle/Application/A2AB4A36-221A-40C7-A3CD-B982667B14D9/ZalithIOS.app/java/lwjgl/lwjgl-egl.jar:/private/var/containers/Bundle/Application/A2AB4A36-221A-40C7-A3CD-B982667B14D9/ZalithIOS.app/java/lwjgl/lwjgl-opengl.jar
+[JIT26] Requesting 240 MB for JIT mapping
+[JIT26] Got JIT mapping 0x1202b4000 from debugger
+[JIT26] mapping at RW=0x12f2b4000, RX=0x1202b4000
+LWJGL 3.3.3-snapshot+SNAPSHOT opengl.libname=/private/var/containers/Bundle/Application/A2AB4A36-221A-40C7-A3CD-B982667B14D9/ZalithIOS.app/Frameworks/libmobileglues.dylib
+[LWJGL] Version: 3.3.3-snapshot+SNAPSHOT
+	 OS: Mac OS X v27.0
+	JRE: macOS aarch64 17.0.20-internal
+	JVM: OpenJDK 64-Bit Server VM v17.0.20-internal+0-adhoc.ci.openjdk-17 by Oracle Corporation
+java.lang.UnsatisfiedLinkError: Expecting an absolute path of the library: null/AngelAuraAmethyst
+	at java.base/java.lang.Runtime.load0(Unknown Source)
+	at java.base/java.lang.System.load(Unknown Source)
+	at org.lwjgl.system.Library.<clinit>(Library.java:58)
+	at org.lwjgl.egl.EGL.create(EGL.java:62)
+	at io.github.zalithios.LwjglDesktopGLSmokeTest.main(LwjglDesktopGLSmokeTest.java:48)
+[LWJGL] Loading JNI library: lwjgl
+	Module: org.lwjgl
+	Loaded from org.lwjgl.librarypath: /private/var/containers/Bundle/Application/A2AB4A36-221A-40C7-A3CD-B982667B14D9/ZalithIOS.app/java/lwjgl/liblwjgl.dylib
+[LWJGL] Loading library: /private/var/containers/Bundle/Application/A2AB4A36-221A-40C7-A3CD-B982667B14D9/ZalithIOS.app/Frameworks/libEGL.framework/libEGL
+	Module: org.lwjgl.egl
+	Success
+ANGLE context: OpenGL ES 3.0
+[LWJGL] Loading JNI library: lwjgl_opengl
+	Module: org.lwjgl.opengl
+	Loaded from org.lwjgl.librarypath: /private/var/containers/Bundle/Application/A2AB4A36-221A-40C7-A3CD-B982667B14D9/ZalithIOS.app/java/lwjgl/liblwjgl_opengl.dylib
+[LWJGL] Loading library: /private/var/containers/Bundle/Application/A2AB4A36-221A-40C7-A3CD-B982667B14D9/ZalithIOS.app/Frameworks/libmobileglues.dylib
+	Module: org.lwjgl.opengl
+Initializing MobileGlues ...
+The Open Source License of MobileGlues: 
+  GNU LGPL-2.1 License
+[MobileGlues] Setting: enableAngle                 = false
+[MobileGlues] Setting: ignoreError                 = 1
+[MobileGlues] Setting: enableExtComputeShader      = false
+[MobileGlues] Setting: enableExtGL43               = false
+[MobileGlues] Setting: enableExtTimerQuery         = false
+[MobileGlues] Setting: enableExtDirectStateAccess  = true
+[MobileGlues] Setting: maxGlslCacheSize            = 30
+[MobileGlues] Setting: angleDepthClearFixMode      = 0
+[MobileGlues] Setting: bufferCoherentAsFlush       = 0
+[MobileGlues] Setting: customGLVersion             = (default)
+[MobileGlues] Setting: fsr1Setting                 = 0
+EGL initialized successfully
+OpenGL ES Version: OpenGL ES 3.0 (300)
+Not Detected GL_EXT_multi_draw_indirect!
+[MobileGlues] Setting: multidrawMode               = Auto
+multidrawMode = Auto
+    -> BaseVertex (Auto detected)
+	Success
+[LWJGL] MemoryUtil allocator: StdlibAllocator
+GL_VENDOR=Swung0x48, BZLZHH, Tungsten
+GL_RENDERER=ANGLE (Apple, ANGLE Metal Renderer: Apple A17 Pro GPU, Version 27.0 (Build 24A437)) | OpenGL ES 3.0
+GL_VERSION=4.0.0 MobileGlues 1.3.3
+GL_SHADING_LANGUAGE_VERSION=4.00 MobileGlues with glslang and SPIRV-Cross
+caps OpenGL32=true OpenGL33=true OpenGL40=true
+read-back centre=(255,128,0,255) corner=(26,77,153,255) glError=0x0
+ZALITH_LWJGL_DESKTOPGL_OK
+2026-10-16 22:52:19.383 ZalithIOS[3938:623879] [JVMBridge] io/github/zalithios/LwjglDesktopGLSmokeTest.main returned normally

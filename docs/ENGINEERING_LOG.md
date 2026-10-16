@@ -130,3 +130,48 @@
   - Offscreen 256×256 pbuffer read-back: centre (255,128,0,255), corner (26,77,153,255), glError 0 → `ZALITH_LWJGL_GLES_OK`; `main` returned normally.
   - **Java → LWJGL → ANGLE → Metal works on device.**
   - Remaining for step 3: GLFW bridge (window/input), patching the fork's `AngelAuraAmethyst` load, and desktop GL for Minecraft via MobileGlues.
+- **Milestone 6 step 3a: MobileGlues built from source** (`scripts/build-mobileglues.sh`):
+  - **MobileGlues** `f0fb4d32794a`, the commit Amethyst-iOS pins (HEAD has been restructured), LGPL-2.1.
+  - **Shader toolchain:** glslang 15.0.0 (matching MobileGlues' bundled `build_info.h`); SPIRV-Tools `6dcc7e35` and SPIRV-Headers `2a9b6f95` (pinned by glslang's `known_good.json`); SPIRV-Cross `vulkan-sdk-1.4.304.0` (C API 0.64, matching MobileGlues' headers; its bundled dylib is misnamed 0.65).
+  - **Submodules:** glm `2d4c4b4d`, xxhash `c2866db3`, FastSTL `644b3b01`. Perfetto is skipped (profiling only).
+  - **Build tool:** CMake 4.4.4, SHA-256 checked against Kitware's checksum file (the GPG signature was not checked).
+  - **Replaced prebuilts:** MobileGlues' own prebuilt `libraries/ios` binaries and `external/libEGL.framework` stub are deleted and replaced with these builds and our ANGLE frameworks.
+  - **Result:** `libmobileglues.dylib` (7.5 MB, iOS, minOS 16.0) links our ANGLE frameworks and `libspirv-cross-c-shared.0.dylib` through @rpath. It exports 6142 symbols, including desktop GL, glX and EGL entry points. The build-tree rpath was stripped.
+- **MobileGlues facts relevant to integration:**
+  - On Apple it resolves GLES through `dlsym(RTLD_NEXT)` against the linked ANGLE frameworks.
+  - It initialises in a static constructor (`init.cpp` → `proc_init`) that queries GLES, so an EGL context must be current when it is loaded.
+  - It reads config and log location from `MG_DIR_PATH`.
+  - It cannot be re-initialised per process.
+- **Licence gap:** FastSTL (header-only, compiled into MobileGlues) has no licence file and no declared licence. This is OK for private device testing and **blocks public distribution** until clarified with MobileGL-Dev.
+- **Step 3b (native) and 3c (Java) desktop GL tests built:**
+  - Diagnostics → "Run desktop GL test (MobileGlues)": the ANGLE ES 3.x context (3.2 → 3.1 → 3.0 tried), MobileGlues loaded while current, `#version 330 core` shaders, pixel read-back → `ZALITH_DESKTOPGL_OK`.
+  - "Run Java desktop GL test": LWJGL `GL.createCapabilities()` with `-Dorg.lwjgl.opengl.libname=…/libmobileglues.dylib`, GL33C calls → `ZALITH_LWJGL_DESKTOPGL_OK`.
+  - IPA SHA-256 `0dce982ef5c6d8874bd6cf2f94297f7f37f62bee6b10b3075e2625d69d509c7c`; all 40 Mach-O libraries are iOS. **Not yet run on a device.**
+- **Steps 3b/3c first device runs (15:38–15:39 UTC, IPA `0dce982e…`): inconsistent, as the user also observed.**
+  - **Working:** MobileGlues loads and reports `GL_VERSION=4.0.0 MobileGlues 1.3.3` and `GLSL 4.00 MobileGlues with glslang and SPIRV-Cross`. LWJGL sees OpenGL32/33/40=true. ANGLE grants only a GLES **3.0** context (3.2/3.1 refused).
+  - **Native runs (gl.log, by launch):**
+    - launch A: first run `eglSwapBuffers failed at frame 1: 0x300D`, second run nothing drawn;
+    - launch B (after the Java test): one run **passed with exact pixels** (`ZALITH_DESKTOPGL_OK`), then later runs drew nothing.
+  - **Java run:** corner = clear colour, centre = (97,110,115,102), which is garbage.
+- **Cause, from MobileGlues source:**
+  - `init_target_egl()` (run from the load-time static constructor) creates a temporary 32×32 ES2 pbuffer context on the default display and makes it **current**.
+  - On Android `destroy_temp_egl_ctx()` removes it later; on Apple that call is `#ifndef __APPLE__`'d out and the caller's context is never restored.
+  - So loading MobileGlues silently replaced the host's current context. The Java test drew into MobileGlues' 32×32 pbuffer, and reading at (128,128) is outside it, hence garbage. The native test's surface was no longer current, hence BAD_SURFACE.
+  - **Fix:** `patches/mobileglues/0001-apple-restore-caller-egl-context.patch`, applied by `build-mobileglues.sh`. On Apple it saves the caller's EGL display/surfaces/context before init, then unbinds and destroys the temp context (no `eglTerminate`) and restores the caller's context.
+- **Second effect (hypothesis, consistent with all runs, not proven):** MobileGlues keeps process-wide GL bookkeeping that cannot be reset, so only the first context it serves per process behaves. Later contexts reuse the same object names and draw nothing.
+  - Minecraft uses one context per launch, so the app now allows **one MobileGlues test (native or Java) per launch**.
+- **IPA** SHA-256 `d3f149c58be40f63b3aeb3df1f37e5eb745194b80ccb3e5e1baaeeec89822944`. **Not yet re-tested.**
+- **Re-test 15:47 UTC (install folder `EFB49F27`): the patched build was most likely NOT installed.**
+  - The Java desktop-GL run failed with the identical unpatched signature, centre (97,110,115,102).
+  - The native desktop-GL run happened in the same process (PID 3898, no new app start) right after the Java run, which the patched build's one-MobileGlues-test-per-launch guard would block. It **passed** (`ZALITH_DESKTOPGL_OK`), again as the second MobileGlues use in its process.
+  - Probable cause: an older copy (`ZalithIOS-m6step3bc-unsigned.ipa`) next to the current IPA.
+- **Changes:**
+  - `build-ipa.sh` now stamps a unique UTC build number into CFBundleVersion, shown in `devicectl device info apps`, and the app logs it at startup.
+  - Older IPA copies moved to `build/ipa/old/`.
+  - New IPA: build `202610161548`, SHA-256 `7c8972e481848a0fba558213e045e62b352f140f26deb4fcd74a07effe15567d`, patched MobileGlues confirmed by its exported `save_caller_egl_ctx`/`restore_caller_egl_ctx`.
+- **MILESTONE 6 STEPS 3b + 3c PASSED ON DEVICE (15:52 UTC, build `202610161548` confirmed via `devicectl device info apps`):**
+  - **3b, native, own launch:** MobileGlues 1.3.3 reported GL 4.0.0 on ANGLE GLES 3.0 / Metal / A17 Pro. A `#version 330 core` triangle drew at 59.3 fps with exact read-back (255,128,0 / 26,77,153), giving `ZALITH_DESKTOPGL_OK` (`docs/evidence/2026-10-16-mobileglues-native-desktopgl.log`).
+  - **3c, Java, separate launch:** LWJGL 3.3.3 loaded MobileGlues as its OpenGL library; caps OpenGL32/33/40=true. GL33C calls drew with exact read-back, giving `ZALITH_LWJGL_DESKTOPGL_OK` (`docs/evidence/2026-10-16-lwjgl-desktopgl-test.log`).
+  - The context-restore patch fixed the Java path, which failed deterministically without it.
+  - **Java → LWJGL desktop GL → MobileGlues → ANGLE → Metal works on device:** the graphics path Minecraft 1.17+ needs.
+  - **Still open:** ANGLE grants only GLES 3.0 (no 3.1/3.2), so MobileGlues lacks multi-draw-indirect, compute and GL43 extras. The GLFW window/input bridge (3d) is next.

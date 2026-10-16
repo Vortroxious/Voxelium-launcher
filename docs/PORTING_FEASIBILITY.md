@@ -25,7 +25,8 @@ Overall: Minecraft Java on iOS is *plausible*, because Amethyst-iOS exists and i
 - PojavLauncher-iOS used the same design on iOS.
 - Not attempted here.
 
-## D. Can rendering work on iOS/Metal? — PARTIAL PASS: OpenGL ES 3.0 works (2026-10-16)
+## D. Can rendering work on iOS/Metal? — PASS for desktop GL 3.3/4.0 via MobileGlues (2026-10-16)
+- Verified: MobileGlues (patched to restore the caller's EGL context) on ANGLE GLES 3.0 renders `#version 330 core` content correctly from native code and from Java through LWJGL's desktop GL bindings. Not yet verified: real Minecraft shaders, performance, or GLES 3.1+ features (ANGLE grants only 3.0 here).
 - Verified: ANGLE (built from source) renders GLES 3.0 on Metal on the A17 Pro, both natively on a CAMetalLayer at 59 fps and from Java through LWJGL. Desktop GL 3.2+ (needed by Minecraft 1.17+) is not available: upstream ANGLE rejects it. MobileGlues on top of ANGLE is the next candidate.
 - Facts: iOS has no desktop OpenGL; OpenGL ES is deprecated but still present; Metal is the supported API.
 - Minecraft 1.17+ needs OpenGL 3.2 core, so a translation layer is mandatory. Candidates: MobileGlues, gl4es→GLES, ANGLE(Metal).
@@ -62,7 +63,6 @@ Verified on one device (iPhone 15 Pro Max, iOS 27.0, free Apple ID, StikDebug 3.
 - D passes for OpenGL ES 3.0.
 
 Remaining high-risk work before a Minecraft launch attempt:
-- desktop GL 3.2+ on top of ANGLE (MobileGlues);
 - a GLFW window/input bridge (C, E);
 - OpenAL;
 - memory limits under a free account.

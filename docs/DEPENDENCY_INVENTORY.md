@@ -15,7 +15,7 @@ There are no third-party Swift packages. Native and Java components bundled in t
 |---|---|---|---|
 | JVM for iOS arm64 | AngelAuraMC iOS OpenJDK 17.0.20 (`scripts/fetch-runtime.sh`, SHA-256 pinned) | GPL-2.0 + Classpath Exception (per the runtime's `legal/` files) | **Bundled; smoke test passed on device 2026-10-16** |
 | GL on iOS (GLES provider) | ANGLE `33f8caff4b77`, Metal backend, built from source by `scripts/build-angle.sh` | BSD-3-Clause | **Built**; bundled; device test pending |
-| Desktop GL on top of GLES | MobileGlues (LGPL-2.1), as used by Amethyst | LGPL-2.1 | Not started |
+| Desktop GL on top of GLES | MobileGlues `f0fb4d32794a` + glslang 15.0.0, SPIRV-Tools, SPIRV-Cross 1.4.304.0, built by `scripts/build-mobileglues.sh` | LGPL-2.1 (deps Apache/MIT/BSD; **FastSTL: no licence declared**) | **Built**; bundled; device test pending |
 | LWJGL Java + natives for iOS | LWJGL 3.3.3 from AngelAuraMC/lwjgl3 `6a564a8b4b14`, built by `scripts/build-lwjgl.sh` (Ant 1.10.18, libffi 3.4.8) | BSD-3-Clause (libffi MIT) | **Built**; bundled; device test pending. GLFW bridge not started |
 | OpenAL | openal-soft | LGPL-2.0+ | Not started |
 | JIT enabling | StikDebug 3.1.14 + built-in `universal.js` (external app, AGPL-3.0); Amethyst's `UniversalJIT26Extension.js` bundled (GPL-3.0) | — | **Verified on iPhone 15 Pro Max / iOS 27.0** |

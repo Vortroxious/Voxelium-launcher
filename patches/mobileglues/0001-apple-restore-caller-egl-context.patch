@@ -1,0 +1,91 @@
+Zalith iOS patch for MobileGlues f0fb4d32794a (LGPL-2.1): on Apple, restore the
+caller's EGL context after MobileGlues' load-time initialisation and destroy
+its temporary pbuffer context (Android already does the latter).
+
+diff --git a/src/main/cpp/egl/loader.cpp b/src/main/cpp/egl/loader.cpp
+index 84f4e61..fd9d36e 100644
+--- a/src/main/cpp/egl/loader.cpp
++++ b/src/main/cpp/egl/loader.cpp
+@@ -136,4 +136,42 @@ void destroy_temp_egl_ctx() {
+   egl_eglDestroyContext(eglDisplay, eglContext);
+ 
+   egl_eglTerminate(eglDisplay);
+-}
+\ No newline at end of file
++}
++#if defined(__APPLE__)
++// Zalith iOS patch: init_target_egl() makes a temporary 32x32 pbuffer context
++// current so it can query GLES. On Android destroy_temp_egl_ctx() removes it,
++// but that is compiled out on Apple and nothing restored the caller's context,
++// so whatever context the host app had made current was silently replaced.
++// Save the caller's EGL state before init and restore it afterwards. The
++// default display is not terminated: it may be the host's display too.
++static EGLDisplay callerDisplay = EGL_NO_DISPLAY;
++static EGLSurface callerDraw = EGL_NO_SURFACE;
++static EGLSurface callerRead = EGL_NO_SURFACE;
++static EGLContext callerContext = EGL_NO_CONTEXT;
++
++void save_caller_egl_ctx() {
++  LOAD_EGL(eglGetCurrentDisplay);
++  LOAD_EGL(eglGetCurrentSurface);
++  LOAD_EGL(eglGetCurrentContext);
++  callerContext = egl_eglGetCurrentContext();
++  callerDisplay = egl_eglGetCurrentDisplay();
++  callerDraw = egl_eglGetCurrentSurface(EGL_DRAW);
++  callerRead = egl_eglGetCurrentSurface(EGL_READ);
++}
++
++void restore_caller_egl_ctx() {
++  LOAD_EGL(eglMakeCurrent);
++  LOAD_EGL(eglDestroySurface);
++  LOAD_EGL(eglDestroyContext);
++  if (eglDisplay != EGL_NO_DISPLAY) {
++    egl_eglMakeCurrent(eglDisplay, EGL_NO_SURFACE, EGL_NO_SURFACE, EGL_NO_CONTEXT);
++    if (eglSurface != EGL_NO_SURFACE) egl_eglDestroySurface(eglDisplay, eglSurface);
++    if (eglContext != EGL_NO_CONTEXT) egl_eglDestroyContext(eglDisplay, eglContext);
++    eglSurface = EGL_NO_SURFACE;
++    eglContext = EGL_NO_CONTEXT;
++  }
++  if (callerContext != EGL_NO_CONTEXT) {
++    egl_eglMakeCurrent(callerDisplay, callerDraw, callerRead, callerContext);
++  }
++}
++#endif
+diff --git a/src/main/cpp/egl/loader.h b/src/main/cpp/egl/loader.h
+index 225456a..204a6fa 100644
+--- a/src/main/cpp/egl/loader.h
++++ b/src/main/cpp/egl/loader.h
+@@ -174,6 +174,10 @@ EGLBoolean mglues_eglMakeCurrent(EGLDisplay dpy, EGLSurface draw, EGLSurface rea
+ 
+ void init_target_egl();
+ void destroy_temp_egl_ctx();
++#if defined(__APPLE__)
++void save_caller_egl_ctx();
++void restore_caller_egl_ctx();
++#endif
+ 
+ 
+ #ifdef __cplusplus
+diff --git a/src/main/cpp/main.cpp b/src/main/cpp/main.cpp
+index 24dcc64..8d419ba 100644
+--- a/src/main/cpp/main.cpp
++++ b/src/main/cpp/main.cpp
+@@ -58,6 +58,9 @@ void proc_init() {
+     init_settings();
+ 
+     load_libs();
++#ifdef __APPLE__
++    save_caller_egl_ctx();
++#endif
+     init_target_egl();
+     init_target_gles();
+     set_multidraw_setting();
+@@ -71,6 +74,8 @@ void proc_init() {
+     // Cleanup
+ #ifndef __APPLE__
+     destroy_temp_egl_ctx();
++#else
++    restore_caller_egl_ctx();
+ #endif
+     g_initialized = 1;
+ }

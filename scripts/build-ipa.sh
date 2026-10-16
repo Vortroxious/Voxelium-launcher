@@ -12,6 +12,9 @@ IPA_DIR="$OUT/ipa"
 
 cd "$ROOT"
 mkdir -p "$IPA_DIR" "$OUT/logs"
+# Unique, increasing build number (CFBundleVersion), visible in
+# `xcrun devicectl device info apps`, so the installed build can be identified.
+BUILD_NUMBER="${BUILD_NUMBER:-$(date -u +%Y%m%d%H%M)}"
 
 echo "==> xcodebuild ($CONFIG, generic iOS device, signing disabled)"
 xcodebuild \
@@ -21,6 +24,7 @@ xcodebuild \
   -destination 'generic/platform=iOS' \
   -derivedDataPath "$DERIVED" \
   CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY="" \
+  CURRENT_PROJECT_VERSION="$BUILD_NUMBER" \
   build 2>&1 | tee "$OUT/logs/xcodebuild-$CONFIG.log" | grep -E "error:|warning: .*ZalithIOS|BUILD (SUCCEEDED|FAILED)" || true
 [ "${PIPESTATUS[0]}" -eq 0 ] || { echo "xcodebuild failed; see $OUT/logs/xcodebuild-$CONFIG.log"; exit 1; }
 

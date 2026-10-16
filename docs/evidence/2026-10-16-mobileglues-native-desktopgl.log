@@ -1,0 +1,16 @@
+# gl.log section copied from the iPhone with devicectl on 2026-10-16 22:52 WIB
+# Device: iPhone 15 Pro Max (iPhone16,2), iOS 27.0 (24A437); build 0.1.0 (202610161548), IPA SHA-256 7c8972e481848a0fba558213e045e62b352f140f26deb4fcd74a07effe15567d
+===== Desktop GL (MobileGlues) test 2026-10-16T15:52:00Z
+loaded libEGL
+EGL 1.5 vendor=Google Inc. (Apple) version=1.5 (ANGLE 2.1.1 git hash: 33f8caff4b77)
+EGL client APIs: OpenGL_ES
+created OpenGL ES 3.0 context
+loaded libmobileglues.dylib (MG_DIR_PATH=/var/mobile/Containers/Data/Application/8D4ACD64-264E-4E00-8C01-0FD04F40EE8C/Library/Application Support/ZalithIOS/logs/mobileglues)
+GL_VENDOR=Swung0x48, BZLZHH, Tungsten
+GL_RENDERER=ANGLE (Apple, ANGLE Metal Renderer: Apple A17 Pro GPU, Version 27.0 (Build 24A437)) | OpenGL ES 3.0
+GL_VERSION=4.0.0 MobileGlues 1.3.3
+GL_SHADING_LANGUAGE_VERSION=4.00 MobileGlues with glslang and SPIRV-Cross
+surface 1290x2796
+read-back centre=(255,128,0,255) corner=(26,77,153,255) glError=0x0
+rendered 120 frames in 2.02s (59.3 fps)
+ZALITH_DESKTOPGL_OK

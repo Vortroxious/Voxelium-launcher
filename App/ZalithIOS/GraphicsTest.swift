@@ -2,6 +2,14 @@ import SwiftUI
 import UIKit
 import ZalithCore
 
+/// MobileGlues keeps GL state (VAO/buffer/program bookkeeping) process-wide,
+/// keyed by object name, and cannot be reset; only the first context it serves
+/// in a process behaves. Minecraft uses one context per launch, so each
+/// MobileGlues test (native or Java) is limited to one per app launch.
+enum MobileGluesSession {
+    @MainActor static var used = false
+}
+
 /// Milestone 6 step 1: OpenGL ES through ANGLE/Metal, verified by pixel read-back.
 @MainActor
 final class GraphicsTestModel: ObservableObject {
@@ -14,23 +22,41 @@ final class GraphicsTestModel: ObservableObject {
     @Published var state: State = .idle
     @Published var report = ""
     @Published var presenting = false
+    /// Run through MobileGlues (desktop GL 3.3 shaders) instead of plain GLES.
+    @Published var desktopGL = false
 
     var bundled: Bool { ZLGLTestRuntimeBundled() }
+    var mobileGluesBundled: Bool { ZLMobileGluesBundled() }
+
+    func start(desktopGL: Bool) {
+        if desktopGL {
+            guard !MobileGluesSession.used else { return }
+            MobileGluesSession.used = true
+        }
+        self.desktopGL = desktopGL
+        state = .running
+        presenting = true
+    }
 
     func finish(ok: Bool, report: String) {
         self.report = report
         state = .finished(ok: ok)
-        Logger.shared.log(ok ? .info : .error, "gl", ok ? "GL test passed" : "GL test failed")
+        let name = desktopGL ? "Desktop GL (MobileGlues) test" : "GL test"
+        Logger.shared.log(ok ? .info : .error, "gl", ok ? "\(name) passed" : "\(name) failed")
     }
 }
 
 struct GLTestController: UIViewControllerRepresentable {
     let logPath: String?
+    let desktopGL: Bool
+    let mobileGluesDir: String?
     let onFinish: (Bool, String) -> Void
 
     func makeUIViewController(context: Context) -> ZLGLTestViewController {
         let vc = ZLGLTestViewController()
         vc.logPath = logPath
+        vc.useMobileGlues = desktopGL
+        vc.mobileGluesDir = mobileGluesDir
         vc.onFinish = { ok, report in onFinish(ok, report) }
         return vc
     }
@@ -45,23 +71,27 @@ struct GraphicsTestSection: View {
     var body: some View {
         Section {
             LabeledContent("ANGLE bundled", value: test.bundled ? "Yes (Metal backend)" : "No")
+            LabeledContent("MobileGlues bundled", value: test.mobileGluesBundled ? "Yes (desktop GL on ANGLE)" : "No")
             switch test.state {
             case .idle:
-                Button("Run graphics test") {
-                    test.state = .running
-                    test.presenting = true
-                }
-                .disabled(!test.bundled)
+                Button("Run graphics test") { test.start(desktopGL: false) }
+                    .disabled(!test.bundled)
+                Button("Run desktop GL test (MobileGlues)") { test.start(desktopGL: true) }
+                    .disabled(!test.mobileGluesBundled || MobileGluesSession.used)
             case .running:
                 HStack { ProgressView(); Text("Rendering…") }
             case .finished(let ok):
-                Label(ok ? "OpenGL ES drew and read back correctly: ZALITH_GL_OK" : "Graphics test failed",
+                Label(ok ? (test.desktopGL ? "Desktop GL via MobileGlues: ZALITH_DESKTOPGL_OK" : "OpenGL ES drew and read back correctly: ZALITH_GL_OK")
+                         : "Graphics test failed",
                       systemImage: ok ? "checkmark.seal.fill" : "xmark.octagon.fill")
                     .foregroundStyle(ok ? Color.green : Color.red)
-                Button("Run again") {
-                    test.state = .running
-                    test.presenting = true
-                }
+                Button("Run graphics test again") { test.start(desktopGL: false) }
+                Button("Run desktop GL test (MobileGlues)") { test.start(desktopGL: true) }
+                    .disabled(!test.mobileGluesBundled || MobileGluesSession.used)
+            }
+            if MobileGluesSession.used {
+                Text("MobileGlues has been used in this launch. Close and relaunch the app to run another MobileGlues test.")
+                    .font(.caption2).foregroundStyle(.secondary)
             }
             if !test.report.isEmpty {
                 ScrollView(.horizontal) {
@@ -72,10 +102,14 @@ struct GraphicsTestSection: View {
         } header: {
             Text("Graphics test (Milestone 6)")
         } footer: {
-            Text("Draws a triangle with OpenGL ES 3 through ANGLE on Metal for about 2 seconds, then checks pixels. Does not need JIT.")
+            Text("Draws a triangle for about 2 seconds, then checks pixels: with OpenGL ES 3 on ANGLE, or with desktop GL 3.3 shaders through MobileGlues on ANGLE. Does not need JIT. One MobileGlues test (native or Java) per app launch.")
         }
         .fullScreenCover(isPresented: $test.presenting) {
-            GLTestController(logPath: paths.map { $0.logsDir.appendingPathComponent("gl.log").path }) { ok, report in
+            GLTestController(
+                logPath: paths.map { $0.logsDir.appendingPathComponent("gl.log").path },
+                desktopGL: test.desktopGL,
+                mobileGluesDir: paths.map { $0.logsDir.appendingPathComponent("mobileglues", isDirectory: true).path }
+            ) { ok, report in
                 test.finish(ok: ok, report: report)
                 DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) { test.presenting = false }
             }

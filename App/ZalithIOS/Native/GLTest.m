@@ -26,6 +26,13 @@ static NSString *libEGLPath(void) {
 
 BOOL ZLGLTestRuntimeBundled(void) { return libEGLPath() != nil; }
 
+static NSString *mobileGluesPath(void) {
+    NSString *p = [NSBundle.mainBundle.privateFrameworksPath stringByAppendingPathComponent:@"libmobileglues.dylib"];
+    return [NSFileManager.defaultManager fileExistsAtPath:p] ? p : nil;
+}
+
+BOOL ZLMobileGluesBundled(void) { return mobileGluesPath() != nil && ZLGLTestRuntimeBundled(); }
+
 @interface ZLMetalLayerView : UIView
 @end
 @implementation ZLMetalLayerView
@@ -43,6 +50,7 @@ BOOL ZLGLTestRuntimeBundled(void) { return libEGLPath() != nil; }
     BOOL _pixelsOK;
 
     void *_lib;
+    void *_mg;
     EGLDisplay _dpy;
     EGLSurface _surface;
     EGLContext _ctx;
@@ -114,7 +122,8 @@ BOOL ZLGLTestRuntimeBundled(void) { return libEGLPath() != nil; }
 - (void)viewDidAppear:(BOOL)animated {
     [super viewDidAppear:animated];
     if (_link || _finished) return;
-    [self log:@"===== GL test %@", [[NSISO8601DateFormatter new] stringFromDate:NSDate.date]];
+    [self log:@"===== %@ test %@", self.useMobileGlues ? @"Desktop GL (MobileGlues)" : @"GL",
+              [[NSISO8601DateFormatter new] stringFromDate:NSDate.date]];
     if (![self setUpEGL]) {
         [self finish:NO];
         return;
@@ -136,7 +145,8 @@ BOOL ZLGLTestRuntimeBundled(void) { return libEGLPath() != nil; }
 }
 
 - (void *)gl:(const char *)name {
-    void *p = (void *)eglGetProcAddress_(name);
+    // In MobileGlues mode every GL entry point comes from MobileGlues itself.
+    void *p = _mg ? dlsym(_mg, name) : (void *)eglGetProcAddress_(name);
     if (!p) [self log:@"missing GL symbol %s", name];
     return p;
 }
@@ -206,11 +216,37 @@ BOOL ZLGLTestRuntimeBundled(void) { return libEGLPath() != nil; }
         [self log:@"eglCreateWindowSurface failed: 0x%X", eglGetError_()];
         return NO;
     }
-    EGLint ctxAttrs[] = {EGL_CONTEXT_MAJOR_VERSION, 3, EGL_CONTEXT_MINOR_VERSION, 0, EGL_NONE};
-    _ctx = createContext(_dpy, config, EGL_NO_CONTEXT, ctxAttrs);
+    // MobileGlues translates better with more GLES features, so ask ANGLE for
+    // the newest ES it offers (its non-conformant 3.1/3.2 are enabled).
+    const int minors[] = {2, 1, 0};
+    int first = self.useMobileGlues ? 0 : 2;
+    for (int i = first; i < 3 && _ctx == EGL_NO_CONTEXT; i++) {
+        EGLint ctxAttrs[] = {EGL_CONTEXT_MAJOR_VERSION, 3, EGL_CONTEXT_MINOR_VERSION, minors[i], EGL_NONE};
+        _ctx = createContext(_dpy, config, EGL_NO_CONTEXT, ctxAttrs);
+        if (_ctx != EGL_NO_CONTEXT) [self log:@"created OpenGL ES 3.%d context", minors[i]];
+    }
     if (_ctx == EGL_NO_CONTEXT || !eglMakeCurrent_(_dpy, _surface, _surface, _ctx)) {
         [self log:@"context creation/makeCurrent failed: 0x%X", eglGetError_()];
         return NO;
+    }
+    if (self.useMobileGlues) {
+        // MobileGlues initialises in a static constructor that queries GLES,
+        // so it must be loaded while the ANGLE context is current.
+        NSString *mg = mobileGluesPath();
+        if (!mg) {
+            [self log:@"libmobileglues.dylib not found in Frameworks"];
+            return NO;
+        }
+        if (self.mobileGluesDir) {
+            [NSFileManager.defaultManager createDirectoryAtPath:self.mobileGluesDir withIntermediateDirectories:YES attributes:nil error:nil];
+            setenv("MG_DIR_PATH", self.mobileGluesDir.fileSystemRepresentation, 1);
+        }
+        _mg = dlopen(mg.fileSystemRepresentation, RTLD_NOW | RTLD_LOCAL);
+        if (!_mg) {
+            [self log:@"dlopen(libmobileglues) failed: %s", dlerror()];
+            return NO;
+        }
+        [self log:@"loaded libmobileglues.dylib (MG_DIR_PATH=%s)", getenv("MG_DIR_PATH") ?: "unset"];
     }
     querySurface(_dpy, _surface, EGL_WIDTH, &_width);
     querySurface(_dpy, _surface, EGL_HEIGHT, &_height);
@@ -256,15 +292,22 @@ BOOL ZLGLTestRuntimeBundled(void) { return libEGLPath() != nil; }
 }
 
 - (BOOL)setUpScene {
-    const char *vs =
-        "#version 300 es\n"
-        "layout(location = 0) in vec2 pos;\n"
-        "void main() { gl_Position = vec4(pos, 0.0, 1.0); }\n";
-    const char *fs =
-        "#version 300 es\n"
-        "precision mediump float;\n"
-        "out vec4 color;\n"
-        "void main() { color = vec4(1.0, 0.5, 0.0, 1.0); }\n";
+    // Desktop GLSL through MobileGlues (as Minecraft 1.17+ uses), ESSL otherwise.
+    const char *vs = self.useMobileGlues
+        ? "#version 330 core\n"
+          "layout(location = 0) in vec2 pos;\n"
+          "void main() { gl_Position = vec4(pos, 0.0, 1.0); }\n"
+        : "#version 300 es\n"
+          "layout(location = 0) in vec2 pos;\n"
+          "void main() { gl_Position = vec4(pos, 0.0, 1.0); }\n";
+    const char *fs = self.useMobileGlues
+        ? "#version 330 core\n"
+          "out vec4 color;\n"
+          "void main() { color = vec4(1.0, 0.5, 0.0, 1.0); }\n"
+        : "#version 300 es\n"
+          "precision mediump float;\n"
+          "out vec4 color;\n"
+          "void main() { color = vec4(1.0, 0.5, 0.0, 1.0); }\n";
     GLuint v = [self compile:GL_VERTEX_SHADER source:vs];
     GLuint f = [self compile:GL_FRAGMENT_SHADER source:fs];
     if (!v || !f) return NO;
@@ -344,7 +387,8 @@ static BOOL near(const GLubyte *px, int r, int g, int b) {
     _finished = YES;
     [_link invalidate];
     _link = nil;
-    [self log:ok ? @"ZALITH_GL_OK" : @"GL test FAILED"];
+    NSString *marker = self.useMobileGlues ? @"ZALITH_DESKTOPGL_OK" : @"ZALITH_GL_OK";
+    [self log:@"%@", ok ? marker : (self.useMobileGlues ? @"Desktop GL test FAILED" : @"GL test FAILED")];
     if (_dpy) {
         eglMakeCurrent_(_dpy, EGL_NO_SURFACE, EGL_NO_SURFACE, EGL_NO_CONTEXT);
         if (_ctx) eglDestroyContext_(_dpy, _ctx);

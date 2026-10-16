@@ -37,6 +37,8 @@ final class LauncherModel: ObservableObject {
             settingsStore = SettingsStore(paths: p)
             settings = settingsStore!.load()
             installer = GameInstaller(paths: p)
+            let info = Bundle.main.infoDictionary
+            log.info("app", "Build \(info?["CFBundleShortVersionString"] as? String ?? "?") (\(info?["CFBundleVersion"] as? String ?? "?"))")
             log.info("app", "Data directory: \(p.root.path)")
             log.info("app", "JIT/debugger attached: \(DeviceInfo.isDebuggerAttached)")
             log.info("app", "JIT: \(ZLJVMBridge.jitDescription())")
