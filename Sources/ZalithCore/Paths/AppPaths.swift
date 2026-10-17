@@ -20,7 +20,7 @@ public enum PathError: Error, Equatable, CustomStringConvertible {
 /// library paths from Mojang can be used unchanged:
 ///   root/minecraft/{versions,libraries,assets/{indexes,objects}}
 ///   root/runtimes/<name>/   (Java runtimes)
-///   root/logs/, root/config/
+///   root/logs/, root/config/, root/controls/
 public struct AppPaths: Sendable, Equatable {
     public let root: URL
 
@@ -43,6 +43,8 @@ public struct AppPaths: Sendable, Equatable {
     public var runtimesDir: URL { root.appendingPathComponent("runtimes", isDirectory: true) }
     public var logsDir: URL { root.appendingPathComponent("logs", isDirectory: true) }
     public var configDir: URL { root.appendingPathComponent("config", isDirectory: true) }
+    /// On-screen control layouts (controls/layout.json).
+    public var controlsDir: URL { root.appendingPathComponent("controls", isDirectory: true) }
 
     public func versionDir(_ id: String) throws -> URL { try resolve(id, in: versionsDir) }
     public func versionJSON(_ id: String) throws -> URL { try versionDir(id).appendingPathComponent("\(id).json") }

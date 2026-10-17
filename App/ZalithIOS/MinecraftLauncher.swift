@@ -1,5 +1,6 @@
 import AVFoundation
 import Foundation
+import UIKit
 import ZalithCore
 
 /// Milestone 7: start an installed vanilla version inside this process.
@@ -97,6 +98,17 @@ final class MinecraftLauncher: ObservableObject {
             let mgDir = paths.logsDir.appendingPathComponent("mobileglues", isDirectory: true)
             try? fm.createDirectory(at: mgDir, withIntermediateDirectories: true)
             setenv("MG_DIR_PATH", mgDir.path, 1)
+            // On-screen controls: the user's layout (Controls tab) or the default, read by ZLGLFW.
+            let screen = UIScreen.main.bounds.size
+            let controlsLayout = ControlLayoutStore(paths: paths)
+                .effective(width: max(screen.width, screen.height), height: min(screen.width, screen.height), log: log)
+            let controlsURL = paths.controlsDir.appendingPathComponent("active.json")
+            do {
+                try ControlLayoutStore.write(controlsLayout, to: controlsURL)
+                setenv("ZALITH_CONTROLS_PATH", controlsURL.path, 1)
+            } catch {
+                log.error("launch", "Could not write the control layout, using the built-in one: \(error)")
+            }
             // Render at half the native pixels by default (2796x1290 is a lot for a phone GPU).
             if getenv("ZALITH_RENDER_SCALE") == nil { setenv("ZALITH_RENDER_SCALE", "0.5", 1) }
 

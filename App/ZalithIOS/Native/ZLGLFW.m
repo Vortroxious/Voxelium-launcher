@@ -293,6 +293,7 @@ typedef NS_ENUM(NSInteger, ZLSpecial) {
 @property (nonatomic, weak) ZLGLFWWindowObj *owner;
 @property (nonatomic, weak) ZLControlsOverlay *overlayRef;
 @property (nonatomic) int key;          // GLFW key, or GLFW_KEY_UNKNOWN
+@property (nonatomic, copy) NSArray<NSNumber *> *extraKeys;  // pressed together with key (custom layouts)
 @property (nonatomic) int mouseButton;  // GLFW mouse button, or -1
 @property (nonatomic) ZLSpecial special;
 @property (nonatomic) BOOL toggle, latched, inGame, inMenu, inDrawer;
@@ -321,6 +322,7 @@ typedef NS_ENUM(NSInteger, ZLSpecial) {
     b.inGame = b.inMenu = YES;
     [b setTitle:title forState:UIControlStateNormal];
     b.titleLabel.numberOfLines = 2;
+    b.titleLabel.lineBreakMode = NSLineBreakByWordWrapping;
     b.titleLabel.textAlignment = NSTextAlignmentCenter;
     b.titleLabel.adjustsFontSizeToFitWidth = YES;
     b.titleLabel.font = [UIFont systemFontOfSize:14 weight:UIFontWeightMedium];
@@ -343,6 +345,7 @@ typedef NS_ENUM(NSInteger, ZLSpecial) {
 
 - (void)send:(int)action {
     if (self.key != GLFW_KEY_UNKNOWN) zlSendKey(self.owner, self.key, action);
+    for (NSNumber *k in self.extraKeys) zlSendKey(self.owner, k.intValue, action);
     if (self.mouseButton >= 0) zlSendButton(self.owner, self.mouseButton, action);
 }
 
@@ -496,59 +499,116 @@ typedef NS_ENUM(NSInteger, ZLSpecial) {
     ZLJoystick *_stick;
     ZLKeyboardProxy *_keyboard;
     CGSize _loggedSize;
+    CGFloat _stickX, _stickY, _stickSize;  // fractions of the overlay / points; _stickY < 0 = default
+}
+
+// The layout from the launcher's Controls tab: JSON at $ZALITH_CONTROLS_PATH, written by
+// MinecraftLauncher from ZalithCore's ControlLayout (positions are fractions of the
+// landscape screen, sizes in points). Returns NO (built-in layout used) if missing or invalid.
+- (BOOL)loadLayoutFile {
+    const char *path = getenv("ZALITH_CONTROLS_PATH");
+    if (!path) return NO;
+    NSData *data = [NSData dataWithContentsOfFile:@(path)];
+    NSDictionary *root = data ? [NSJSONSerialization JSONObjectWithData:data options:0 error:nil] : nil;
+    NSArray *list = [root isKindOfClass:NSDictionary.class] ? root[@"buttons"] : nil;
+    if (![list isKindOfClass:NSArray.class]) {
+        NSLog(@"[ZLGLFW] controls: could not read %s, using the built-in layout", path);
+        return NO;
+    }
+    NSDictionary *specials = @{@"runtimeMenu": @(ZLSpecialRuntimeMenu), @"hideGUI": @(ZLSpecialHideGUI),
+                               @"keyboard": @(ZLSpecialKeyboard), @"virtualMouse": @(ZLSpecialVirtualMouse),
+                               @"drawer": @(ZLSpecialDrawer)};
+    for (NSDictionary *d in list) {
+        if (![d isKindOfClass:NSDictionary.class]) continue;
+        NSString *name = [d[@"name"] isKindOfClass:NSString.class] ? d[@"name"] : @"";
+        CGFloat w = [d[@"width"] doubleValue] ?: 69.6, h = [d[@"height"] doubleValue] ?: 69.6;
+        CGFloat fx = [d[@"x"] doubleValue], fy = [d[@"y"] doubleValue];
+        NSMutableArray<NSNumber *> *keys = [NSMutableArray array];
+        if ([d[@"keys"] isKindOfClass:NSArray.class])
+            for (id k in d[@"keys"]) if ([k isKindOfClass:NSNumber.class] && [k intValue] > 0 && [k intValue] <= GLFW_KEY_LAST) [keys addObject:k];
+        ZLControlButton *btn = [self add:name key:keys.count ? keys[0].intValue : GLFW_KEY_UNKNOWN w:w h:h
+                                    game:[d[@"showInGame"] boolValue] menu:[d[@"showInMenu"] boolValue]
+                                      at:^CGPoint(CGFloat W, CGFloat H) { return CGPointMake(fx * W, fy * H); }];
+        if (keys.count > 1) btn.extraKeys = [keys subarrayWithRange:NSMakeRange(1, keys.count - 1)];
+        int mouse = d[@"mouse"] ? [d[@"mouse"] intValue] : -1;
+        btn.mouseButton = mouse >= 0 && mouse <= GLFW_MOUSE_BUTTON_LAST ? mouse : -1;
+        NSNumber *special = [d[@"special"] isKindOfClass:NSString.class] ? specials[d[@"special"]] : nil;
+        btn.special = special ? (ZLSpecial)special.integerValue : ZLSpecialNone;
+        btn.toggle = [d[@"toggle"] boolValue];
+        btn.inDrawer = [d[@"inDrawer"] boolValue];
+        if (btn.inDrawer) btn.inGame = btn.inMenu = YES;
+        if (btn.special == ZLSpecialDrawer) btn.layer.borderWidth = 1.5;
+    }
+    NSDictionary *stick = root[@"joystick"];
+    if ([stick isKindOfClass:NSDictionary.class]) {
+        _stickX = [stick[@"x"] doubleValue];
+        _stickY = [stick[@"y"] doubleValue];
+        _stickSize = [stick[@"size"] doubleValue] ?: 204.8;
+    }
+    NSLog(@"[ZLGLFW] controls: %lu buttons from %s", (unsigned long)_buttons.count, path);
+    return YES;
+}
+
+// Amethyst's default layout, used when no layout file is given (e.g. the GLFW test).
+// Keep in step with ControlLayout.amethystDefault in ZalithCore.
+- (void)addBuiltInLayout {
+    const CGFloat m = 2, a = 69.6, b = 104.8, d = 96, dh = 40;
+
+    // Right-hand cluster (x/y from Amethyst's expressions, simplified).
+    [self add:@"Jump" key:GLFW_KEY_SPACE w:a h:a game:YES menu:NO
+           at:^CGPoint(CGFloat W, CGFloat H) { return CGPointMake(0.94878495 * W - a, 0.31131014 * H + a + m); }];
+    [self add:@"Shift" key:GLFW_KEY_LEFT_SHIFT w:a h:a game:YES menu:YES
+           at:^CGPoint(CGFloat W, CGFloat H) { return CGPointMake(0.94878495 * W - a, 0.31131014 * H); }].toggle = YES;
+    [self add:@"Sprint" key:GLFW_KEY_LEFT_CONTROL w:a h:a game:YES menu:NO
+           at:^CGPoint(CGFloat W, CGFloat H) { return CGPointMake(0.94878495 * W - 2 * a - m, 0.31131014 * H); }].toggle = YES;
+    [self add:@"Right\nClick" mouse:GLFW_MOUSE_BUTTON_RIGHT w:a h:a
+           at:^CGPoint(CGFloat W, CGFloat H) { return CGPointMake(0.8756154 * W - a, 0.8178498 * H - a); }];
+    [self add:@"Left\nClick" mouse:GLFW_MOUSE_BUTTON_LEFT w:a h:a
+           at:^CGPoint(CGFloat W, CGFloat H) { return CGPointMake(0.7756397 * W - a, 0.8224885 * H - a); }];
+    [self add:@"Middle\nClick" mouse:GLFW_MOUSE_BUTTON_MIDDLE w:a h:a
+           at:^CGPoint(CGFloat W, CGFloat H) { return CGPointMake(0.83548373 * W - a, 0.67798775 * H - a); }];
+    // Inventory (E): Amethyst has it in the top row; moved, at the user's request, into the
+    // right-hand cluster, just right of Right Click and below Jump (in reach of the right thumb).
+    [self add:@"Inven-\ntory" key:GLFW_KEY_E w:a h:a game:YES menu:NO
+           at:^CGPoint(CGFloat W, CGFloat H) {
+               return CGPointMake(0.8756154 * W + m, MAX(0.8178498 * H - a, 0.31131014 * H + 2 * a + 2 * m));
+           }];
+
+    // Top row, packed from the right edge.
+    ZLControlButton *menuBtn = [self add:@"Runtime\nMenu" key:GLFW_KEY_UNKNOWN w:b h:39.2 game:YES menu:YES
+           at:^CGPoint(CGFloat W, CGFloat H) { return CGPointMake(W - a - b - m, 0); }];
+    menuBtn.special = ZLSpecialRuntimeMenu;
+    ZLControlButton *hide = [self add:@"Hide\nGUI" key:GLFW_KEY_UNKNOWN w:a h:40 game:YES menu:YES
+           at:^CGPoint(CGFloat W, CGFloat H) { return CGPointMake(W - a, 0); }];
+    hide.special = ZLSpecialHideGUI;
+    [self add:@"Pause" key:GLFW_KEY_ESCAPE w:b h:39.2 game:YES menu:NO
+           at:^CGPoint(CGFloat W, CGFloat H) { return CGPointMake(W - a - 2 * b - 2 * m, 0); }];
+    [self add:@"Exit\nMenu" key:GLFW_KEY_ESCAPE w:b h:39.2 game:NO menu:YES
+           at:^CGPoint(CGFloat W, CGFloat H) { return CGPointMake(W - a - 2 * b - 2 * m, 0); }];
+
+    // "More" drawer (top-left) and its items.
+    ZLControlButton *more = [self add:@"More" key:GLFW_KEY_UNKNOWN w:d h:dh game:YES menu:YES
+           at:^CGPoint(CGFloat W, CGFloat H) { return CGPointMake(0, 0); }];
+    more.special = ZLSpecialDrawer;
+    more.layer.borderWidth = 1.5;
+    const CGFloat dy = 0.0026855469;
+    [self drawer:@"Third\nperson" key:GLFW_KEY_F5 at:^CGPoint(CGFloat W, CGFloat H) { return CGPointMake(d + m, dy * H); }];
+    [self drawer:@"Debug\nMenu" key:GLFW_KEY_F3 at:^CGPoint(CGFloat W, CGFloat H) { return CGPointMake(3 * (d + m), dy * H); }];
+    [self drawer:@"Mouse\nToggle" key:GLFW_KEY_UNKNOWN at:^CGPoint(CGFloat W, CGFloat H) { return CGPointMake(2 * (d + m), dy * H + dh + m); }].special = ZLSpecialVirtualMouse;
+    [self drawer:@"Chat" key:GLFW_KEY_T at:^CGPoint(CGFloat W, CGFloat H) { return CGPointMake(0, dy * H + dh + m); }];
+    [self drawer:@"Keyboard" key:GLFW_KEY_UNKNOWN at:^CGPoint(CGFloat W, CGFloat H) { return CGPointMake(d + m, dy * H + dh + m); }].special = ZLSpecialKeyboard;
+    // Amethyst's expression puts Player List above the screen (y < 0); it is placed in the free slot at the top instead.
+    [self drawer:@"Player\nList" key:GLFW_KEY_TAB at:^CGPoint(CGFloat W, CGFloat H) { return CGPointMake(2 * (d + m), dy * H); }].toggle = YES;
 }
 
 - (instancetype)initWithOwner:(ZLGLFWWindowObj *)owner {
     if ((self = [super initWithFrame:CGRectZero])) {
         _owner = owner;
         _buttons = [NSMutableArray array];
-        const CGFloat m = 2, a = 69.6, b = 104.8, d = 96, dh = 40;
-
-        // Right-hand cluster (x/y from Amethyst's expressions, simplified).
-        [self add:@"Jump" key:GLFW_KEY_SPACE w:a h:a game:YES menu:NO
-               at:^CGPoint(CGFloat W, CGFloat H) { return CGPointMake(0.94878495 * W - a, 0.31131014 * H + a + m); }];
-        [self add:@"Shift" key:GLFW_KEY_LEFT_SHIFT w:a h:a game:YES menu:YES
-               at:^CGPoint(CGFloat W, CGFloat H) { return CGPointMake(0.94878495 * W - a, 0.31131014 * H); }].toggle = YES;
-        [self add:@"Sprint" key:GLFW_KEY_LEFT_CONTROL w:a h:a game:YES menu:NO
-               at:^CGPoint(CGFloat W, CGFloat H) { return CGPointMake(0.94878495 * W - 2 * a - m, 0.31131014 * H); }].toggle = YES;
-        [self add:@"Right\nClick" mouse:GLFW_MOUSE_BUTTON_RIGHT w:a h:a
-               at:^CGPoint(CGFloat W, CGFloat H) { return CGPointMake(0.8756154 * W - a, 0.8178498 * H - a); }];
-        [self add:@"Left\nClick" mouse:GLFW_MOUSE_BUTTON_LEFT w:a h:a
-               at:^CGPoint(CGFloat W, CGFloat H) { return CGPointMake(0.7756397 * W - a, 0.8224885 * H - a); }];
-        [self add:@"Middle\nClick" mouse:GLFW_MOUSE_BUTTON_MIDDLE w:a h:a
-               at:^CGPoint(CGFloat W, CGFloat H) { return CGPointMake(0.83548373 * W - a, 0.67798775 * H - a); }];
-        // Inventory (E): Amethyst has it in the top row; moved, at the user's request, into the
-        // right-hand cluster, just right of Right Click and below Jump (in reach of the right thumb).
-        [self add:@"Inven-\ntory" key:GLFW_KEY_E w:a h:a game:YES menu:NO
-               at:^CGPoint(CGFloat W, CGFloat H) {
-                   return CGPointMake(0.8756154 * W + m, MAX(0.8178498 * H - a, 0.31131014 * H + 2 * a + 2 * m));
-               }];
-
-        // Top row, packed from the right edge.
-        ZLControlButton *menuBtn = [self add:@"Runtime\nMenu" key:GLFW_KEY_UNKNOWN w:b h:39.2 game:YES menu:YES
-               at:^CGPoint(CGFloat W, CGFloat H) { return CGPointMake(W - a - b - m, 0); }];
-        menuBtn.special = ZLSpecialRuntimeMenu;
-        ZLControlButton *hide = [self add:@"Hide\nGUI" key:GLFW_KEY_UNKNOWN w:a h:40 game:YES menu:YES
-               at:^CGPoint(CGFloat W, CGFloat H) { return CGPointMake(W - a, 0); }];
-        hide.special = ZLSpecialHideGUI;
-        [self add:@"Pause" key:GLFW_KEY_ESCAPE w:b h:39.2 game:YES menu:NO
-               at:^CGPoint(CGFloat W, CGFloat H) { return CGPointMake(W - a - 2 * b - 2 * m, 0); }];
-        [self add:@"Exit\nMenu" key:GLFW_KEY_ESCAPE w:b h:39.2 game:NO menu:YES
-               at:^CGPoint(CGFloat W, CGFloat H) { return CGPointMake(W - a - 2 * b - 2 * m, 0); }];
-
-        // "More" drawer (top-left) and its items.
-        ZLControlButton *more = [self add:@"More" key:GLFW_KEY_UNKNOWN w:d h:dh game:YES menu:YES
-               at:^CGPoint(CGFloat W, CGFloat H) { return CGPointMake(0, 0); }];
-        more.special = ZLSpecialDrawer;
-        more.layer.borderWidth = 1.5;
-        const CGFloat dy = 0.0026855469;
-        [self drawer:@"Third\nperson" key:GLFW_KEY_F5 at:^CGPoint(CGFloat W, CGFloat H) { return CGPointMake(d + m, dy * H); }];
-        [self drawer:@"Debug\nMenu" key:GLFW_KEY_F3 at:^CGPoint(CGFloat W, CGFloat H) { return CGPointMake(3 * (d + m), dy * H); }];
-        [self drawer:@"Mouse\nToggle" key:GLFW_KEY_UNKNOWN at:^CGPoint(CGFloat W, CGFloat H) { return CGPointMake(2 * (d + m), dy * H + dh + m); }].special = ZLSpecialVirtualMouse;
-        [self drawer:@"Chat" key:GLFW_KEY_T at:^CGPoint(CGFloat W, CGFloat H) { return CGPointMake(0, dy * H + dh + m); }];
-        [self drawer:@"Keyboard" key:GLFW_KEY_UNKNOWN at:^CGPoint(CGFloat W, CGFloat H) { return CGPointMake(d + m, dy * H + dh + m); }].special = ZLSpecialKeyboard;
-        // Amethyst's expression puts Player List above the screen (y < 0); it is placed in the free slot at the top instead.
-        [self drawer:@"Player\nList" key:GLFW_KEY_TAB at:^CGPoint(CGFloat W, CGFloat H) { return CGPointMake(2 * (d + m), dy * H); }].toggle = YES;
+        _stickX = 0.02326631;
+        _stickSize = 204.8;
+        _stickY = -1;  // Amethyst default: 0.9753418 * H - size
+        if (![self loadLayoutFile]) [self addBuiltInLayout];
 
         _stick = [[ZLJoystick alloc] initWithFrame:CGRectZero];
         _stick.owner = owner;
@@ -698,8 +758,9 @@ typedef NS_ENUM(NSInteger, ZLSpecial) {
         _loggedSize = self.bounds.size;
         [self logControls];
     }
-    const CGFloat stick = 204.8;
-    _stick.frame = CGRectMake(0.02326631 * W, 0.9753418 * H - stick, stick, stick);
+    const CGFloat stick = _stickSize;
+    CGFloat sy = _stickY >= 0 ? _stickY * H : 0.9753418 * H - stick;
+    _stick.frame = CGRectMake(MIN(MAX(_stickX * W, 0), W - stick), MIN(MAX(sy, 0), H - stick), stick, stick);
 }
 
 @end

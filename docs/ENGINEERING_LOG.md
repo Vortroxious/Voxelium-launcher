@@ -375,3 +375,43 @@
   - No new crash reports: the newest are still the 08:00:29 and 08:00:49 reports.
 - **Change (user request):** removed hold-to-drop (Q) on the hotbar. Holding a slot now just keeps it selected, and the `hotbarDrops` counter is gone. This differs from Amethyst on purpose.
 - **Build `202610170536`** (SHA-256 `a96eba546e14f84679b77bb7598c33eb3202d599898ee31d1f0d0e24100ec1a4`). **Not yet run on device.**
+
+## 2026-10-17 — Controls tab: custom control layouts
+- **User request:** a "Controls" option next to Account for adding and mapping controls, giving each a name and linking it to keyboard keys, as in Amethyst.
+- **ZalithCore `Controls/ControlLayout.swift`:**
+  - `ControlLayout` (buttons + joystick) and `ControlButton`, with these fields: name, up to 4 GLFW keys pressed together, a mouse button, or a special action (runtime menu, hide GUI, iOS keyboard, virtual mouse, drawer); x/y as fractions of the landscape screen; width/height in pt; toggle; show in game / show in menus / only in the More drawer.
+  - `ControlLayout.amethystDefault(width:height:)` produces the same layout as the built-in overlay. The test checks it against the positions logged on the device.
+  - `ControlLayoutStore` (controls/layout.json) moves a corrupt file aside, and `ControlKeys` holds the key table for the pickers.
+  - Decoding tolerates missing fields.
+  - 7 new tests; `swift test` passes all 63.
+- **App:**
+  - New **Controls** tab (between Account and Diagnostics). It lists the buttons with what each sends and where it shows; you can add, delete (swipe) and edit them, or reset to the default.
+  - The per-button form: name; keyboard keys picked from a list, up to 4; mouse button; special action; toggle; visibility; size.
+  - **Edit layout on screen** opens a full-screen landscape editor. Drag buttons and the joystick to move them, tap a button to edit it, and filter by In game / In menus / Drawer open.
+  - Every change is saved immediately.
+- **Game side:**
+  - Before each launch, `MinecraftLauncher` writes the effective layout (saved or default) to controls/active.json and sets `ZALITH_CONTROLS_PATH`.
+  - The ZLGLFW overlay builds its buttons and joystick from that file. If the file is missing or invalid, it falls back to its built-in Amethyst layout, which the GLFW test still uses.
+  - Buttons press all of their keys together. Names wrap by word.
+- **Verification:**
+  - `swift test` passes (63/63).
+  - `scripts/build-ipa.sh` builds 202610170549 (SHA-256 `68d57605c6e2713946239faed5c31d9e120a57869aa91df5235c7d08aa1227e1`) with no compiler warnings in the new files.
+  - **Not run on device:** the editor UI, the landscape rotation request, and the game loading a custom layout are all untested.
+- **Not done (compared with Amethyst):**
+  - Only one layout (no named layout files or import/export).
+  - No swipeable buttons, colours or per-button opacity.
+  - The joystick can be moved but not resized in the editor.
+
+## 2026-10-17 — New buttons hidden behind the editor toolbar (fixed)
+- **User report (build 202610170549):** a button added in the Controls layout doesn't appear.
+- **Evidence:** the controls/layout.json pulled from the device has 22 buttons. The 4 the user added ("Button" [R], "Drop item" [Q], "Drop button" [Q], "Button" [no key]) are all saved, at the same position x=0.4627, y=0.4191 (431,180 pt): the centre of the screen. The editor's floating toolbar sits there and was drawn on top of them. No active.json yet, so the game hasn't been launched with a custom layout.
+- **Fix:**
+  - `ControlLayout.freeSpot` places a new button at the free spot nearest the screen centre (8 pt grid), clear of every other non-drawer control, the joystick and the toolbar area (340×130 pt at W/2, 0.45 H). There is a new test.
+  - The editor now draws the toolbar *underneath* the controls, so nothing can hide behind it.
+  - The newly added button is outlined in the accent colour.
+  - The 4 stacked buttons in the user's saved layout will now show at the centre, on top of the toolbar. Drag them apart or delete them.
+- **Verification:** `swift test` passes 64/64. **Build `202610170557`** (SHA-256 `3a275de39a35ca3b002065369e6e4de0b1107afe521be1c266320b79cc4e5d87`). **Not yet run on device.**
+- **Device result for build 202610170557 (user report "good to go", 2026-10-17), with log evidence:**
+  - The user tidied the layout down to 19 buttons, keeping a custom "Drop button" (Q) moved to 823,53 pt.
+  - jvm.log shows the game loading it: `[ZLGLFW] controls: 22 buttons from …/controls/active.json` at 13:01, and `19 buttons` at 13:26.
+  - The Controls tab, the editor and custom layouts in game work on the iPhone.

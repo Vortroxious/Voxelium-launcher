@@ -5,12 +5,14 @@ import ZalithCore
 struct ZalithIOSApp: App {
     @StateObject private var model = LauncherModel()
     @StateObject private var minecraft = MinecraftLauncher()
+    @StateObject private var controls = ControlsModel()
 
     var body: some Scene {
         WindowGroup {
             ContentView()
                 .environmentObject(model)
                 .environmentObject(minecraft)
+                .environmentObject(controls)
                 .task { await model.start() }
         }
     }
@@ -23,6 +25,8 @@ struct ContentView: View {
                 .tabItem { Label("Versions", systemImage: "square.stack.3d.up") }
             AccountView()
                 .tabItem { Label("Account", systemImage: "person.crop.circle") }
+            ControlsView()
+                .tabItem { Label("Controls", systemImage: "gamecontroller") }
             DiagnosticsView()
                 .tabItem { Label("Diagnostics", systemImage: "stethoscope") }
             LogView()
