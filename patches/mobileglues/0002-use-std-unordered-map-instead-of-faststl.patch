@@ -1,0 +1,23 @@
+diff --git a/src/main/cpp/includes.h b/src/main/cpp/includes.h
+index 5688c0c..85e8a46 100644
+--- a/src/main/cpp/includes.h
++++ b/src/main/cpp/includes.h
+@@ -39,7 +39,9 @@ void proc_init();
+ }
+ #endif
+ 
+-#include <FastSTL/UnorderedMap.h>
++// Zalith iOS: the standard library map instead of FastSTL (MobileGL-Dev/FastSTL
++// declares no licence, so it cannot be redistributed). Same template parameters.
++#include <unordered_map>
+ 
+ template <
+         typename Key,
+@@ -48,6 +50,6 @@ template <
+         class KeyEqual = std::equal_to<Key>,
+         class Allocator = std::allocator<std::pair<const Key, T>>
+ >
+-using UnorderedMap = FastSTL::unordered_map<Key, T, Hash, KeyEqual, Allocator>;
++using UnorderedMap = std::unordered_map<Key, T, Hash, KeyEqual, Allocator>;
+ 
+ #endif //MOBILEGLUES_INCLUDES_H

@@ -1232,7 +1232,12 @@ ZLAPI GLFWwindow *glfwCreateWindow(int width, int height, const char *title, GLF
     w->cursorMode = GLFW_CURSOR_NORMAL;
     w->focused = YES;
     // Only one on-screen window; others (e.g. hidden helper contexts) are offscreen.
-    w->offscreen = gVisibleWindow != nil || !HINT(GLFW_VISIBLE);
+    // The first window is the game's full-screen window even when created hidden:
+    // Minecraft 26.2 creates it with GLFW_VISIBLE = 0 and calls glfwShowWindow only
+    // later, in the Minecraft constructor; treating it as offscreen left the game
+    // running (sound) behind the launcher with nothing on screen. It is shown at
+    // once, so the later glfwShowWindow changes nothing. Further windows are offscreen.
+    w->offscreen = gVisibleWindow != nil;
 
     if (w->offscreen) {
         w->width = MAX(width, 1);
@@ -1840,6 +1845,10 @@ ZLAPI int glfwExtensionSupported(const char *extension) {
 // and skips all AppKit calls when it is NULL, which it always is on iOS.
 ZLAPI uint32_t glfwGetCocoaMonitor(GLFWmonitor *monitor) { return 0; }
 ZLAPI void *glfwGetCocoaWindow(GLFWwindow *window) { return NULL; }
+// GLFW 3.4; LWJGL 3.4.1's GLFWNativeCocoa requires it (Minecraft 26.2's MacosUtil loads
+// that class: "A required function is missing: glfwGetCocoaView"). NULL like the window:
+// MacosUtil then skips its NSWindow colour-space call.
+ZLAPI void *glfwGetCocoaView(GLFWwindow *window) { return NULL; }
 ZLAPI void *glfwGetNSGLContext(GLFWwindow *window) { return NULL; }
 ZLAPI EGLDisplay glfwGetEGLDisplay(void) { return gDisplay; }
 ZLAPI EGLContext glfwGetEGLContext(GLFWwindow *window) { return window ? W(window)->context : EGL_NO_CONTEXT; }

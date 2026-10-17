@@ -97,6 +97,12 @@ final class MinecraftLauncher: ObservableObject {
             if requested.contains("lwjgl-sdl") {
                 throw LaunchError.message("\(versionID) uses SDL and Vulkan instead of GLFW and OpenGL (Minecraft 26.3 and later). This launcher's iOS window and graphics layers do not support that yet.")
             }
+            // Minecraft 26.2 (the first version to list lwjgl-vulkan) starts but draws only a
+            // black screen: its shader programs fail to link on MobileGlues + ANGLE (ES 3.0).
+            // Investigation paused (docs/ENGINEERING_LOG.md, 2026-10-17); refuse it clearly.
+            if requested.contains("lwjgl-vulkan") {
+                throw LaunchError.message("\(versionID) is not supported yet: it starts but shows only a black screen on iOS (its graphics shaders do not work on this phone's OpenGL ES layer). Minecraft up to 26.1.2 works.")
+            }
             let extras = Self.optionalLWJGLModules.filter(requested.contains)
             let modules = Self.lwjglModules + extras + (lwjgl2 ? ["lwjgl-lwjglx"] : [])  // bridge last, as upstream
             let ours = modules.map { lwjgl.appendingPathComponent("\($0).jar") }
@@ -151,6 +157,13 @@ final class MinecraftLauncher: ObservableObject {
             // Memory Error (allocation.cpp:389)" on 1.13.2 (hs_err, 2026-10-17).
             // Use the C1 JIT only on Java 8.
             if javaMajor == 8 { options.append("-XX:TieredStopAtLevel=1") }
+            // Diagnostics: when logs/lwjgl-debug contains "on", LWJGL logs GL functions it
+            // cannot find and extensions it rejects (to stderr, i.e. jvm.log). Off by default.
+            let lwjglDebugFlag = (try? String(contentsOf: paths.logsDir.appendingPathComponent("lwjgl-debug"), encoding: .utf8)) ?? ""
+            if lwjglDebugFlag.trimmingCharacters(in: .whitespacesAndNewlines) == "on" {
+                options += ["-Dorg.lwjgl.util.Debug=true", "-Dorg.lwjgl.util.DebugFunctions=true", "-Dorg.lwjgl.util.DebugLoader=true"]
+                log.info("launch", "LWJGL debug output on (logs/lwjgl-debug)")
+            }
             options += jvmArgs
 
             // iOS gives an app the "solo ambient" audio category by default, which

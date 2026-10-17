@@ -1,0 +1,56 @@
+diff --git a/src/main/cpp/gl/program.cpp b/src/main/cpp/gl/program.cpp
+index 3de5180..3922d3e 100644
+--- a/src/main/cpp/gl/program.cpp
++++ b/src/main/cpp/gl/program.cpp
+@@ -171,6 +171,37 @@ void glLinkProgram(GLuint program) {
+     }
+ 
+     GLES.glLinkProgram(program);
++#ifdef ZALITH_CHECK_GL_ERRORS
++    // Zalith iOS diagnostic build: report failed links, with the compile log and the
++    // start of the translated ES source of every attached shader that failed.
++    {
++        static int zalith_link_reports = 0;
++        GLint linked = GL_FALSE;
++        GLES.glGetProgramiv(program, GL_LINK_STATUS, &linked);
++        if (!linked && zalith_link_reports < 25) {
++            zalith_link_reports++;
++            char log[2048] = {0};
++            GLES.glGetProgramInfoLog(program, sizeof(log) - 1, nullptr, log);
++            fprintf(stderr, "[MG-LINK] program %u link FAILED: %s\n", program, log);
++            GLuint shaders[8] = {0};
++            GLsizei n = 0;
++            GLES.glGetAttachedShaders(program, 8, &n, shaders);
++            for (GLsizei i = 0; i < n; i++) {
++                GLint compiled = GL_FALSE, type = 0;
++                GLES.glGetShaderiv(shaders[i], GL_COMPILE_STATUS, &compiled);
++                GLES.glGetShaderiv(shaders[i], GL_SHADER_TYPE, &type);
++                char slog[2048] = {0};
++                GLES.glGetShaderInfoLog(shaders[i], sizeof(slog) - 1, nullptr, slog);
++                fprintf(stderr, "[MG-LINK]   shader %u type 0x%X compiled=%d log: %s\n", shaders[i], type, compiled, slog);
++                if (!compiled) {
++                    static char src[6000];
++                    GLES.glGetShaderSource(shaders[i], sizeof(src) - 1, nullptr, src);
++                    fprintf(stderr, "[MG-LINK]   ES source (start):\n%.3000s\n[MG-LINK]   (end of source excerpt)\n", src);
++                }
++            }
++        }
++    }
++#endif
+ 
+     CHECK_GL_ERROR
+ }
+diff --git a/src/main/cpp/gl/shader.cpp b/src/main/cpp/gl/shader.cpp
+index e80fdf7..9838bb1 100644
+--- a/src/main/cpp/gl/shader.cpp
++++ b/src/main/cpp/gl/shader.cpp
+@@ -107,6 +107,9 @@ void glShaderSource(GLuint shader, GLsizei count, const GLchar *const* string, c
+     }
+     else
+         LOG_E("Failed to convert glsl.")
++#ifdef ZALITH_CHECK_GL_ERRORS
++        fprintf(stderr, "[MG-LINK] GLSL -> ESSL conversion FAILED for shader %u\n", shader);
++#endif
+     CHECK_GL_ERROR
+ }
+ 

@@ -61,16 +61,30 @@ fetch https://github.com/KhronosGroup/glslang.git "refs/tags/$GLSLANG_TAG" "$SRC
 fetch https://github.com/KhronosGroup/SPIRV-Tools.git "$SPIRV_TOOLS_REV" "$SRC/glslang/External/spirv-tools"
 fetch https://github.com/KhronosGroup/SPIRV-Headers.git "$SPIRV_HEADERS_REV" "$SRC/glslang/External/spirv-tools/external/spirv-headers"
 fetch https://github.com/KhronosGroup/SPIRV-Cross.git "refs/tags/$SPIRV_CROSS_TAG" "$SRC/SPIRV-Cross"
-PATCHED="src/main/cpp/egl/loader.cpp src/main/cpp/egl/loader.h src/main/cpp/main.cpp"
+PATCHED="src/main/cpp/egl/loader.cpp src/main/cpp/egl/loader.h src/main/cpp/main.cpp src/main/cpp/includes.h src/main/cpp/init.cpp src/main/cpp/gl/getter.cpp src/main/cpp/gl/gl_stub.cpp src/main/cpp/gl/multidraw.cpp src/main/cpp/gl/gl_native.cpp src/main/cpp/gl/gl.cpp src/main/cpp/gles/loader.h src/main/cpp/gl/program.cpp src/main/cpp/gl/shader.cpp"
 [ -d "$SRC/MobileGlues/.git" ] && git -C "$SRC/MobileGlues" checkout -q -- $PATCHED 2>/dev/null || true
 fetch https://github.com/MobileGL-Dev/MobileGlues.git "$MG_REV" "$SRC/MobileGlues"
 # Our patch (patches/mobileglues/): restore the host's EGL context after init on Apple.
 git -C "$SRC/MobileGlues" apply "$ROOT/patches/mobileglues/0001-apple-restore-caller-egl-context.patch"
+# And: use std::unordered_map instead of FastSTL, which declares no licence and so
+# cannot be redistributed (it is not fetched at all, see below).
+git -C "$SRC/MobileGlues" apply "$ROOT/patches/mobileglues/0002-use-std-unordered-map-instead-of-faststl.patch"
+# And: on Apple, initialise on the first GL call instead of at load time, so init
+# always sees the game's ANGLE context (Minecraft 26.2 loads the library early).
+git -C "$SRC/MobileGlues" apply "$ROOT/patches/mobileglues/0003-apple-lazy-init-on-first-gl-call.patch"
+# And: implement glMultiDrawArrays, which upstream only stubs (Minecraft 26.2 drew nothing).
+git -C "$SRC/MobileGlues" apply "$ROOT/patches/mobileglues/0004-implement-glmultidrawarrays.patch"
+# And: glColorMaski falls back to glColorMask below ES 3.2 (Minecraft 26.2 went black).
+git -C "$SRC/MobileGlues" apply "$ROOT/patches/mobileglues/0005-colormaski-es30-fallback.patch"
+# And: optional GL error reporting, compiled in only with ZALITH_MG_CHECK_ERRORS=1.
+git -C "$SRC/MobileGlues" apply "$ROOT/patches/mobileglues/0006-optional-gl-error-reporting.patch"
+git -C "$SRC/MobileGlues" apply "$ROOT/patches/mobileglues/0007-diagnostic-shader-link-reports.patch"
 # Submodules at the commits MobileGlues pins (perfetto is only for PROFILING builds).
 MGC="$SRC/MobileGlues/src/main/cpp"
 fetch https://github.com/g-truc/glm.git 2d4c4b4dd31fde06cfffad7915c2b3006402322f "$MGC/3rdparty/glm"
 fetch https://github.com/stbrumme/xxhash.git c2866db364b6ea3a11933e62235ddc166ba18565 "$MGC/3rdparty/xxhash"
-fetch https://github.com/MobileGL-Dev/FastSTL.git 644b3b01e6e7dcb6a67818289d2fb9bbe85232f2 "$MGC/include/FastSTL"
+# FastSTL (MobileGL-Dev/FastSTL) is deliberately not fetched: no licence (see patch 0002).
+rm -rf "$MGC/include/FastSTL"
 
 IOS_ARGS=(
   -DCMAKE_SYSTEM_NAME=iOS
@@ -116,7 +130,11 @@ rm -rf "$MG/external"
 mkdir -p "$MG/external"
 cp -R "$ANGLE_OUT/libEGL.framework" "$ANGLE_OUT/libGLESv2.framework" "$MG/external/"
 
+# ZALITH_MG_CHECK_ERRORS=1: diagnostic build that prints every GLES error (patch 0006).
+MG_DIAG_FLAGS=""
+[ "${ZALITH_MG_CHECK_ERRORS:-0}" = "1" ] && MG_DIAG_FLAGS="-DZALITH_CHECK_GL_ERRORS=1" && echo "==> diagnostic build: GL error reporting on"
 "$CMAKE" -S "$MG" -B "$SRC/build-mobileglues" "${IOS_ARGS[@]}" -DMACOS=1 \
+  -DCMAKE_C_FLAGS="$MG_DIAG_FLAGS" -DCMAKE_CXX_FLAGS="$MG_DIAG_FLAGS" \
   -DCMAKE_SHARED_LINKER_FLAGS="-Wl,-rpath,@executable_path/Frameworks"
 "$CMAKE" --build "$SRC/build-mobileglues" -j "$JOBS" --target mobileglues
 
@@ -133,3 +151,13 @@ done
 echo "MobileGlues $MG_REV, glslang $GLSLANG_TAG, SPIRV-Cross $SPIRV_CROSS_TAG"
 ls -la "$OUT"
 otool -L "$OUT/libmobileglues.dylib"
+# Nothing from FastSTL may ship (see patch 0002).
+if nm -C "$OUT/libmobileglues.dylib" 2>/dev/null | grep -c "FastSTL::" >/dev/null; then
+  echo "FastSTL code found in libmobileglues.dylib" >&2; exit 1
+fi
+echo "FastSTL: none in libmobileglues.dylib"
+# glMultiDrawArrays (patch 0004) must be exported with its C name for LWJGL.
+EXPORTS="$(nm -gU "$OUT/libmobileglues.dylib")"   # (no grep -q on a pipe: SIGPIPE + pipefail)
+for sym in _glMultiDrawArrays _glColorMaski; do
+  case "$EXPORTS" in *" $sym"*) ;; *) echo "$sym not exported" >&2; exit 1 ;; esac
+done

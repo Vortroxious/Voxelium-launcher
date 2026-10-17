@@ -581,3 +581,82 @@ Changes:
 - **1.21.11 (open):** about a minute into play, "Can't map buffer, opengl error 0" (`mapBuffer`): a buffer mapping returned NULL through MobileGlues/ANGLE. Not yet investigated; 1.21.11 had earlier played for over a minute without it.
 - **Build `202610171119`** (SHA-256 `fea8d1166a91c6303377aadf34546273fe5a6e6954f8ce885e7136a064064a90`). **Not yet run on device.**
 - **Device result for build 202610171119 (user report, 2026-10-17):** Minecraft 26.1 (Java 25, LWJGL 3.4.1, MobileGlues) and 1.16.5 (Java 8, LWJGL 3.3.3, gl4es) both start and run, and 1.21.11 "worked seamlessly". The user played them on the iPhone with their Microsoft account.
+
+## 2026-10-17 — FastSTL removed (licence blocker for public release)
+- **User intent:** publish the launcher (video, public download) as an alternative to PojavLauncher.
+- **Blocker:** FastSTL (MobileGL-Dev/FastSTL, header-only `UnorderedMap.h`, compiled into libmobileglues) has no licence. Its README only says it is "used to store the code of FastSTL for use in MobileGL and MobileGlues projects". The shipped libmobileglues.dylib contained 18 `FastSTL::` symbols.
+- **Fix:**
+  - `patches/mobileglues/0002-use-std-unordered-map-instead-of-faststl.patch`: MobileGlues uses FastSTL in exactly one place, the `UnorderedMap` alias in `includes.h` (13 uses: per-shader/program flags, the GLSL cache index, the default fragment shader map). The alias now maps to `std::unordered_map` with the same template parameters.
+  - `build-mobileglues.sh` no longer fetches FastSTL, deletes any old copy, and fails if `nm -C` finds `FastSTL::` in the built library.
+- **Result:** the rebuilt libmobileglues.dylib (iOS platform 2) has 0 FastSTL symbols, and the unpacked IPA has no file mentioning FastSTL.
+- **Expected cost:** a few tens of ns more per map lookup, at most a couple per draw call. Estimated well under 1 ms per frame; not measured.
+- **Build `202610171151`** (SHA-256 `1d510016accc9bc96fc62950d722569ecb800033f5322ff9c6a74b3cdbd56859`). **Needs a device check:** 1.21.11 and 26.1, which use MobileGlues.
+
+## 2026-10-17 — FastSTL-free build checked on device; 26.2 Cocoa stub
+- **Build 202610171151** (no FastSTL), from the device logs:
+  - 26.1 (11:57:52) and 1.21.11 (11:58:44) each loaded fully three times (sound engine and atlases rebuilt on each resource reload) and quit with "Stopping!".
+  - No GL errors, crash reports, hs_err files or iOS crash logs.
+  - Neither log shows joining a world. Afterwards the user reported that 1.21.11 and 26.1 both **played fine in a world** on this build, so removing FastSTL caused no visible regression.
+- **Earlier runs that day (build 202610171119):**
+  - 1.16.5 (11:25) and 1.15.2 (11:31) on gl4es: "gl4es initialised …" logged, then a clean quit.
+  - 26.1.2 finished loading before the app was sent to the background.
+  - The 1.16.5 `gl4es_glGetError` crash at 11:15 was on build 202610170757, before the gl4es init fix.
+- **26.2:** crash report "A required function is missing: glfwGetCocoaView" from `GLFWNativeCocoa.<clinit>`, reached via `MacosUtil.setWindowColorSpaceForOpenGLBecauseGLFWDoesnt`.
+  - 26.2's MacosUtil (javap of the verified 26.2 client jar, SHA-1 2dc72797) skips the NSWindow calls when `glfwGetCocoaWindow` returns 0, which our stub does.
+  - **Fix:** a `glfwGetCocoaView` stub returning NULL. All Cocoa, NSGL and EGL native-access functions LWJGL 3.3.3/3.4.1 require are now exported. The only ones still missing are Win32/X11/Wayland/GLX/OSMesa, which are never loaded on "Mac OS X".
+- **Build `202610171201`** (SHA-256 `e9fbe1e43d59eeae5c7b5da00b0925b47afb7e9f474d8ece50e5a7805a95a57e`). **Not yet run on device.**
+- **26.2 on build 202610171201 (user report + jvm.log):** past the Cocoa stub, but the game ran behind the launcher: sound playing, launcher stuck on "Minecraft is running". jvm.log: `[ZLGLFW] window "Minecraft 26.2" offscreen: 854x480 pt`.
+  - Cause: 26.2's `Window.createGlfwWindow` sets `GLFW_VISIBLE` (0x20004) to 0 before `glfwCreateWindow`, and `Minecraft.<init>` calls `glfwShowWindow` later (javap). ZLGLFW made any window created invisible an offscreen pbuffer, and `glfwShowWindow` ignores offscreen windows.
+  - **Fix:** the first window is always the on-screen game window, shown at once whatever the hint; only further windows are offscreen. **Build `202610171212`** (SHA-256 `cf952150bc67c99d2e2f36e105362065a838468b1e56cc6c1486f9ac56a90188`). **Not yet run on device.**
+- **26.2 renders the red loading screen without the logo, then black; the game keeps running (sound).**
+  - With `glDebugVerbosity:4` in options.txt (temporary; the original is saved and will be restored), no GL debug messages appeared, and "Using graphics device extensions:" was empty.
+  - 26.1 printed `GL_KHR_debug, GL_EXT_texture_filter_anisotropic` there. javap: 26.2's `GlDevice` builds that list from its own `GL.createCapabilities()` flags (anisotropic, ARB clip_control/shader_draw_parameters/draw_indirect/multi_draw_indirect/base_instance; KHR_debug in GlDebugLabel). So in 26.2 **every extension flag was false**, KHR_debug included, which is also why there was no debug output.
+  - The GL calls 26.2 makes match 26.1's apart from LWJGL class renames and those optional ARB paths. MobileGlues logs no shader compile or link failures.
+  - **Next:** a diagnostic launcher switch. If `logs/lwjgl-debug` exists, the launcher adds `-Dorg.lwjgl.util.Debug/DebugFunctions/DebugLoader=true`, so LWJGL logs missing GL entry points and rejected extensions. **Build `202610171223`** (SHA-256 `79dd4ad1375a4a631d6e3c8c39521efe408dd4ec11ab79480192e39f240e2a06`); the flag file is pushed to the device.
+- **LWJGL debug run (build 202610171223):** LWJGL reported no missing GL entry points and no rejected extensions, so the empty extension list is not the fault. 26.1's latest run printed an empty "optional rendering extensions" list too, and renders fine.
+  - **Real difference, from jvm.log ordering:** in 26.2, "Initializing MobileGlues … EGL initialized" (line 97) comes **before** ZLGLFW's "initialised: ANGLE Metal display" (400) and the window (404). In 26.1 it is window (138), then MobileGlues (140). 26.2 loads the GL library early (it newly calls `GL.getFunctionProvider`), and MobileGlues initialises in a static constructor (init.cpp). So it created its default EGL display and queried GLES before the app's ANGLE display and context existed.
+  - **Fix:** `patches/mobileglues/0003-apple-lazy-init-on-first-gl-call.patch`. On Apple there is no load-time init; `mg_ensure_init()` (an atomic, re-entrant one-time guard) runs `proc_init()` on the first `glGetIntegerv`/`glGetString`/`glGetStringi`/`glGetError`, which LWJGL's `createCapabilities` calls with the game context current. That is 26.1's working order for every version.
+  - **Build `202610171231`** (SHA-256 `61b2c94f1b9a250ddb937863906647904ed66b6a7b8048caac5613c765faf527`). Needs device checks on 26.2 **and** 1.21.11, because this changes MobileGlues init for every version from 1.17 up.
+- **Build 202610171231 (lazy MobileGlues init) on device:** 26.2 unchanged (red, then black); 1.21.11 fine. Lazy init is kept: it is safe and matches 26.1's order.
+  - **Real cause, from comparing GL function names (class renames ignored):** 26.2 newly calls `glMultiDrawArrays` (and `glMultiDrawElementsBaseVertex`, `glColorMaski`, `glClearBufferfv`, …), while 26.1 drew with `glDrawElementsBaseVertex`/`glDrawArrays`.
+  - In MobileGlues f0fb4d3, `glMultiDrawArrays` is an **active stub** (`gl_stub.cpp`: logs "Stub function", draws nothing). Everything 26.2 draws through it, such as the logo and the GUI, never appears; only the clear colour shows.
+  - The other active stubs 26.2 can reach are behind ARB flags that are false here (clip control, base instance, indirect), or are non-essential (`glLogicOp`, `glPolygonMode`, `glQueryCounter`).
+  - **Fix:** `patches/mobileglues/0004-implement-glmultidrawarrays.patch` removes the stub and adds an `extern "C"` `glMultiDrawArrays` in multidraw.cpp that issues one `glDrawArrays` per draw (a passthrough, the same as the caller making the calls). The first attempt exported a C++-mangled name, which `build-mobileglues.sh` now catches: it fails if `_glMultiDrawArrays` isn't exported.
+  - **Build `202610171244`** (SHA-256 `fef7df3796db4caa2ed6db8a1c9f6fa4e27e1638ddd465dcb408bd0649288867`). **Not yet run on device.**
+- **Build 202610171244 (glMultiDrawArrays) on device:** 26.2 still black; 1.21.11 fine. MobileGlues prints no warnings in release builds.
+  - **Next suspect, from the same diff:** 26.2's `GlStateManager._colorMask` now always calls `glColorMaski` (26.1 used `glColorMask`). MobileGlues forwards it unchanged to ANGLE, but per-buffer masks are core only from ES 3.2, and ANGLE Metal provides ES 3.0 (MobileGlues logs "OpenGL ES 3.0 (300)"). Every call is rejected, so once colour writes were masked off they never came back on: red first frames, then black.
+  - **Fix:** `patches/mobileglues/0005-colormaski-es30-fallback.patch`. Below ES 3.2, `glColorMaski(0, …)` applies `glColorMask`; other buffers are ignored, since ES 3.0 has no per-buffer masks. The build script checks that `_glColorMaski` and `_glMultiDrawArrays` are exported.
+  - **Build `202610171253`** (SHA-256 `561506fda171851def63321b7bd91e9e27c91d4a651079948e8fb3c846a3dbd4`). **Not yet run on device.**
+- **Build 202610171253 (glColorMaski fallback) on device:** 26.2 still black. The user confirmed 1.21.11 was never affected; only 26.2 is broken.
+  - **Switching from guessing to evidence:** MobileGlues' release build hides every GLES error (`glGetError` always returns `GL_NO_ERROR`, and `CHECK_GL_ERROR` is empty unless `GLOBAL_DEBUG`, which also logs every call).
+  - `patches/mobileglues/0006-optional-gl-error-reporting.patch` adds an error-only mode: with `-DZALITH_CHECK_GL_ERRORS`, each checked call (native passthroughs included) prints `[MG-GLERR] <error> in <function> (<file>:<line>)` to stderr (jvm.log), capped at the first 400, then every 1000th.
+  - It is compiled in only with `ZALITH_MG_CHECK_ERRORS=1 scripts/build-mobileglues.sh`; release builds are unaffected.
+  - **Diagnostic build `202610171302`** (SHA-256 `7ba5b70eed392864d2c17e21a61324a0d4c77a7bbdcd7b7fe676fbbb3401baa6`, copy at `build/ipa/diag/`). Not a release build: rebuild MobileGlues without the flag before committing or publishing.
+- **Diagnostic build 202610171302 on device (26.2):** 1245 `[MG-GLERR]` lines, almost all `GL_INVALID_OPERATION`:
+  - `glUseProgram` (program.cpp:199) ×412 and `glUniform1i` ×410: the programs 26.2 uses are **not linked** in ANGLE, so nothing can draw and only the clear colour shows.
+  - Also `glFenceSync` ×261, `glClientWaitSync` ×145, `glDeleteBuffers` ×15. These are probably errors left over from the failing draws and reported at the next checked call.
+  - No "linking failed" message appeared, so MobileGlues never saw 26.2 query the link status, and the release build does not print shader logs.
+  - **Patch 0007 (diagnostic only):** after each `glLinkProgram`, a failed link prints `[MG-LINK]` with the link log and, for each attached shader that failed to compile, its compile log and the start of the translated ES source. GLSL→ESSL conversion failures are printed too. **Diagnostic build `202610171313`** (SHA-256 `9af4277cda2d176fb692abbf49fdf85019f3385374cfde2f0cae916adee4de39`).
+
+## 2026-10-17 — 26.2 paused (user decision); release build restored
+- **User decision:** 26.2 "isn't a big concern right now and took too much time": skip it for now.
+- **Where the 26.2 investigation stands, for whoever picks it up:**
+  - 26.2 starts and runs (sound, input), but draws only the clear colour.
+  - The diagnostic build showed `GL_INVALID_OPERATION` from `glUseProgram`/`glUniform1i`: the shader programs are **not linked** in ANGLE (ES 3.0) after MobileGlues' GLSL→ESSL translation.
+  - Patch 0007 prints the link and compile logs plus the translated source (`ZALITH_MG_CHECK_ERRORS=1 scripts/build-mobileglues.sh`), but that run was not made. The next step is that run, then fixing the translation or shader feature that fails.
+  - Ruled out along the way: the hidden window (fixed), the Cocoa stub (fixed), extension flags, LWJGL entry points, MobileGlues init order (lazy init kept), the `glMultiDrawArrays` stub (fixed), and the `glColorMaski` ES 3.0 rejection (fixed).
+- **Launcher:** versions that list `lwjgl-vulkan` (26.2; 26.1.x does not) are now refused with a clear message, like 26.3+ (SDL). The supported range is **1.13 – 26.1.2**.
+- **Kept MobileGlues patches:**
+  - 0002: no FastSTL.
+  - 0003: lazy init on Apple.
+  - 0004: `glMultiDrawArrays`.
+  - 0005: `glColorMaski` fallback below ES 3.2.
+  - 0006/0007: diagnostics, inert unless built with the flag.
+  - 1.21.11 was fine on every one of these builds (user).
+- **Phone restored:**
+  - `logs/lwjgl-debug` now says `off`; the launcher only enables LWJGL debug when it says `on`, since devicectl cannot delete files.
+  - `glDebugVerbosity` is back to 1 in the *current* options.txt, keeping the user's later settings.
+- **Release build `202610171320`** (SHA-256 `01060a5cddecfc27e4d17721ad25c44946e661d07273bca7f6540f3cf49e04b1`):
+  - checked: MobileGlues without diagnostic strings, 0 FastSTL symbols, no bundled client ID;
+  - `swift test` passes 75/75;
+  - not yet run on device.

@@ -1,0 +1,82 @@
+diff --git a/src/main/cpp/gl/getter.cpp b/src/main/cpp/gl/getter.cpp
+index 42478b7..d00355f 100644
+--- a/src/main/cpp/gl/getter.cpp
++++ b/src/main/cpp/gl/getter.cpp
+@@ -9,11 +9,20 @@
+ #include <vector>
+ #include "FSR1/FSR1.h"
+ 
++// Zalith iOS: lazy MobileGlues init on Apple (see init.cpp).
++#ifdef __APPLE__
++extern "C" void mg_ensure_init();
++#define MG_ENSURE_INIT() mg_ensure_init()
++#else
++#define MG_ENSURE_INIT() ((void)0)
++#endif
++
+ #define DEBUG 0
+ 
+ Version GLVersion;
+ 
+ void glGetIntegerv(GLenum pname, GLint *params) {
++    MG_ENSURE_INIT();
+     LOG()
+     LOG_D("glGetIntegerv, pname: %s", glEnumToString(pname))
+     switch (pname) {
+@@ -87,6 +96,7 @@ void glGetIntegerv(GLenum pname, GLint *params) {
+ }
+ 
+ GLenum glGetError() {
++    MG_ENSURE_INIT();
+     LOG()
+     GLenum err = GLES.glGetError();
+     // just clear gles error, no reporting
+@@ -213,6 +223,7 @@ static std::string rendererString;
+ static std::string vendorString;
+ static std::string versionString;
+ const GLubyte * glGetString( GLenum name ) {
++    MG_ENSURE_INIT();
+     LOG()
+     switch (name) {
+         case GL_VENDOR: {
+@@ -295,6 +306,7 @@ const GLubyte * glGetString( GLenum name ) {
+ }
+ 
+ const GLubyte * glGetStringi(GLenum name, GLuint index) {
++    MG_ENSURE_INIT();
+     LOG()
+     if (name == GL_EXTENSIONS + GL_BACKEND_GETTER_MG) {
+         return GLES.glGetStringi(name - GL_BACKEND_GETTER_MG, index);
+diff --git a/src/main/cpp/init.cpp b/src/main/cpp/init.cpp
+index b5a11e4..442beba 100644
+--- a/src/main/cpp/init.cpp
++++ b/src/main/cpp/init.cpp
+@@ -10,4 +10,25 @@ struct static_block_t {
+     }
+ };
+ 
+-static static_block_t static_block;
+\ No newline at end of file
++#ifdef __APPLE__
++// Zalith iOS: initialise on first use instead of at load time. Minecraft 26.2 loads
++// the GL library (LWJGL GL.getFunctionProvider) before it creates its window, so
++// load-time init set MobileGlues up against EGL/GLES state that is not the game's
++// (its own default display, made before the app's ANGLE display and context) and
++// 26.2 drew nothing but the clear colour. The first GL entry points LWJGL calls
++// (glGetIntegerv/glGetString/glGetStringi/glGetError, see gl/getter.cpp) call this
++// with the game's context current, the order in which 26.1 and older already work.
++#include <atomic>
++static std::atomic<int> g_mg_init_state{0};  // 0 not started, 1 running, 2 done
++extern "C" void mg_ensure_init() {
++    if (g_mg_init_state.load(std::memory_order_acquire) == 2) return;
++    int expected = 0;
++    if (g_mg_init_state.compare_exchange_strong(expected, 1)) {
++        proc_init();
++        g_mg_init_state.store(2, std::memory_order_release);
++    }
++    // state 1: called from inside proc_init itself; carry on without waiting.
++}
++#else
++static static_block_t static_block;
++#endif
+\ No newline at end of file
