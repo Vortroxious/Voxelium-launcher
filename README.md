@@ -2,7 +2,7 @@
 
 An experimental iOS launcher for Minecraft: Java Edition, inspired by [ZalithLauncher2](https://github.com/ZalithLauncher/ZalithLauncher2) 2.6.1.
 
-> **This app cannot launch Minecraft yet.** It can browse Mojang's version list, download and verify game files, and run a small Java test program on a real iPhone (with JIT from StikDebug). Rendering the game on iOS is still unsolved. See [docs/PORTING_FEASIBILITY.md](docs/PORTING_FEASIBILITY.md).
+> **Experimental: Minecraft Java 1.20.1 has started on an iPhone** (offline account, JIT via StikDebug): title screen, world creation and joining a world on an iPhone 15 Pro Max / iOS 27. On-screen touch controls (Amethyst-style layout with haptics) and sound have been reported working on that phone (build 202610170123). Performance is unmeasured, only 1.20.1 has been tried, and builds are development-signed only. See [docs/PORTING_FEASIBILITY.md](docs/PORTING_FEASIBILITY.md).
 
 ## Feature status
 | Feature | Status | Evidence |
@@ -17,8 +17,9 @@ An experimental iOS launcher for Minecraft: Java Edition, inspired by [ZalithLau
 | Java runtime on iOS | ✅ Smoke test passed on iPhone 15 Pro Max / iOS 27 with StikDebug JIT | `docs/evidence/2026-10-16-java-smoke-test.log`; Minecraft itself not attempted |
 | OpenGL ES on Metal (ANGLE, built from source) | ✅ Native and Java (LWJGL 3.3.3) tests passed on iPhone 15 Pro Max / iOS 27 | `docs/evidence/2026-10-16-angle-gl-test.log`, `…-lwjgl-gles-test.log` |
 | Desktop OpenGL (GL 4.0 via MobileGlues on ANGLE) | ✅ Native and Java (LWJGL `GL33`) tests passed on iPhone | `docs/evidence/2026-10-16-*desktopgl*.log`; one MobileGlues context per launch |
-| GLFW window/input bridge (app's own GLFW 3.4 API) | ✅ Passed on iPhone: window, context, touch→mouse, landscape, close | `docs/evidence/2026-10-16-glfw-*.log`; keyboard untested, no gameplay touch controls yet |
+| GLFW window/input bridge (app's own GLFW 3.4 API) | ✅ Passed on iPhone: window, context, touch→mouse, landscape, close | `docs/evidence/2026-10-16-glfw-*.log`; hardware keyboard untested; on-screen game controls reported working (2026-10-17) |
 | Microsoft account sign-in | ❌ Not started | |
+| **Launch Minecraft 1.20.1** | ⚠️ **Starts, reaches title screen, creates and joins a world, saves and exits** | `docs/evidence/2026-10-16-minecraft-1.20.1-first-launch.log`; not playable yet |
 | Mod loaders, resource packs, shaders | ❌ Not started | `inheritsFrom` profiles are rejected explicitly |
 
 ## Build kinds — do not confuse

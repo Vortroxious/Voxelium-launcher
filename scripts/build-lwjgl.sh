@@ -119,3 +119,12 @@ javac --release 17 -cp "$J/lwjgl.jar:$J/lwjgl-egl.jar:$J/lwjgl-opengles.jar:$J/l
 jar --create --file "$DEPS/lwjgl-out/zalith-glestest.jar" -C "$CLS" .
 rm -rf "$CLS"
 ls -la "$DEPS/lwjgl-out/zalith-glestest.jar"
+
+# iOS compatibility stubs for macOS-only APIs Minecraft calls (JavaRuntime/ios-compat).
+CLS="$(mktemp -d)"
+javac --release 17 -sourcepath "$ROOT/JavaRuntime/ios-compat/compile-only" -d "$CLS" \
+  "$ROOT"/JavaRuntime/ios-compat/src/ca/weblite/objc/*.java
+rm -rf "$CLS/com"   # compile-only placeholders are never shipped
+jar --create --file "$DEPS/lwjgl-out/zalith-ios-compat.jar" -C "$CLS" .
+rm -rf "$CLS"
+unzip -l "$DEPS/lwjgl-out/zalith-ios-compat.jar" | grep class

@@ -22,7 +22,8 @@
 | OpenGL ES via LWJGL (Java test) | **Yes, passed on iPhone** (2026-10-16) | Java → LWJGL 3.3.3 → ANGLE → Metal, GLES 3.0, pixel read-back exact. `docs/evidence/2026-10-16-lwjgl-gles-test.log` |
 | Desktop GL via MobileGlues (native + Java/LWJGL) | **Yes, passed on iPhone** (2026-10-16, build 202610161548) | GL 4.0.0 MobileGlues 1.3.3 on ANGLE/Metal, exact pixels. `docs/evidence/2026-10-16-*desktopgl*.log` |
 | GLFW bridge (window, context, input) | **Yes, passed on iPhone** (2026-10-16, build 202610161611) | 60 fps, exact pixels, 1476 cursor events from drags, landscape, close button. `docs/evidence/2026-10-16-glfw-*.log` |
-| Minecraft main menu / gameplay | No | not attempted |
+| Minecraft reached the main menu | **Yes** (2026-10-16, build 202610161636) | Resource reload completed and a world was created from the title screen. `docs/evidence/2026-10-16-minecraft-1.20.1-first-launch.log` |
+| Actual gameplay verified | **Partly**: joined a world, world saved on exit; on-screen controls, haptics, sound (OpenAL/CoreAudio) and camera look reported working by the user (2026-10-17, build 202610170123) | FPS not measured; the user reports controls and sound only, without logs of each control. `docs/ENGINEERING_LOG.md` 2026-10-17 |
 
 ## IPA
 | Field | Value |

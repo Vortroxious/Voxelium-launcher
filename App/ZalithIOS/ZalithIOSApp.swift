@@ -4,11 +4,13 @@ import ZalithCore
 @main
 struct ZalithIOSApp: App {
     @StateObject private var model = LauncherModel()
+    @StateObject private var minecraft = MinecraftLauncher()
 
     var body: some Scene {
         WindowGroup {
             ContentView()
                 .environmentObject(model)
+                .environmentObject(minecraft)
                 .task { await model.start() }
         }
     }

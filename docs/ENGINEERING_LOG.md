@@ -211,3 +211,128 @@
   - Same run: 1 drag gave 229/229 moves accepted and 230 cursor callbacks; landscape rotation and pixel read-back OK.
   - **Milestone 6 step 3d verified on device:** window, context, MobileGlues in the real load order, touch→mouse input, landscape and close.
   - **Not yet covered:** hardware keyboard (no keyboard attached), scroll and touch controls for gameplay, joysticks.
+
+## 2026-10-16 — Milestone 7 (first Minecraft launch attempt) preparation
+- **Device data:** after the latest reinstalls the app's data container held **no game files**; Sideloadly reinstalls appear to wipe app data.
+  - 1.20.1 is now installed on the Mac with `zalith-cli install 1.20.1 --root build/gamedata` (3616 files, all hash-verified, 720 MB).
+  - `scripts/push-gamedata.sh` copies it to the phone with `devicectl device copy to`.
+- **What 1.20.1 needs beyond Milestone 6** (found in the real client jar):
+  - `ehg` (MacosUtil) uses `GLFWNativeCocoa.glfwGetCocoaWindow` and the macOS-only `ca.weblite.objc` bridge. Its icon path (`NSApplication setApplicationIconImage`) runs unconditionally at start-up on "Mac OS X", so it would throw `NoClassDefFoundError`.
+    - Fix: our own no-op `ca.weblite.objc.{Client,Proxy,NSObject}` (`JavaRuntime/ios-compat`, written from the call signatures, not copied).
+    - The fullscreen path stays inert because our `glfwGetCocoaWindow` returns NULL.
+  - **OpenAL:** the sound engine uses LWJGL OpenAL, and a missing native fails in a static initialiser.
+    - Fix: openal-soft **1.25.2** built from source (`scripts/build-openal.sh`, CoreAudio backend), 1.6 MB, iOS, system frameworks only, 186 exports.
+    - Xcode 27 needed `HAVE_WFUNCTION_EFFECTS=OFF` + `-Wno-error=function-effects`, and `HAVE_LIBATOMIC=OFF`.
+  - **oshi/JNA:** `GLX._init` wraps the oshi CPU probe in `catch (Throwable)`, so a JNA failure is tolerated.
+  - **Narrator:** `text2speech` `Narrator.getNarrator()` catches `Throwable`.
+  - The GLFW bridge now also exports the 7 native-access functions (`glfwGetCocoaWindow/Monitor`, `glfwGetNSGLContext`, `glfwGetEGL*`).
+- **Launch path** (`MinecraftLauncher.swift`, Versions → installed version → "Launch Minecraft (experimental)"):
+  - **Classpath:** LaunchPlanner classpath + iOS LWJGL modules + compat jar.
+  - **JVM args:** version-JSON args minus `-cp` (JNI) and the log4j XML config, plus the LWJGL/HotSpot flags verified in Milestones 5–6.
+  - **Heap:** capped at 40% of `os_proc_available_memory`.
+  - **Render scale:** `ZALITH_RENDER_SCALE=0.5` default.
+  - Build `202610161636` (SHA-256 `acf7459f9de1de007a65a9332cf963b4770ea1eb93d8431d0adb030cd812053f`). **Not yet run.**
+- **MILESTONE 7: MINECRAFT 1.20.1 RAN ON THE IPHONE AND THE PLAYER JOINED A WORLD (16:42–16:43 UTC, build `202610161636`)** (`docs/evidence/2026-10-16-minecraft-1.20.1-first-launch.log`):
+  - **Start-up:** game files pushed from the Mac (`push-gamedata.sh`: 3575 assets, 38 libraries, client jar, counts matching the Mac). JIT mapping from StikDebug; heap 1335 MB (40% of available); 47 classpath entries.
+  - **Init:** `Backend library: LWJGL version 3.3.3`. The GLFW window "Minecraft 1.20.1" was 430×932 pt with a 645×1398 px framebuffer (render scale 0.5), then MobileGlues initialised.
+  - **Sound:** "OpenAL initialized on device CoreAudio Default" → "Sound engine started" (openal-soft 1.25.2).
+  - **Resources:** atlases created and the vanilla resource reload completed (Minecraft shaders compiled through MobileGlues; glsl cache 70 KB).
+  - **Into the world:** the user reached the title screen and created a world. The integrated server started and spawn preparation took 25.8 s; then "Player joined the game" at (55.5, 64, 33.5). GLFW cursor capture (`GLFW_CURSOR_DISABLED`) was engaged and touch drags were delivered (240 moves, 15 touches).
+  - **Performance:** one "Can't keep up! … 40 ticks behind" warning on the integrated server.
+  - **Exit:** "Stopping!" at 16:43:41 (window close from the ✕ button). The world was **saved cleanly** (all dimensions) and the process exited.
+  - **No crashes or unexpected errors.** Expected or harmless noise:
+    - 401 auth / Realms (offline account);
+    - oshi/JNA `UnsatisfiedLinkError`, caught by `GLX._init`;
+    - the fork's `AngelAuraAmethyst` load attempt, caught;
+    - vanilla goat-horn sound and sampler warnings.
+  - **Our bug:** log4j could not open `logs/latest.log`, because the process cwd is `/`.
+  - **Not measured:** FPS and visual correctness. The user needs to report what was on screen.
+- **Fix:** Minecraft is now launched with cwd = game dir and `-Duser.dir=<game dir>`, in build `202610161645` (SHA-256 `39a392c8d8a8326370c97d9d9d5efb760e6e8a30bb93ac67c964e84e00225108`). Not yet run.
+- **User feedback after the first launch:** no sound, and no way to control the game (only mouse emulation).
+  - **Sound, likely cause (not verified):** the app never configured an AVAudioSession, so iOS used solo-ambient, which the silent switch/Action button mutes. `MinecraftLauncher` now sets `.playback` + `.mixWithOthers` and activates it before launch. Not built or tested yet.
+  - **Controls, work in progress (uncommitted, NOT built):** `ZLGLFW.m` now holds a first-draft overlay (joystick, buttons, keyboard proxy, in-game gestures: drag = look, tap = use, long press = break). The user asked for **Amethyst/PojavLauncher's default layout plus haptic feedback**, so the draft layout must be replaced.
+- **Amethyst default layout (from Amethyst-iOS `Natives/customcontrols/CustomControlsUtils.m`, `generateAndSaveDefaultControl`, GPL-3.0):**
+  - **Expression variables:** `${screen_width}`/`${screen_height}` in px (points × UIScreen.scale); `px(x)` = scale·x; `${margin}` = 2·scale; `${preferred_scale}` = pref `control.button_scale` (default 100); `${width}`/`${height}` = button size·scale.
+  - **Style:** bgColor 0x4d000000, cornerRadius 100 (fully rounded), stroke white, strokeWidth 0 (drawer 1.5), multi-line titles.
+  - **Buttons (name, key, size in pt, toggle, inGame, inMenu):**
+    - Jump: SPACE, 69.6², x≈0.9488·W−69.6, y≈0.3113·H+69.6+m; game only.
+    - Shift: LEFT_SHIFT, 69.6², toggle, same x as Jump, y≈0.3113·H; game + menu.
+    - Sprint: LEFT_CONTROL, 69.6², toggle, left of Shift (x − w − m), y≈0.3113·H; game only.
+    - Right Click: mouse 2, 69.6², x=0.8756·W−w, y=0.8178·H−h, swipeable.
+    - Left Click: mouse 1, 69.6², x=0.7756·W−w, y=0.8225·H−h, swipeable.
+    - Middle Click: mouse 3, 69.6², x=0.8355·W−w, y=0.6780·H−h, swipeable.
+    - Top row at y=0, packed from the right edge:
+      - Runtime Menu: special menu, 104.8×39.2.
+      - Hide GUI: special toggle-controls, 69.6×40.
+      - Pause: ESC, 104.8×39.2, game only.
+      - Inventory: E, 100×40, game only.
+      - Exit Menu: ESC, 104.8×39.2, menu only.
+    - Drawer "More" at (0,0), 96×40, opening a FREE drawer with Third person (F5), Debug Menu (F3), Mouse Toggle (virtual mouse), Chat (T), Keyboard (show iOS keyboard), Player List (TAB, toggle), each 96×40.
+    - Joystick: bottom-left, x=0.0233·W, y=0.9753·H−h, 204.8², not absolute, no forward lock; game only.
+  - **Haptics:** `UIImpactFeedbackGenerator` light on button touch-down (`executebtn_down`), surface tap and scroll; medium on long press. Disabled by pref `control.disable_haptics` (default NO).
+- **Next steps:**
+  1. Replace the draft layout with the Amethyst default above, plus light/medium haptics.
+  2. Build and verify.
+  3. Re-test sound (with silent mode on and off) and controls on the device.
+  4. Fix the cwd/log4j issue; already done in `MinecraftLauncher` (build `202610161645`).
+
+## 2026-10-17 — Controls and sound
+- **On-screen controls rebuilt on Amethyst's default layout** (positions from its `generateAndSaveDefaultControl` expressions, evaluated in points with button_scale 100, margin 2 pt):
+  - Jump, Shift (toggle) and Sprint (toggle); Left/Right/Middle Click.
+  - Top row: Runtime Menu, Hide GUI, Pause, Inventory, Exit Menu (menu only).
+  - "More" drawer: Third person, Debug Menu, Mouse Toggle, Chat, Keyboard, Player List.
+  - 204.8 pt joystick bottom-left.
+  - Per-button in-game/in-menu visibility as in Amethyst; style 0x4d000000, fully rounded.
+  - Player List is moved into the free top drawer slot, because Amethyst's expression places it at y < 0.
+- **Special buttons:**
+  - Runtime Menu: action sheet with keyboard, virtual mouse, and "Quit game (saves the world)", which replaces the ✕ button.
+  - Hide GUI: hides everything but itself.
+  - Mouse Toggle: trackpad-style pointer in menus, drawn with the SF Symbol `cursorarrow`.
+  - Keyboard: iOS keyboard → GLFW char/Backspace/Enter.
+- **Surface gestures:**
+  - In game: drag = look, tap = use (right click), long press = break (hold left), tap on a hotbar slot = keys 1–9 (auto GUI scale assumed).
+  - In menus: direct pointer.
+- **Haptics (as Amethyst):** `UIImpactFeedbackGenerator` light on every button press, joystick touch and surface tap; medium when a long press starts.
+- **Sound:** `AVAudioSession` set to `.playback` + `.mixWithOthers` and activated before launch.
+- **Working directory:** Minecraft's cwd and `user.dir` are now the game dir.
+- **Build `202610170052`** (SHA-256 `4ebd8ba86a02323f93c5d2e059f721dec08adb5f78715f1db7cdf2ea3638ced4`): 124 GLFW exports, 56/56 core tests passing. **Not yet run on device.**
+
+## 2026-10-17 — Device test of build 202610170052
+- **Evidence:** launcher.log, jvm.log and minecraft/logs/latest.log pulled from the device; the user's report.
+- **Run 01:01:06Z:** Minecraft 1.20.1 with a 1335 MB heap.
+  - OpenAL initialised on "CoreAudio Default" and the sound engine started.
+  - The player joined a world at 01:01:21; 22 touches were recorded.
+  - The user left with Save and Quit. The world was saved at 01:02:27 and "Stopping!" logged at 01:02:31.
+  - **No crash report for this run**, so the process ended cleanly.
+- **User report:**
+  - Sound works.
+  - The controls work and look right.
+  - **The Inventory button was missing.**
+- **Inventory position fix:** simplifying Amethyst's x expression gives W − 69.6 − 2·104.8 − 100 − 3·2, i.e. directly left of Pause. My earlier version had used 3·104.8 + 4·2. That put the button 107 pt too far left (x≈440 on a 932-pt screen), but still on screen. **The wrong position alone does not explain why the button was missing, so the cause is still unconfirmed.**
+- **Added diagnostic:** a `[ZLGLFW] controls WxH, inGame=…, top row: …` line, logged on every overlay resize and every switch between game and menu. It records each top-row button's x, width and hidden state.
+- **Two earlier crash reports (08:00:29 and 08:00:49 local)** come from earlier sessions, not this run: FRONTBOARD 0x8BADF00D "Failed to terminate gracefully after 5.0s", a process-exit watchdog. They are open; the likely cause is closing the app while the JVM is running.
+- **Expected, harmless errors in latest.log:**
+  - The JNA/oshi native library is not available on iOS (hardware info query).
+  - LWJGL's `null/AngelAuraAmethyst` probe.
+  - Offline-account 401s from authlib and Realms.
+- **Build `202610170108`** (SHA-256 `0d25bbb560afaa2c71b8ab43cf40b89de9f26ed41f80e0c5e85144ee1b60a7e4`). **Not yet run on device.**
+
+## 2026-10-17 — Inventory button moved to the right-hand cluster
+- **Build 202610170108 on the device (user report):** the Inventory button showed in the top row. The user found that position awkward and asked for it on the right side, where it's easy to press.
+- **This is a deliberate change from Amethyst's default layout:**
+  - Inventory (E) is now a round 69.6 pt button, directly right of Right Click and under Jump.
+  - x = 0.8756154·W + 2; y = max(0.8178498·H − 69.6, Jump's bottom edge + 2); shown in game only.
+  - It was removed from the top row.
+  - I worked out the positions for 932×430, 956×440, 852×393 and 667×375 pt: it overlaps no other control.
+- **Diagnostic line widened:** `[ZLGLFW] controls …` now lists every non-drawer control's position and hidden state.
+- **Build `202610170113`** (SHA-256 `eee734b125c7e2419d9e7db9fba5f5bc7253d94502cebf39dbc5aec35d106b36`). **Not yet run on device.**
+- **Device result for build 202610170113 (user report, 2026-10-17):** the user confirmed the new Inventory position on the iPhone and is happy with the control layout.
+
+## 2026-10-17 — Camera look sensitivity matched to Amethyst
+- **Checked on build 202610170113:** options.txt on the device has `mouseSensitivity:0.5` (default) and `rawMouseInput:true`.
+  - Our bridge sent 1 cursor unit per point of in-game drag.
+  - Amethyst's `SurfaceViewController sendTouchPoint` sends the touch location × `UIScreen.scale` while the cursor is grabbed. Its `mouse_speed` only affects the virtual mouse, and it doesn't apply `resolutionScale` while grabbed.
+  - Result: look on our side was 3× slower on a @3x phone. At sensitivity 0.5, Minecraft turns 0.15° per unit, so a 100 pt swipe was 15° here versus 45° in Amethyst.
+- **Change:** in-game drag deltas are now multiplied by `UIScreen.mainScreen.scale` before they are sent to GLFW. Menu pointer and virtual mouse are unchanged.
+- **Build `202610170123`** (SHA-256 `a9b49e53e09ed26f15c9dec43da750b2b9de26b4b33ed99ef6d392e30b018c70`). **Not yet run on device.**
+- **Device result for build 202610170123 (user report, 2026-10-17):** the camera now feels better; the previous builds were too slow.

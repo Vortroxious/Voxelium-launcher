@@ -3,10 +3,23 @@ import ZalithCore
 
 struct VersionsView: View {
     @EnvironmentObject var model: LauncherModel
+    @EnvironmentObject var minecraft: MinecraftLauncher
 
     var body: some View {
         NavigationStack {
             List {
+                switch minecraft.state {
+                case .idle:
+                    EmptyView()
+                case .starting(let m), .running(let m):
+                    Section { HStack { ProgressView(); Text(m).font(.callout) } }
+                case .finished(let ok, let m):
+                    Section {
+                        Label(ok ? "Minecraft exited" : "Minecraft did not start", systemImage: ok ? "checkmark.circle" : "xmark.octagon")
+                            .foregroundStyle(ok ? Color.primary : Color.red)
+                        Text(m).font(.caption)
+                    }
+                }
                 if let error = model.manifestError {
                     Section {
                         Label(error, systemImage: "exclamationmark.triangle").foregroundStyle(.red)
@@ -31,6 +44,7 @@ struct VersionsView: View {
 
 struct VersionRow: View {
     @EnvironmentObject var model: LauncherModel
+    @EnvironmentObject var minecraft: MinecraftLauncher
     let entry: VersionManifest.Entry
 
     var body: some View {
@@ -54,6 +68,9 @@ struct VersionRow: View {
         default:
             if model.installed.contains(entry.id) {
                 Menu {
+                    Button("Launch Minecraft (experimental, needs JIT)") {
+                        if let paths = model.paths { minecraft.launch(versionID: entry.id, paths: paths, settings: model.settings) }
+                    }
                     Button("Verify / repair files") { Task { await model.install(entry) } }
                     Button("Prepare launch plan") { model.preparePlan(entry.id) }
                 } label: { Label("Installed", systemImage: "checkmark.circle.fill") }
