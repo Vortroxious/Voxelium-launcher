@@ -6,15 +6,15 @@ index 3de5180..3922d3e 100644
      }
  
      GLES.glLinkProgram(program);
-+#ifdef ZALITH_CHECK_GL_ERRORS
-+    // Zalith iOS diagnostic build: report failed links, with the compile log and the
++#ifdef VOXELIUM_CHECK_GL_ERRORS
++    // Voxelium diagnostic build: report failed links, with the compile log and the
 +    // start of the translated ES source of every attached shader that failed.
 +    {
-+        static int zalith_link_reports = 0;
++        static int voxelium_link_reports = 0;
 +        GLint linked = GL_FALSE;
 +        GLES.glGetProgramiv(program, GL_LINK_STATUS, &linked);
-+        if (!linked && zalith_link_reports < 25) {
-+            zalith_link_reports++;
++        if (!linked && voxelium_link_reports < 25) {
++            voxelium_link_reports++;
 +            char log[2048] = {0};
 +            GLES.glGetProgramInfoLog(program, sizeof(log) - 1, nullptr, log);
 +            fprintf(stderr, "[MG-LINK] program %u link FAILED: %s\n", program, log);
@@ -48,7 +48,7 @@ index e80fdf7..9838bb1 100644
      }
      else
          LOG_E("Failed to convert glsl.")
-+#ifdef ZALITH_CHECK_GL_ERRORS
++#ifdef VOXELIUM_CHECK_GL_ERRORS
 +        fprintf(stderr, "[MG-LINK] GLSL -> ESSL conversion FAILED for shader %u\n", shader);
 +#endif
      CHECK_GL_ERROR

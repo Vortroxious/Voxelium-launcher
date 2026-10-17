@@ -36,6 +36,6 @@ Commands were run on 2026-10-15. Everything listed was observed directly. Nothin
 These hosts were reachable: github.com / api.github.com, piston-meta.mojang.com, assets.angelauramc.dev.
 
 ## Consequences
-- The pure-Swift core (`ZalithCore`) builds and tests on macOS.
+- The pure-Swift core (`VoxeliumCore`) builds and tests on macOS.
 - An iOS `.app` and IPA need the Xcode license accepted first. Signing additionally needs an Apple ID added in Xcode → Settings → Accounts.
 - Physical-device testing needs the iPhone connected and Developer Mode enabled.

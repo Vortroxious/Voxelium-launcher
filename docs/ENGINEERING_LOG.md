@@ -660,3 +660,26 @@ Changes:
   - checked: MobileGlues without diagnostic strings, 0 FastSTL symbols, no bundled client ID;
   - `swift test` passes 75/75;
   - not yet run on device.
+
+## 2026-10-17 — Renamed to Voxelium (user decision: full rebrand)
+- **Why (user):** the project is "not relevant to Zalith anymore because it already has its own core". Full rebrand chosen over renaming only what's visible.
+- **What changed:**
+  - App: display name, product and executable `Voxelium`; bundle ID `io.github.voxelium.launcher`.
+  - Xcode: `App/Voxelium.xcodeproj`, target/scheme `Voxelium`, `App/Voxelium/`, `Voxelium-Bridging-Header.h`, `VoxeliumApp.swift`.
+  - Swift package `Voxelium`: modules `VoxeliumCore` and `voxelium-cli`, tests `VoxeliumCoreTests`.
+  - Native: prefix `ZL…`/`zl…` → `VX…`/`vx…` (`VXGLFW.m`, `VXJVMBridge`, `[VXGLFW]` log tags).
+  - Environment variables `ZALITH_*` → `VOXELIUM_*`; build-time client ID `VX_MS_CLIENT_ID`.
+  - Data directory `Application Support/Voxelium`; install marker `.voxelium-install-complete`.
+  - Keychain service `io.github.voxelium.microsoft`; Minecraft launcher brand `Voxelium`.
+  - Java: package `io.github.voxelium`; jars `voxelium-javatest`, `voxelium-glestest` and `voxelium-ios-compat`.
+  - IPA: `build/ipa/Voxelium-unsigned.ipa`.
+- **Kept:**
+  - Credit to ZalithLauncher2 (inspiration, GPL-3.0), Amethyst-iOS and PojavLauncher.
+  - Verbatim device logs in `docs/evidence/`, and this log's history, which keeps the names used at the time.
+  - LICENSE: the GPL "how to apply" example, which upstream had filled with "Zalith Launcher … MovTery", is back to the official GPL-3.0 placeholders. It is identical to gnu.org's text apart from a missing final newline.
+- **Verification:**
+  - Every rename uses `git mv`. "zalith" now appears only in upstream credits.
+  - `swift test` passes 75/75; `voxelium-cli` runs.
+  - Java test and compat jars rebuilt; gl4es, MobileGlues and the LWJGL 3.4.1 patch all still apply.
+  - **Build `202610171333`** (SHA-256 `ad09b9941173b814fff2f32182f1d8825f3bdc46210cd4f83fd08269bab08b39`): the app shows as "Voxelium" and its binary contains no "zalith" strings.
+- **Device impact:** this is a **new app** to iOS (new bundle ID). It needs its own install, the StikDebug JIT script assigned again, the game files pushed again (the Mac copies' markers were renamed for this), and Microsoft sign-in again (new Keychain service). **Not yet run on device.**

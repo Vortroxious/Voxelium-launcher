@@ -7,7 +7,7 @@ index 5688c0c..85e8a46 100644
  #endif
  
 -#include <FastSTL/UnorderedMap.h>
-+// Zalith iOS: the standard library map instead of FastSTL (MobileGL-Dev/FastSTL
++// Voxelium: the standard library map instead of FastSTL (MobileGL-Dev/FastSTL
 +// declares no licence, so it cannot be redistributed). Same template parameters.
 +#include <unordered_map>
  

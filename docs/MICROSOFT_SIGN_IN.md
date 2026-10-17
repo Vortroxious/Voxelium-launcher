@@ -26,12 +26,12 @@ If a build bundles `microsoft-client-id.txt` (see "The app (client) ID" below), 
 3. XSTS `xsts/authorize` for `rp://api.minecraftservices.com/`. XErr codes are explained to the user.
 4. Minecraft services: `authentication/login_with_xbox`, then `entitlements/mcstore` (game ownership), then `minecraft/profile`.
 
-The code is in `Sources/ZalithCore/Accounts/MicrosoftAuth.swift`, tested with mocked responses in `Tests/ZalithCoreTests/MicrosoftAuthTests.swift`. The app side is in `App/ZalithIOS/AccountModel.swift`.
+The code is in `Sources/VoxeliumCore/Accounts/MicrosoftAuth.swift`, tested with mocked responses in `Tests/VoxeliumCoreTests/MicrosoftAuthTests.swift`. The app side is in `App/Voxelium/AccountModel.swift`.
 
 ## Secrets
 
 - The Minecraft access token, its expiry and the Microsoft refresh token are stored **only** in the iOS Keychain:
-  - service `io.github.zalithios.microsoft`;
+  - service `io.github.voxelium.microsoft`;
   - accessibility `AfterFirstUnlockThisDeviceOnly`.
   They are never written to settings.json, launcher.log or jvm.log. The launch log records only the player name and the user type.
 - The token reaches the game as `--accessToken` (Minecraft hides it in its own logs and crash reports).
@@ -49,7 +49,7 @@ To build with your own ID instead:
 2. **Apply to Mojang** for Minecraft API access for that client ID: <https://aka.ms/mce-reviewappid>.
    - Until it is approved, `api.minecraftservices.com` answers **HTTP 403** ("Invalid app registration"), and the app reports that clearly.
    - Approval reportedly takes up to a few weeks.
-3. **Add the ID to your build:** put it in `.oauth_client_id.txt` at the repository root (git-ignored), or set `ZL_MS_CLIENT_ID` when running `scripts/build-ipa.sh`. The "Bundle Java runtime" build phase writes it into the app as `microsoft-client-id.txt`.
+3. **Add the ID to your build:** put it in `.oauth_client_id.txt` at the repository root (git-ignored), or set `VX_MS_CLIENT_ID` when running `scripts/build-ipa.sh`. The "Bundle Java runtime" build phase writes it into the app as `microsoft-client-id.txt`.
 
 Do not borrow another launcher's own registered client ID (such as ZalithLauncher2's) without that project's permission.
 

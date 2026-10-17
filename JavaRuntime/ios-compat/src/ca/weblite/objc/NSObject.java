@@ -2,7 +2,7 @@ package ca.weblite.objc;
 
 import com.sun.jna.Pointer;
 
-/** Zalith iOS no-op stub; see {@link Client}. */
+/** Voxelium no-op stub; see {@link Client}. */
 public class NSObject {
     public NSObject(Pointer peer) {}
 

@@ -1,6 +1,6 @@
 # Dependency Inventory
 
-## This project (ZalithIOS)
+## This project (Voxelium)
 | Dependency | Version | Source | License | Platforms | Notes |
 |---|---|---|---|---|---|
 | Swift stdlib / Foundation | Swift 6.4 toolchain | Apple | Apple SDK license | iOS 16+, macOS 14+ | |

@@ -2,7 +2,7 @@
 # Downloads the iOS arm64 Java runtimes published by AngelAuraMC for
 # Amethyst-iOS (Java 8, 17, 21, 25: every Java a vanilla version asks for),
 # unpacks them into build/runtime/jre<N>, and compiles the Java smoke test into
-# build/runtime/zalith-javatest.jar. The Xcode build copies them into the app
+# build/runtime/voxelium-javatest.jar. The Xcode build copies them into the app
 # bundle (see the "Bundle Java runtime" build phase).
 #
 #   scripts/fetch-runtime.sh            # all runtimes
@@ -62,7 +62,7 @@ done
 
 echo "==> compiling Java smoke test (--release 17)"
 CLS="$(mktemp -d)"
-javac --release 17 -d "$CLS" "$ROOT"/JavaTest/src/io/github/zalithios/*.java
-jar --create --file "$OUT/zalith-javatest.jar" -C "$CLS" .
+javac --release 17 -d "$CLS" "$ROOT"/JavaTest/src/io/github/voxelium/*.java
+jar --create --file "$OUT/voxelium-javatest.jar" -C "$CLS" .
 rm -rf "$CLS"
 

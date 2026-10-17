@@ -7,7 +7,7 @@ index ad934c6..218609e 100644
                              break;
                      }
 -                    if (GetProcAddress == NULL) {
-+                    // Zalith iOS: on "macOS" the GL library is MobileGlues or gl4es on top of
++                    // Voxelium: on "macOS" the GL library is MobileGlues or gl4es on top of
 +                    // ANGLE. dlsym() on it also searches its dependencies and finds ANGLE's
 +                    // eglGetProcAddress, which returns raw GLES entry points and bypasses the
 +                    // desktop GL layer (Minecraft 26.1: GL error 1282 creating a

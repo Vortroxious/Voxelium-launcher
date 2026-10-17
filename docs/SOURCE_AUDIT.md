@@ -43,4 +43,4 @@
 - `StikDebug/StikDebug`: AGPL-3.0, "on-device debugger/JIT enabler for iOS versions 17.4+". `StikDebug/StikJIT`: MPL-2.0 XCFramework.
 
 ## Provenance policy for this repo
-No ZalithLauncher2 or Amethyst source has been copied. `ZalithCore` is a fresh Swift implementation of the public Mojang file formats. Where behaviour intentionally mirrors upstream (the LWJGL filter, non-osx rule evaluation), the code comments cite the upstream file.
+No ZalithLauncher2 or Amethyst source has been copied. `VoxeliumCore` is a fresh Swift implementation of the public Mojang file formats. Where behaviour intentionally mirrors upstream (the LWJGL filter, non-osx rule evaluation), the code comments cite the upstream file.

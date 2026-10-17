@@ -6,12 +6,12 @@ index 21c1939..9b80c27 100644
          LOG_E("ERROR: %d @ %s:%d", ERR, __FILE__, __LINE__)                                                            \
          ERR = GLES.glGetError();                                                                                       \
      }
-+#elif defined(ZALITH_CHECK_GL_ERRORS)
-+// Zalith iOS diagnostic build (-DZALITH_CHECK_GL_ERRORS): after each checked call,
++#elif defined(VOXELIUM_CHECK_GL_ERRORS)
++// Voxelium diagnostic build (-DVOXELIUM_CHECK_GL_ERRORS): after each checked call,
 +// read ANGLE's real error and print it with the MobileGlues function, file and line
 +// (the normal build hides GLES errors). Capped so the log stays readable.
 +#include <stdio.h>
-+static inline void zalith_report_gl_error(unsigned int err, const char *file, int line, const char *fn) {
++static inline void voxelium_report_gl_error(unsigned int err, const char *file, int line, const char *fn) {
 +    static int reported = 0;
 +    if (reported < 400 || reported % 1000 == 0)
 +        fprintf(stderr, "[MG-GLERR] 0x%04X in %s (%s:%d) #%d\n", err, fn, file, line, reported);
@@ -19,10 +19,10 @@ index 21c1939..9b80c27 100644
 +}
 +#define CHECK_GL_ERROR                                                                                                 \
 +    {                                                                                                                  \
-+        GLenum ZALITH_ERR = GLES.glGetError();                                                                         \
-+        while (ZALITH_ERR != GL_NO_ERROR) {                                                                            \
-+            zalith_report_gl_error(ZALITH_ERR, __FILE__, __LINE__, __func__);                                         \
-+            ZALITH_ERR = GLES.glGetError();                                                                            \
++        GLenum VOXELIUM_ERR = GLES.glGetError();                                                                         \
++        while (VOXELIUM_ERR != GL_NO_ERROR) {                                                                            \
++            voxelium_report_gl_error(VOXELIUM_ERR, __FILE__, __LINE__, __func__);                                         \
++            VOXELIUM_ERR = GLES.glGetError();                                                                            \
 +        }                                                                                                              \
 +    }
 +#define INIT_CHECK_GL_ERROR                                                                                            \

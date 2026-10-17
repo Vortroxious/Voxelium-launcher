@@ -6,7 +6,7 @@ index 42478b7..d00355f 100644
  #include <vector>
  #include "FSR1/FSR1.h"
  
-+// Zalith iOS: lazy MobileGlues init on Apple (see init.cpp).
++// Voxelium: lazy MobileGlues init on Apple (see init.cpp).
 +#ifdef __APPLE__
 +extern "C" void mg_ensure_init();
 +#define MG_ENSURE_INIT() mg_ensure_init()
@@ -58,7 +58,7 @@ index b5a11e4..442beba 100644
 -static static_block_t static_block;
 \ No newline at end of file
 +#ifdef __APPLE__
-+// Zalith iOS: initialise on first use instead of at load time. Minecraft 26.2 loads
++// Voxelium: initialise on first use instead of at load time. Minecraft 26.2 loads
 +// the GL library (LWJGL GL.getFunctionProvider) before it creates its window, so
 +// load-time init set MobileGlues up against EGL/GLES state that is not the game's
 +// (its own default display, made before the app's ANGLE display and context) and

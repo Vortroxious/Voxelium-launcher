@@ -1,8 +1,8 @@
-# ZalithIOS (working name)
+# Voxelium
 
 An experimental iOS launcher for Minecraft: Java Edition, inspired by [ZalithLauncher2](https://github.com/ZalithLauncher/ZalithLauncher2) 2.6.1.
 
-> **Experimental: Minecraft Java 1.20.1 has started on an iPhone** (offline account, JIT via StikDebug): title screen, world creation and joining a world on an iPhone 15 Pro Max / iOS 27. On-screen touch controls (Amethyst-style layout with haptics) and sound have been reported working on that phone (build 202610170123). Performance is unmeasured, only 1.20.1 has been tried, and builds are development-signed only. See [docs/PORTING_FEASIBILITY.md](docs/PORTING_FEASIBILITY.md).
+> **Experimental.** Voxelium runs Minecraft: Java Edition **1.13 – 26.1.2** on an iPhone (tested on an iPhone 15 Pro Max / iOS 27): Java 8/17/21/25 in-process, OpenGL via MobileGlues or gl4es on ANGLE (Metal), with on-screen touch controls, custom layouts, haptics, sound and Microsoft sign-in. It needs JIT through StikDebug and is sideloaded (no App Store build). Performance is unmeasured; 26.2+ and 1.12.2 and older are not supported yet. See [docs/FINAL_BUILD_REPORT.md](docs/FINAL_BUILD_REPORT.md).
 
 ## Feature status
 | Feature | Status | Evidence |
@@ -26,7 +26,7 @@ An experimental iOS launcher for Minecraft: Java Edition, inspired by [ZalithLau
 ## Build kinds — do not confuse
 - **Unit-tested core**: `swift test` on macOS. Says nothing about iOS.
 - **Simulator build**: compiles and runs the UI in the iOS Simulator. A JIT/JVM is impossible to verify there.
-- **Unsigned IPA** (`build/ipa/ZalithIOS-unsigned.ipa`): it cannot be installed until it is signed.
+- **Unsigned IPA** (`build/ipa/Voxelium-unsigned.ipa`): it cannot be installed until it is signed.
 - **Development-signed build**: signed by your Apple ID in Xcode and installable on your registered iPhone. A free Apple ID's signature expires after 7 days.
 - **Device-tested**: startup and the version-list download only (iPhone 15 Pro Max, iOS 27.0, 2026-10-15).
 
@@ -41,7 +41,7 @@ swift test
 ```
 Simulator build:
 ```bash
-xcodebuild -project App/ZalithIOS.xcodeproj -scheme ZalithIOS -destination 'generic/platform=iOS Simulator' build
+xcodebuild -project App/Voxelium.xcodeproj -scheme Voxelium -destination 'generic/platform=iOS Simulator' build
 ```
 Unsigned device IPA (output in `build/ipa/`, with a `.sha256` and an `.info` file):
 ```bash
@@ -49,8 +49,8 @@ scripts/build-ipa.sh
 ```
 
 ## Installing on your iPhone (free Apple ID)
-1. Open `App/ZalithIOS.xcodeproj` in Xcode and go to Settings → Accounts → add your Apple ID.
-2. On the ZalithIOS target, open Signing & Capabilities, pick your Personal Team, and change the bundle ID to something unique (e.g. `com.<you>.zalithios`).
+1. Open `App/Voxelium.xcodeproj` in Xcode and go to Settings → Accounts → add your Apple ID.
+2. On the Voxelium target, open Signing & Capabilities, pick your Personal Team, and change the bundle ID to something unique (e.g. `com.<you>.voxelium`).
 3. Connect the iPhone, enable Developer Mode (Settings → Privacy & Security), then Run.
 4. On the phone, trust the developer profile (Settings → General → VPN & Device Management).
 
@@ -58,9 +58,9 @@ Alternatively, sign the unsigned IPA with SideStore or AltStore.
 
 **JIT (needed for the Java test):** these steps were verified on an iPhone 15 Pro Max running iOS 27.0 with StikDebug 3.1.14. Older StikDebug versions fail on iOS 27.
 1. Before building, run `scripts/fetch-runtime.sh` to bundle the iOS Java runtime.
-2. In StikDebug, open the Home tab, long-press **Zalith iOS** → **Assign Script** → `universal.js`.
-3. Close Zalith iOS, then tap it in StikDebug to launch it with JIT. Leave StikDebug's script log sheet open.
-4. In Zalith iOS, go to Diagnostics → **Run Java test**. Success shows `ZALITH_JAVA_OK`. The test can run once per app launch.
+2. In StikDebug, open the Home tab, long-press **Voxelium** → **Assign Script** → `universal.js`.
+3. Close Voxelium, then tap it in StikDebug to launch it with JIT. Leave StikDebug's script log sheet open.
+4. In Voxelium, go to Diagnostics → **Run Java test**. Success shows `VOXELIUM_JAVA_OK`. The test can run once per app launch.
 
 ## Licence
 GPL-3.0. See [LICENSE](LICENSE) and [NOTICE.md](NOTICE.md). The project is not affiliated with ZalithLauncher, Mojang or Microsoft.

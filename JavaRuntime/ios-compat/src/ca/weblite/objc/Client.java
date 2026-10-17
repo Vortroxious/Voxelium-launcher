@@ -1,7 +1,7 @@
 package ca.weblite.objc;
 
 /**
- * Zalith iOS compatibility stub, written from scratch (not the java-objc-bridge
+ * Voxelium compatibility stub, written from scratch (not the java-objc-bridge
  * library). Minecraft treats iOS as macOS (os.name is "Mac OS X") and its
  * MacosUtil / text2speech NarratorMac message AppKit through this API, which
  * does not exist on iOS. Every message is a no-op returning null.

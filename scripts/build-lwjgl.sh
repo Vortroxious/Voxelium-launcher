@@ -41,7 +41,7 @@ esac
 ANT_V="1.10.18"
 # Published by Apache: https://downloads.apache.org/ant/binaries/apache-ant-1.10.18-bin.tar.gz.sha512
 ANT_SHA512="c510d744876d8da48dabc9495b023b6ec5284a0f18b40ee50d98ce099e791ca5c73e3cd4c80d3c90d3efc03f9620be43aad0a373ed47198284f7e3373e0db2c3"
-# Same minimum as the app (App/ZalithIOS.xcodeproj IPHONEOS_DEPLOYMENT_TARGET).
+# Same minimum as the app (App/Voxelium.xcodeproj IPHONEOS_DEPLOYMENT_TARGET).
 IOS_MIN="16.0"
 # libffi for 3.3.3: 3.4.6 (used by the fork CI) fails to assemble sysv.S with
 # Xcode 27 clang, so 3.4.8. Not published by libffi; matches Homebrew's formula
@@ -188,10 +188,10 @@ ls -la "$OUTDIR/natives" "$OUTDIR/jars"
 CLS="$(mktemp -d)"
 J="$DEPS/lwjgl-out/jars"
 javac --release 17 -cp "$J/lwjgl.jar:$J/lwjgl-egl.jar:$J/lwjgl-opengles.jar:$J/lwjgl-opengl.jar:$J/lwjgl-glfw.jar" -d "$CLS" \
-  "$ROOT"/JavaTest/gles/io/github/zalithios/*.java
-jar --create --file "$DEPS/lwjgl-out/zalith-glestest.jar" -C "$CLS" .
+  "$ROOT"/JavaTest/gles/io/github/voxelium/*.java
+jar --create --file "$DEPS/lwjgl-out/voxelium-glestest.jar" -C "$CLS" .
 rm -rf "$CLS"
-ls -la "$DEPS/lwjgl-out/zalith-glestest.jar"
+ls -la "$DEPS/lwjgl-out/voxelium-glestest.jar"
 
 # iOS compatibility stubs for macOS-only APIs Minecraft calls (JavaRuntime/ios-compat).
 # --release 8: the jar is on the classpath for every Java (8, 17, 21, 25).
@@ -199,6 +199,6 @@ CLS="$(mktemp -d)"
 javac --release 8 -Xlint:-options -sourcepath "$ROOT/JavaRuntime/ios-compat/compile-only" -d "$CLS" \
   "$ROOT"/JavaRuntime/ios-compat/src/ca/weblite/objc/*.java
 rm -rf "$CLS/com"   # compile-only placeholders are never shipped
-jar --create --file "$DEPS/lwjgl-out/zalith-ios-compat.jar" -C "$CLS" .
+jar --create --file "$DEPS/lwjgl-out/voxelium-ios-compat.jar" -C "$CLS" .
 rm -rf "$CLS"
-unzip -l "$DEPS/lwjgl-out/zalith-ios-compat.jar" | grep class
+unzip -l "$DEPS/lwjgl-out/voxelium-ios-compat.jar" | grep class

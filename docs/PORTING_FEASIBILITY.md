@@ -39,10 +39,10 @@ Overall: Minecraft Java on iOS is *plausible*, because Amethyst-iOS exists and i
 - Mapping these to GLFW callbacks is straightforward in principle, but nothing is implemented.
 
 ## F. Assets and libraries download and management — PASS (macOS unit tests)
-- `ZalithCore` parses real Mojang manifest, version and asset index files, and plans downloads.
+- `VoxeliumCore` parses real Mojang manifest, version and asset index files, and plans downloads.
 - Downloads are SHA-1-verified, retried and placed atomically.
 - Covered by unit tests with a mock transport.
-- **Not yet run on an iPhone.** A live end-to-end install on macOS is a manual step (`zalith-cli install`).
+- **Not yet run on an iPhone.** A live end-to-end install on macOS is a manual step (`voxelium-cli install`).
 
 ## G. Package, sign, install, test on iPhone — PASS (development sideload)
 - Verified: unsigned IPA built by `scripts/build-ipa.sh`, signed and installed by the user with Sideloadly (free Apple ID), launched on an iPhone 15 Pro Max running iOS 27.0.

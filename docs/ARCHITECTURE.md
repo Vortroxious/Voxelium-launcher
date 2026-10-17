@@ -2,21 +2,21 @@
 
 ## Language and framework choice
 - **Swift + SwiftUI**: the native iOS toolchain, with no bridging runtime. Kotlin Multiplatform was considered and rejected: upstream's Kotlin is entangled with Android APIs (Compose, Room, Hilt, Context), so very little could be shared, and KMP adds a Gradle/Kotlin toolchain that is not installed here.
-- **ZalithCore is a SwiftPM library** with no UIKit dependency, so it builds and tests on macOS with `swift test`.
+- **VoxeliumCore is a SwiftPM library** with no UIKit dependency, so it builds and tests on macOS with `swift test`.
 - **Objective-C/C (planned)** for the JNI/JVM bridge and the GL context, because JNI and dlopen-based loading are C APIs.
 
 ## Modules
 | # | Module | Location | Status |
 |---|---|---|---|
-| 1 | iOS app & UI | `App/ZalithIOS` (SwiftUI) | Source written; not yet compiled (Xcode license) |
-| 2 | Version & asset management | `ZalithCore/Manifest`, `Launch/GameFilePlanner`, `Launch/GameInstaller` | Implemented, unit tested |
-| 2b | Download manager | `ZalithCore/Download` | Implemented, unit tested |
-| 3 | Java runtime integration | `ZalithCore/Runtime` (discovery, Mach-O checks); JVM bridge planned in `App/Native` | Discovery only |
+| 1 | iOS app & UI | `App/Voxelium` (SwiftUI) | Source written; not yet compiled (Xcode license) |
+| 2 | Version & asset management | `VoxeliumCore/Manifest`, `Launch/GameFilePlanner`, `Launch/GameInstaller` | Implemented, unit tested |
+| 2b | Download manager | `VoxeliumCore/Download` | Implemented, unit tested |
+| 3 | Java runtime integration | `VoxeliumCore/Runtime` (discovery, Mach-O checks); JVM bridge planned in `App/Native` | Discovery only |
 | 4 | Native library / ABI management | `MachO.swift` | Header checks only |
 | 5 | Rendering & window/input | planned: CAMetalLayer + GL translation layer + GLFW shim | Not started |
 | 6 | Game process lifecycle | `LaunchPlanner` produces the command line | Plan only; nothing executed |
 | 7 | Accounts | `OfflineIdentity` | Offline only; Microsoft OAuth not started |
-| 8 | Logging & diagnostics | `ZalithCore/Logging`, Diagnostics tab | Implemented |
+| 8 | Logging & diagnostics | `VoxeliumCore/Logging`, Diagnostics tab | Implemented |
 
 ## Data flow (install)
 ```
@@ -39,7 +39,7 @@ LaunchPlanner.plan → LaunchPlan (classpath, JVM args, game args, Java major)
 - Natives are never taken from Mojang. They must be bundled and signed in the IPA.
 
 ## Data directory
-`Application Support/ZalithIOS/` contains `minecraft/{versions,libraries,assets}`, `runtimes/`, `logs/` and `config/`. All metadata-derived paths go through `AppPaths.resolve`, which rejects absolute paths and `..` traversal.
+`Application Support/Voxelium/` contains `minecraft/{versions,libraries,assets}`, `runtimes/`, `logs/` and `config/`. All metadata-derived paths go through `AppPaths.resolve`, which rejects absolute paths and `..` traversal.
 
 ## Alternatives considered
 - **Porting the Android app with a compatibility layer**: rejected; there is no Android runtime on iOS.

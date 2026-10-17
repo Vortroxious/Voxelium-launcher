@@ -7,7 +7,7 @@ index c7242cb..5fffb98 100644
  STUB_FUNCTION_HEAD(void, glMultTransposeMatrixf,const GLfloat* m); STUB_FUNCTION_END_NO_RETURN(void, glMultTransposeMatrixf,m)
  STUB_FUNCTION_HEAD(void, glMultTransposeMatrixd,const GLdouble* m); STUB_FUNCTION_END_NO_RETURN(void, glMultTransposeMatrixd,m)
 -STUB_FUNCTION_HEAD(void, glMultiDrawArrays, GLenum mode, const GLint* first, const GLsizei* count, GLsizei drawcount); STUB_FUNCTION_END_NO_RETURN(void, glMultiDrawArrays,mode,first,count,drawcount)
-+// Zalith iOS: glMultiDrawArrays is implemented in multidraw.cpp (this stub drew nothing).
++// Voxelium: glMultiDrawArrays is implemented in multidraw.cpp (this stub drew nothing).
  //STUB_FUNCTION_HEAD(void, glMultiDrawElements, GLenum mode, const GLsizei* count, GLenum type, const void* const*indices, GLsizei drawcount); STUB_FUNCTION_END_NO_RETURN(void, glMultiDrawElements,mode,count,type,indices,drawcount)
  STUB_FUNCTION_HEAD(void, glPointParameterf, GLenum pname, GLfloat param); STUB_FUNCTION_END_NO_RETURN(void, glPointParameterf,pname,param)
  STUB_FUNCTION_HEAD(void, glPointParameterfv, GLenum pname, const GLfloat* params); STUB_FUNCTION_END_NO_RETURN(void, glPointParameterfv,pname,params)
@@ -19,7 +19,7 @@ index 3940b78..1bd790c 100644
  
  typedef void (*glMultiDrawElementsBaseVertex_t)(GLenum, GLsizei*, GLenum, const void* const*, GLsizei, const GLint*);
  
-+// Zalith iOS: glMultiDrawArrays was only a stub (gl_stub.cpp), so every multi-draw of
++// Voxelium: glMultiDrawArrays was only a stub (gl_stub.cpp), so every multi-draw of
 +// non-indexed geometry drew nothing. Minecraft 26.2 is the first version to use it,
 +// and showed only the clear colour (red loading screen without the logo, then black).
 +// OpenGL ES 3.0 has no multi-draw: issue one glDrawArrays per draw, exactly as if

@@ -76,7 +76,7 @@ git -C "$SRC/MobileGlues" apply "$ROOT/patches/mobileglues/0003-apple-lazy-init-
 git -C "$SRC/MobileGlues" apply "$ROOT/patches/mobileglues/0004-implement-glmultidrawarrays.patch"
 # And: glColorMaski falls back to glColorMask below ES 3.2 (Minecraft 26.2 went black).
 git -C "$SRC/MobileGlues" apply "$ROOT/patches/mobileglues/0005-colormaski-es30-fallback.patch"
-# And: optional GL error reporting, compiled in only with ZALITH_MG_CHECK_ERRORS=1.
+# And: optional GL error reporting, compiled in only with VOXELIUM_MG_CHECK_ERRORS=1.
 git -C "$SRC/MobileGlues" apply "$ROOT/patches/mobileglues/0006-optional-gl-error-reporting.patch"
 git -C "$SRC/MobileGlues" apply "$ROOT/patches/mobileglues/0007-diagnostic-shader-link-reports.patch"
 # Submodules at the commits MobileGlues pins (perfetto is only for PROFILING builds).
@@ -130,9 +130,9 @@ rm -rf "$MG/external"
 mkdir -p "$MG/external"
 cp -R "$ANGLE_OUT/libEGL.framework" "$ANGLE_OUT/libGLESv2.framework" "$MG/external/"
 
-# ZALITH_MG_CHECK_ERRORS=1: diagnostic build that prints every GLES error (patch 0006).
+# VOXELIUM_MG_CHECK_ERRORS=1: diagnostic build that prints every GLES error (patch 0006).
 MG_DIAG_FLAGS=""
-[ "${ZALITH_MG_CHECK_ERRORS:-0}" = "1" ] && MG_DIAG_FLAGS="-DZALITH_CHECK_GL_ERRORS=1" && echo "==> diagnostic build: GL error reporting on"
+[ "${VOXELIUM_MG_CHECK_ERRORS:-0}" = "1" ] && MG_DIAG_FLAGS="-DVOXELIUM_CHECK_GL_ERRORS=1" && echo "==> diagnostic build: GL error reporting on"
 "$CMAKE" -S "$MG" -B "$SRC/build-mobileglues" "${IOS_ARGS[@]}" -DMACOS=1 \
   -DCMAKE_C_FLAGS="$MG_DIAG_FLAGS" -DCMAKE_CXX_FLAGS="$MG_DIAG_FLAGS" \
   -DCMAKE_SHARED_LINKER_FLAGS="-Wl,-rpath,@executable_path/Frameworks"

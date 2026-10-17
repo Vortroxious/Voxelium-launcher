@@ -1,4 +1,4 @@
-Zalith iOS patch for MobileGlues f0fb4d32794a (LGPL-2.1): on Apple, restore the
+Voxelium patch for MobileGlues f0fb4d32794a (LGPL-2.1): on Apple, restore the
 caller's EGL context after MobileGlues' load-time initialisation and destroy
 its temporary pbuffer context (Android already does the latter).
 
@@ -14,7 +14,7 @@ index 84f4e61..fd9d36e 100644
 \ No newline at end of file
 +}
 +#if defined(__APPLE__)
-+// Zalith iOS patch: init_target_egl() makes a temporary 32x32 pbuffer context
++// Voxelium patch: init_target_egl() makes a temporary 32x32 pbuffer context
 +// current so it can query GLES. On Android destroy_temp_egl_ctx() removes it,
 +// but that is compiled out on Apple and nothing restored the caller's context,
 +// so whatever context the host app had made current was silently replaced.
