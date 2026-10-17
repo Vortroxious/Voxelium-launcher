@@ -336,3 +336,42 @@
 - **Change:** in-game drag deltas are now multiplied by `UIScreen.mainScreen.scale` before they are sent to GLFW. Menu pointer and virtual mouse are unchanged.
 - **Build `202610170123`** (SHA-256 `a9b49e53e09ed26f15c9dec43da750b2b9de26b4b33ed99ef6d392e30b018c70`). **Not yet run on device.**
 - **Device result for build 202610170123 (user report, 2026-10-17):** the camera now feels better; the previous builds were too slow.
+
+## 2026-10-17 — Cause of the 0x8BADF00D exit reports
+- **User confirmed:** the 08:00:29 and 08:00:49 sessions were closed by swiping the app away from the app switcher while Minecraft was still running.
+- **This matches the report:** "Failed to terminate gracefully after 5.0s" (FRONTBOARD, process-exit watchdog). iOS gives a swiped-away app 5 s to exit; the running JVM didn't, so iOS force-killed it.
+- **Impact:** not a game crash, but any world changes since the last autosave can be lost. Save and Quit (or Runtime Menu → Quit game) exits cleanly.
+- **Possible improvement:** when the app goes to the background, make Minecraft pause and save, so a later swipe-away loses nothing.
+
+## 2026-10-17 — Pause and save when leaving the app
+- **Goal (user request):** swiping the app away (which force-kills it after 5 s) should no longer lose world changes since the last autosave.
+- **What changed in ZLGLFW** (app lifecycle observers, installed with the on-screen window):
+  - *Will resign active* (home gesture, app switcher, lock): send GLFW focus-lost. If the cursor is captured (in game, no screen open), also send ESC. Minecraft opens its pause menu, and the 1.20.1 integrated server saves the world as it pauses ("Saving and pausing game..."). The app keeps running while it's inactive, so this happens before it is suspended or killed.
+  - *Did enter background:* hold a UIBackgroundTask for 8 s so the save can finish.
+  - *Did become active:* send focus regained. The pause menu stays open.
+- **Limitation:** if a screen is open (inventory, chat, etc.), no ESC is sent. Minecraft only pauses when no screen is open, so changes since the last autosave can still be lost then. **Assumption, not yet checked on device:** that GL rendering while inactive or briefly in the background doesn't fault.
+- **Build script bug found and fixed:** `scripts/build-ipa.sh` checked `PIPESTATUS` after `| grep … || true`, so it read the status of `true`. A failed `xcodebuild` (a compile error here) still exited 0 and packaged the previous `.app` as build 202610170205; **that IPA is invalid and was overwritten.** It now records xcodebuild's own exit status and stops on failure. Before this fix, every IPA was built only after the log showed "BUILD SUCCEEDED", so no earlier build was affected.
+- **Build `202610170207`** (SHA-256 `620d43ede73a4b4d630eab8a4edcfb78a487d5c4062c6fd44d04647831c0fb61`), with the new log string confirmed in the binary. **Not yet run on device.**
+- **Device check to do:** in a world, swipe up to the app switcher and wait 1–2 s. jvm.log should then show "app resigning active … sent ESC" and latest.log "Saving and pausing game...". Then swipe the app away, relaunch, and confirm the world kept the latest changes.
+
+## 2026-10-17 — Hotbar: tap or slide to select, as in Amethyst
+- **User report:** tapping the hotbar doesn't change the selected item. They want to either tap or slide to a slot, as in Amethyst.
+- **Old behaviour:** a slot was chosen only when the *primary* finger lifted after a short, still tap, using the touch-down point. A second finger, for example while another finger was looking around, was ignored in game. A long press on the bar broke blocks. **The exact cause of the user's failed taps wasn't established from the logs.**
+- **Amethyst reference** (`input_bridge_v3.m callback_SurfaceViewController_touchHotbar`, `SurfaceViewController.m`): a separate `hotbarTouch` with a hit area of the bottom `mcscale(20)` px, `mcscale(180)` wide and centred. The slot is chosen on touch down and, with `slideable_hotbar`, again as the finger moves. A long press on a slot holds Q (drop).
+- **New behaviour:**
+  - In game, any finger that touches down on the hotbar becomes the hotbar touch and selects that slot immediately (light haptic). This works while another finger looks or uses the joystick.
+  - Sliding along the bar selects each slot it passes, with a haptic per change.
+  - Holding still for 0.35 s drops the item (Q, medium haptic).
+  - The hotbar finger never looks, uses or breaks.
+  - The hit area is the drawn hotbar (182×22 GUI units at Minecraft's auto GUI scale), as before.
+- **Diagnostics:** each in-game touch in the bottom 15% of the screen logs its point, framebuffer, scale and computed slot. The touch summary now also counts `hotbarSelects` and `hotbarDrops`.
+- **Build `202610170528`** (SHA-256 `aab291428a7c2ab061e5558e73b9cb3e62c675c81b8ef8edc2a49e7ac7b7d2e4`). It also includes pause-on-background from build 202610170207. **Not yet run on device.**
+
+## 2026-10-17 — Device results for build 202610170528; hold-to-drop removed
+- **User report:** tapping and sliding on the hotbar work, and swiping the app away mid-game (without saving first) kept the world and didn't crash.
+- **Log evidence** (jvm.log, latest.log and the crash-log list, pulled from the device):
+  - 20 bottom-of-screen touches in game. 19 resolved to hotbar slots, covering all of slots 0–8 (fb 1398×645, scale 1.50); 1 was outside the bar.
+  - "app resigning active: focus lost, sent ESC to pause and save" was logged on each exit. latest.log shows `[05:34:55] Saving and pausing game...` right after it, and the background task started.
+  - No new crash reports: the newest are still the 08:00:29 and 08:00:49 reports.
+- **Change (user request):** removed hold-to-drop (Q) on the hotbar. Holding a slot now just keeps it selected, and the `hotbarDrops` counter is gone. This differs from Amethyst on purpose.
+- **Build `202610170536`** (SHA-256 `a96eba546e14f84679b77bb7598c33eb3202d599898ee31d1f0d0e24100ec1a4`). **Not yet run on device.**

@@ -712,7 +712,7 @@ typedef NS_ENUM(NSInteger, ZLSpecial) {
 @end
 
 // Touch diagnostics, logged when the window is destroyed (stderr ends up in jvm.log).
-static int gTouchBegan, gTouchMoved, gTouchMovedAccepted, gTouchEnded, gTouchCancelled;
+static int gTouchBegan, gTouchMoved, gTouchMovedAccepted, gTouchEnded, gTouchCancelled, gHotbarSelects;
 
 // Gestures on the game view outside the controls (as Amethyst):
 //   in game:  drag = look, tap = use/place (right click), long press = break (hold left),
@@ -723,6 +723,8 @@ static const CGFloat kTapSlop = 12;
 
 @implementation ZLGLFWView {
     UITouch *_primary, *_secondary;
+    UITouch *_hotbarTouch;    // in game: a finger on the hotbar (independent of the look finger)
+    int _hotbarSlot;
     CGPoint _lastPrimary, _startPrimary;
     CFTimeInterval _startTime;
     BOOL _primaryInGame, _primaryVirtual, _moved, _holding;
@@ -753,12 +755,38 @@ static const CGFloat kTapSlop = 12;
     return slot >= 0 && slot <= 8 ? slot : -1;
 }
 
+- (void)selectHotbarSlot:(int)slot {
+    ZLGLFWWindowObj *w = self.owner;
+    if (!w || slot < 0 || slot > 8) return;
+    _hotbarSlot = slot;
+    gHotbarSelects++;
+    [zlLightHaptic() impactOccurred];
+    zlSendKey(w, GLFW_KEY_1 + slot, GLFW_PRESS);
+    zlSendKey(w, GLFW_KEY_1 + slot, GLFW_RELEASE);
+}
+
 - (void)touchesBegan:(NSSet<UITouch *> *)touches withEvent:(UIEvent *)event {
     gTouchBegan += (int)touches.count;
     ZLGLFWWindowObj *w = self.owner;
     if (!w) return;
     for (UITouch *t in touches) {
         CGPoint p = [t locationInView:self];
+        // In game, a touch that lands on the hotbar selects that slot right away and
+        // owns the hotbar until it lifts: sliding along it changes slot, as in Amethyst.
+        // It never looks, uses, breaks or drops (no hold-to-drop, at the user's request).
+        int slot = -1;
+        BOOL inGame = w->cursorMode == GLFW_CURSOR_DISABLED;
+        if (inGame && p.y > self.bounds.size.height * 0.85) {
+            // Diagnostics for hotbar hits (bottom of the screen only).
+            NSLog(@"[ZLGLFW] bottom touch at %.0f,%.0f pt (fb %dx%d, scale %.2f) -> hotbar slot %d",
+                  p.x, p.y, w->fbWidth, w->fbHeight, w->scale, [self hotbarSlotAt:p]);
+        }
+        if (!_hotbarTouch && inGame && (slot = [self hotbarSlotAt:p]) >= 0) {
+            _hotbarTouch = t;
+            _hotbarSlot = -1;
+            [self selectHotbarSlot:slot];
+            continue;
+        }
         if (!_primary) {
             _primary = t;
             _lastPrimary = _startPrimary = p;
@@ -790,6 +818,10 @@ static const CGFloat kTapSlop = 12;
 - (void)touchesMoved:(NSSet<UITouch *> *)touches withEvent:(UIEvent *)event {
     gTouchMoved++;
     ZLGLFWWindowObj *w = self.owner;
+    if (w && _hotbarTouch && [touches containsObject:_hotbarTouch]) {
+        int slot = [self hotbarSlotAt:[_hotbarTouch locationInView:self]];
+        if (slot >= 0 && slot != _hotbarSlot) [self selectHotbarSlot:slot];
+    }
     if (!w || !_primary || ![touches containsObject:_primary]) return;
     gTouchMovedAccepted++;
     CGPoint p = [_primary locationInView:self];
@@ -816,6 +848,7 @@ static const CGFloat kTapSlop = 12;
 - (void)endTouches:(NSSet<UITouch *> *)touches {
     ZLGLFWWindowObj *w = self.owner;
     if (!w) return;
+    if (_hotbarTouch && [touches containsObject:_hotbarTouch]) _hotbarTouch = nil;
     if (_primary && [touches containsObject:_primary]) {
         _gestureGeneration++;
         BOOL tap = !_moved && CACurrentMediaTime() - _startTime < kLongPress;
@@ -823,14 +856,8 @@ static const CGFloat kTapSlop = 12;
             zlSendButton(w, GLFW_MOUSE_BUTTON_LEFT, GLFW_RELEASE);
         } else if (tap && _primaryInGame) {
             [zlLightHaptic() impactOccurred];
-            int slot = [self hotbarSlotAt:_startPrimary];
-            if (slot >= 0) {
-                zlSendKey(w, GLFW_KEY_1 + slot, GLFW_PRESS);
-                zlSendKey(w, GLFW_KEY_1 + slot, GLFW_RELEASE);
-            } else {
-                zlSendButton(w, GLFW_MOUSE_BUTTON_RIGHT, GLFW_PRESS);
-                zlSendButton(w, GLFW_MOUSE_BUTTON_RIGHT, GLFW_RELEASE);
-            }
+            zlSendButton(w, GLFW_MOUSE_BUTTON_RIGHT, GLFW_PRESS);
+            zlSendButton(w, GLFW_MOUSE_BUTTON_RIGHT, GLFW_RELEASE);
         } else if (tap && _primaryVirtual) {
             [zlLightHaptic() impactOccurred];
             zlSendButton(w, GLFW_MOUSE_BUTTON_LEFT, GLFW_PRESS);
@@ -1072,6 +1099,57 @@ static EGLContext zlCreateContext(EGLContext share) {
     return EGL_NO_CONTEXT;
 }
 
+// App lifecycle → game. Leaving the app (home gesture, app switcher, lock) should
+// not lose the world when iOS later kills the process (swipe-away gives 5 s):
+//  - resign active: report focus lost and, when the cursor is captured (in game, no
+//    screen open), press ESC. Minecraft opens its pause menu, and the integrated
+//    server saves the world as it pauses ("Saving and pausing game...").
+//    The app is still running while inactive, so this is processed right away.
+//  - enter background: hold a background task for a few seconds so that save can finish.
+//  - become active: report focus regained (the pause menu stays open).
+static UIBackgroundTaskIdentifier gBackgroundTask;
+static BOOL gHasBackgroundTask;
+
+static void zlEndBackgroundTask(void) {
+    if (!gHasBackgroundTask) return;
+    gHasBackgroundTask = NO;
+    [UIApplication.sharedApplication endBackgroundTask:gBackgroundTask];
+}
+
+static void zlInstallLifecycleObservers(void) {
+    static dispatch_once_t once;
+    dispatch_once(&once, ^{
+        NSNotificationCenter *nc = NSNotificationCenter.defaultCenter;
+        NSOperationQueue *main = NSOperationQueue.mainQueue;
+        [nc addObserverForName:UIApplicationWillResignActiveNotification object:nil queue:main usingBlock:^(NSNotification *n) {
+            ZLGLFWWindowObj *w = gVisibleWindow;
+            if (!w) return;
+            zlPush((ZLEvent){.type = ZLEventFocus, .window = H(w), .a = GLFW_FALSE});
+            BOOL inGame = w->cursorMode == GLFW_CURSOR_DISABLED;
+            if (inGame) {
+                zlSendKey(w, GLFW_KEY_ESCAPE, GLFW_PRESS);
+                zlSendKey(w, GLFW_KEY_ESCAPE, GLFW_RELEASE);
+            }
+            NSLog(@"[ZLGLFW] app resigning active: focus lost%s", inGame ? ", sent ESC to pause and save" : "");
+        }];
+        [nc addObserverForName:UIApplicationDidEnterBackgroundNotification object:nil queue:main usingBlock:^(NSNotification *n) {
+            if (!gVisibleWindow || gHasBackgroundTask) return;
+            gBackgroundTask = [UIApplication.sharedApplication beginBackgroundTaskWithName:@"Minecraft save"
+                                                                        expirationHandler:^{ zlEndBackgroundTask(); }];
+            gHasBackgroundTask = gBackgroundTask != UIBackgroundTaskInvalid;
+            dispatch_after(dispatch_time(DISPATCH_TIME_NOW, 8 * NSEC_PER_SEC), dispatch_get_main_queue(), ^{ zlEndBackgroundTask(); });
+            NSLog(@"[ZLGLFW] app in background: holding a background task for 8 s");
+        }];
+        [nc addObserverForName:UIApplicationDidBecomeActiveNotification object:nil queue:main usingBlock:^(NSNotification *n) {
+            zlEndBackgroundTask();
+            ZLGLFWWindowObj *w = gVisibleWindow;
+            if (!w) return;
+            zlPush((ZLEvent){.type = ZLEventFocus, .window = H(w), .a = GLFW_TRUE});
+            NSLog(@"[ZLGLFW] app active again: focus regained");
+        }];
+    });
+}
+
 ZLAPI GLFWwindow *glfwCreateWindow(int width, int height, const char *title, GLFWmonitor *monitor, GLFWwindow *share) {
     if (!gInitialized) {
         zlError(GLFW_NOT_INITIALIZED, "glfwCreateWindow before glfwInit");
@@ -1149,6 +1227,7 @@ ZLAPI GLFWwindow *glfwCreateWindow(int width, int height, const char *title, GLF
         w->surface = surface;
         w->visible = YES;
         gVisibleWindow = w;
+        zlInstallLifecycleObservers();
     }
     if (w->surface == EGL_NO_SURFACE) {
         zlError(GLFW_PLATFORM_ERROR, "EGL surface creation failed: 0x%X", p_eglGetError());
@@ -1188,8 +1267,8 @@ ZLAPI void glfwDestroyWindow(GLFWwindow *window) {
     w->surface = EGL_NO_SURFACE;
     if (gVisibleWindow == w) gVisibleWindow = nil;
     if (!w->offscreen) {
-        NSLog(@"[ZLGLFW] touches: began=%d moved=%d movedAccepted=%d ended=%d cancelled=%d",
-              gTouchBegan, gTouchMoved, gTouchMovedAccepted, gTouchEnded, gTouchCancelled);
+        NSLog(@"[ZLGLFW] touches: began=%d moved=%d movedAccepted=%d ended=%d cancelled=%d hotbarSelects=%d",
+              gTouchBegan, gTouchMoved, gTouchMovedAccepted, gTouchEnded, gTouchCancelled, gHotbarSelects);
     }
     zlOnMain(^{
         w.view.owner = nil;

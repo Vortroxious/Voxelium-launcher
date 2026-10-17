@@ -25,8 +25,11 @@ xcodebuild \
   -derivedDataPath "$DERIVED" \
   CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY="" \
   CURRENT_PROJECT_VERSION="$BUILD_NUMBER" \
-  build 2>&1 | tee "$OUT/logs/xcodebuild-$CONFIG.log" | grep -E "error:|warning: .*ZalithIOS|BUILD (SUCCEEDED|FAILED)" || true
-[ "${PIPESTATUS[0]}" -eq 0 ] || { echo "xcodebuild failed; see $OUT/logs/xcodebuild-$CONFIG.log"; exit 1; }
+  build > "$OUT/logs/xcodebuild-$CONFIG.log" 2>&1 && XCB=0 || XCB=$?
+# (Checking PIPESTATUS after "| grep ... || true" read the status of "true", so a
+# failed build used to go on and package the previous .app.)
+grep -E "error:|warning: .*ZalithIOS|BUILD (SUCCEEDED|FAILED)" "$OUT/logs/xcodebuild-$CONFIG.log" || true
+[ "$XCB" -eq 0 ] || { echo "xcodebuild failed ($XCB); see $OUT/logs/xcodebuild-$CONFIG.log"; exit 1; }
 
 APP="$DERIVED/Build/Products/$CONFIG-iphoneos/ZalithIOS.app"
 [ -d "$APP" ] || { echo "missing $APP"; exit 1; }
