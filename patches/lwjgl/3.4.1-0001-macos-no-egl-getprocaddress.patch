@@ -1,0 +1,18 @@
+diff --git a/modules/lwjgl/opengl/src/main/java/org/lwjgl/opengl/GL.java b/modules/lwjgl/opengl/src/main/java/org/lwjgl/opengl/GL.java
+index ad934c6..218609e 100644
+--- a/modules/lwjgl/opengl/src/main/java/org/lwjgl/opengl/GL.java
++++ b/modules/lwjgl/opengl/src/main/java/org/lwjgl/opengl/GL.java
+@@ -197,7 +197,12 @@ public final class GL {
+                             GetProcAddress = library.getFunctionAddress("wglGetProcAddress");
+                             break;
+                     }
+-                    if (GetProcAddress == NULL) {
++                    // Zalith iOS: on "macOS" the GL library is MobileGlues or gl4es on top of
++                    // ANGLE. dlsym() on it also searches its dependencies and finds ANGLE's
++                    // eglGetProcAddress, which returns raw GLES entry points and bypasses the
++                    // desktop GL layer (Minecraft 26.1: GL error 1282 creating a
++                    // GL_DEPTH_COMPONENT32 texture). Resolve from the library itself, as 3.3.3 does.
++                    if (GetProcAddress == NULL && Platform.get() != Platform.MACOSX) {
+                         GetProcAddress = library.getFunctionAddress("eglGetProcAddress");
+                     }
+                     if (GetProcAddress == NULL) {

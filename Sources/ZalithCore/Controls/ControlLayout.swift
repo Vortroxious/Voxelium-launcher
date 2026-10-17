@@ -10,11 +10,26 @@ public struct ControlLayout: Codable, Sendable, Equatable {
     public var version: Int
     public var buttons: [ControlButton]
     public var joystick: Joystick
+    /// How visible the controls are (1 = Amethyst's look, lower = more see-through).
+    public var opacity: Double
 
-    public init(version: Int = 1, buttons: [ControlButton], joystick: Joystick) {
+    public static let opacityRange: ClosedRange<Double> = 0.2...1.0
+    public static let joystickSizeRange: ClosedRange<Double> = 120...300
+
+    public init(version: Int = 1, buttons: [ControlButton], joystick: Joystick, opacity: Double = 1) {
         self.version = version
         self.buttons = buttons
         self.joystick = joystick
+        self.opacity = opacity
+    }
+
+    /// Tolerates missing keys so older files keep loading after new fields are added.
+    public init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        version = try c.decodeIfPresent(Int.self, forKey: .version) ?? 1
+        buttons = try c.decodeIfPresent([ControlButton].self, forKey: .buttons) ?? []
+        joystick = try c.decodeIfPresent(Joystick.self, forKey: .joystick) ?? Joystick(x: 0.02326631, y: 0.5, size: 204.8)
+        opacity = try c.decodeIfPresent(Double.self, forKey: .opacity) ?? 1
     }
 
     public struct Joystick: Codable, Sendable, Equatable {
@@ -33,7 +48,9 @@ public struct ControlLayout: Codable, Sendable, Equatable {
     public func clamped(width: Double, height: Double) -> ControlLayout {
         var copy = self
         copy.buttons = buttons.map { $0.clamped(width: width, height: height) }
-        let s = joystick.size
+        copy.opacity = Self.clamp(opacity, Self.opacityRange.lowerBound, Self.opacityRange.upperBound)
+        copy.joystick.size = Self.clamp(joystick.size, Self.joystickSizeRange.lowerBound, min(Self.joystickSizeRange.upperBound, height))
+        let s = copy.joystick.size
         copy.joystick.x = Self.clamp(joystick.x, 0, max(0, 1 - s / width))
         copy.joystick.y = Self.clamp(joystick.y, 0, max(0, 1 - s / height))
         return copy

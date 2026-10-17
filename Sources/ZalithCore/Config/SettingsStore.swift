@@ -8,13 +8,21 @@ public struct LauncherSettings: Codable, Sendable, Equatable {
     public var maxMemoryMB: Int
     public var showSnapshots: Bool
     public var downloadConcurrency: Int
+    /// Game render resolution as a fraction of the screen's native pixels (0.25–1).
+    public var renderScale: Double
+    /// Launch with the signed-in Microsoft account (when there is one) instead of the offline profile.
+    public var useMicrosoftAccount: Bool
 
-    public init(selectedVersion: String? = nil, playerName: String = "Player", maxMemoryMB: Int = 2048, showSnapshots: Bool = false, downloadConcurrency: Int = 8) {
+    public static let renderScaleRange: ClosedRange<Double> = 0.25...1.0
+
+    public init(selectedVersion: String? = nil, playerName: String = "Player", maxMemoryMB: Int = 2048, showSnapshots: Bool = false, downloadConcurrency: Int = 8, renderScale: Double = 0.5, useMicrosoftAccount: Bool = true) {
         self.selectedVersion = selectedVersion
         self.playerName = playerName
         self.maxMemoryMB = maxMemoryMB
         self.showSnapshots = showSnapshots
         self.downloadConcurrency = downloadConcurrency
+        self.renderScale = renderScale
+        self.useMicrosoftAccount = useMicrosoftAccount
     }
 
     /// Tolerates missing keys so older files keep loading after new fields are added.
@@ -26,6 +34,8 @@ public struct LauncherSettings: Codable, Sendable, Equatable {
         maxMemoryMB = try c.decodeIfPresent(Int.self, forKey: .maxMemoryMB) ?? d.maxMemoryMB
         showSnapshots = try c.decodeIfPresent(Bool.self, forKey: .showSnapshots) ?? d.showSnapshots
         downloadConcurrency = try c.decodeIfPresent(Int.self, forKey: .downloadConcurrency) ?? d.downloadConcurrency
+        renderScale = try c.decodeIfPresent(Double.self, forKey: .renderScale) ?? d.renderScale
+        useMicrosoftAccount = try c.decodeIfPresent(Bool.self, forKey: .useMicrosoftAccount) ?? d.useMicrosoftAccount
     }
 }
 

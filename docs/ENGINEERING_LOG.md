@@ -415,3 +415,169 @@
   - The user tidied the layout down to 19 buttons, keeping a custom "Drop button" (Q) moved to 823,53 pt.
   - jvm.log shows the game loading it: `[ZLGLFW] controls: 22 buttons from …/controls/active.json` at 13:01, and `19 buttons` at 13:26.
   - The Controls tab, the editor and custom layouts in game work on the iPhone.
+
+## 2026-10-17 — Resolution setting, control opacity and joystick size, stale text
+- **User request:** "do what you feel missing". I chose small gaps the user hits every session; larger items are proposed as separate sessions (below).
+- **Render resolution setting:**
+  - `LauncherSettings.renderScale` (0.25–1, default 0.5, tolerant decode) with a slider on the Account tab, which also shows the resulting framebuffer (e.g. 1398×645 px).
+  - `MinecraftLauncher` now always sets `ZALITH_RENDER_SCALE` from it (it used to be fixed at 0.5) and logs it in the "Starting Minecraft" line.
+  - Background: latest.log showed "Can't keep up!" warnings at 0.5. A lower scale gives a way to trade sharpness for speed. **FPS still not measured.**
+- **Controls appearance:**
+  - `ControlLayout.opacity` (0.2–1, default 1) and an editable joystick size (120–300 pt, resized around its centre), set in a new Appearance section on the Controls tab.
+  - Both are clamped. Older layout files without these keys still load (new test).
+  - The editor previews the opacity. ZLGLFW applies it as the alpha of the buttons and joystick.
+- **Stale text fixed:** the Diagnostics status said the app "cannot start Minecraft", and a `LauncherModel` comment said the JVM bridge was not implemented. Both now describe the current state.
+- **Verification:** `swift test` passes 65/65. **Build `202610170631`** (SHA-256 `7dbcfc528f6344cce1cec7a87d8f76b81bd3504824fcbe39702297cfe9a02ba4`), with no compiler warnings in the changed files. **Not yet run on device.**
+- **Larger gaps not done here:**
+  - Java 21: newer versions (1.20.5+, e.g. the installed 1.21.11) are refused.
+  - Microsoft account sign-in: offline profiles only.
+  - Mod loaders (Fabric/Forge): `GameFilePlanner` rejects them explicitly.
+  - FPS measurement.
+  - The FastSTL licence question, which blocks a public release.
+
+## 2026-10-17 — Microsoft sign-in; runtimes for every vanilla version
+**User request:** "add microsoft account sign in, then bundle all java's so all versions listed in the launcher can work".
+
+### Microsoft sign-in (details in docs/MICROSOFT_SIGN_IN.md)
+- **Flow:** the ZalithLauncher2 2.6.1 flow (`MicrosoftAuthenticator.kt`), reimplemented in `ZalithCore/Accounts/MicrosoftAuth.swift`:
+  - device code at `login.microsoftonline.com/consumers`, scope `XboxLive.signin offline_access`;
+  - then Xbox Live `user/authenticate` (RPS ticket `d=…`, retried without the prefix on 400);
+  - then XSTS (XErr codes explained);
+  - then `login_with_xbox`, `entitlements/mcstore` and `minecraft/profile`.
+  - Refresh happens when the Minecraft token has less than an hour left.
+- **Tests:** 5 new, with mocked HTTP. They cover pending/slow_down polling, declined codes, XSTS errors, 403 (unapproved app), no ownership, refresh, and `invalid_grant`.
+- **Secrets:** `KeychainStore` holds the account JSON (tokens) in the iOS Keychain (`AfterFirstUnlockThisDeviceOnly`). Nothing token-bearing reaches settings.json or the logs; the launch log records only the name and `msa`.
+- **App:**
+  - `AccountModel`; the Account tab gains a Microsoft section (sign in, code with copy-and-open, cancel, sign out) and a "Play as" picker (`LauncherSettings.useMicrosoftAccount`).
+  - `MinecraftLauncher.launch` is now async and resolves the identity first.
+- **Client ID:** like upstream, there is none in the repo. It comes from the git-ignored `.oauth_client_id.txt` or `ZL_MS_CLIENT_ID`, and is bundled as `microsoft-client-id.txt` by the build phase. Without it, sign-in shows as unavailable.
+  - Mojang must approve new Azure app IDs (<https://aka.ms/mce-reviewappid>); otherwise `login_with_xbox` answers 403. Sources are cited in the doc.
+  - **Not verified against the live services or on a device.**
+
+### Java and LWJGL for every vanilla version
+I scanned all 103 releases in Mojang's manifest on 2026-10-17:
+
+| Versions | Java | LWJGL | Extra |
+|---|---|---|---|
+| 1.0–1.12.2 | 8 | 2.9.x | — |
+| 1.13–1.16.5 | 8 | 3.1.6–3.2.2 | — |
+| 1.17–1.20.4 | 16/17 | 3.2.2–3.3.2 | — |
+| 1.20.5–1.21.11 | 21 | 3.3.3 | lwjgl-freetype |
+| 26.1–26.2 | 25 | 3.4.1 | freetype (+vulkan in 26.2) |
+| 26.3 | 25 | 3.4.3 | **lwjgl-sdl** + vulkan, shaderc, spvc, vma |
+
+Changes:
+- **Runtimes:** `fetch-runtime.sh` now fetches AngelAuraMC's iOS JREs 8 (1.8.0_472), 17, 21 (21.0.8) and 25 (25.0.4), with SHA-256 pinned (trust on first use).
+  - Each libjvm is iOS platform 2 and contains the same iOS 26 JIT hooks as the working Java 17: `DeviceHasTXM`, `MirrorMappedCodeCache`, `brk #0x69`.
+  - The build phase bundles every `build/runtime/jre*`.
+- **Runtime choice:** `GameRuntime` (ZalithCore, 4 new tests) picks the smallest bundled Java ≥ the version's `javaVersion` (default 8). It also works out the LWJGL version from the libraries and maps it to the 3.3.3 or 3.4.1 build, the same rule as upstream's `lwjglVersionDir`.
+- **JVM options:** `-XX:+IgnoreUnrecognizedVMOptions` was added so one option list serves Java 8–25.
+- **lwjglx** (LWJGL 2 API) is built from the 3.3.3 fork and added last on the classpath for LWJGL 2 versions, as upstream does.
+- **FreeType:** VER-2-13-3 built for iOS (`scripts/build-freetype.sh`). `lwjgl-freetype` (3.3.3 and 3.4.1) is added for versions that list it.
+- **LWJGL 3.4.1** comes from the fork's `wip/rebase_3.4.1` (`702c2102a287`) via `LWJGL_SERIES=3.4.1 scripts/build-lwjgl.sh`. It needed:
+  - libffi 3.5.2 (3.4.1 calls `ffi_get_version`/`ffi_get_closure_size`; SHA-256 matches GitHub's published asset digest);
+  - `ant init`;
+  - `-Djdk25=true`;
+  - removing the fork's release check for `JAVA8_HOME`. That check only matters for Java 8 compatibility of official releases; these jars run only on Java 25.
+- **GLFW bridge:** `glfwGetWindowTitle` was added, the one function LWJGL 3.4.1 requires that the bridge lacked. All 118 required functions are now exported.
+- **compat stubs:** `zalith-ios-compat.jar` is now `--release 8`, so Java 8 can load it.
+- **26.3+ is refused** with a clear message: it uses SDL3 and Vulkan instead of GLFW and OpenGL, which this launcher's window and graphics layers don't provide.
+
+### Verification
+- `swift test` passes 74/74.
+- **Build `202610170703`** (SHA-256 `80d5a6224871dea7833fcf1021170d4776f4e9e05a110c216828b192c24fef0d`): IPA 183 MB, app 488 MB, with no compiler warnings in the changed files.
+- **Device status: only Java 17 / 1.20.1 has run so far.** Java 8, 21 and 25, lwjglx, FreeType and LWJGL 3.4.1 are bundled but untested.
+- Versions to try first: 1.21.11 (installed: Java 21 + FreeType), 1.16.5 (Java 8), 1.12.2 (Java 8 + lwjglx) and 26.1 (Java 25 + LWJGL 3.4.1).
+
+## 2026-10-17 — Minecraft 1.21.11 on Java 21: first run on device
+- **Build 202610170703, launched from StikDebug.** Evidence: launcher.log, jvm.log and latest.log pulled from the device; latest.log saved as `docs/evidence/2026-10-17-minecraft-1.21.11-java21-latest.log`.
+- **Launch line:** "Starting Minecraft 1.21.11 as Player (legacy): Java 21 (asks 21), LWJGL 3.3.3 for 3.3.3, heap 1337 MB, render scale 100%, 54 classpath entries".
+  - The JIT26 handshake worked on Java 21 (probe `0x…690000e0`, extension sent).
+  - GL 3.3 context; framebuffer 1290×2796 at the user's 100% scale.
+  - The custom 19-button layout loaded.
+- **Game:** backend LWJGL 3.3.3 (our build), OpenAL initialised, the sound engine started, atlases and fonts loaded (unifont), 1470 recipes.
+  - "Player joined the game" at 07:09:14.
+  - "Saving and pausing game..." at 07:09:22, when the app left the foreground.
+  - All dimensions saved, then "Stopping!" at 07:09:58.
+  - No hs_err file, no crash report, no new iOS crash log.
+- **Errors in latest.log, all expected:**
+  - "Error while loading the narrator": no text-to-speech library.
+  - Realms and user-properties fetches fail on the offline account.
+  - One `random_sequences` saved-data parse error: the world was last saved by an older version.
+- **Result:** Java 21 + FreeType-era versions run on the iPhone. Java 8 (1.13–1.16.5), lwjglx (≤1.12.2) and Java 25 + LWJGL 3.4.1 (26.1–26.2) are still untested on device.
+
+## 2026-10-17 — Game files for 1.16.5 / 1.12.2 / 26.1 pushed; Microsoft sign-in via Live web flow
+- **Game files:**
+  - `zalith-cli install` on the Mac, every file hash-checked: 1.16.5 (2625 files), 1.12.2 (1322) and 26.1 (4797), all with 0 failures. build/gamedata is now 1.3 GB.
+  - `scripts/push-gamedata.sh` exited 0. It **merges** into the device's game folder: before and after the push, the device listed versions 1.12.2, 1.13.2, 1.16.5, 1.19.1, 1.20.1, 1.21.11, 26.1 and 26.3, and the user's saves and options.txt were still there.
+  - The 26.1 version JSON passes `--sun-misc-unsafe-memory-access=allow --enable-native-access=ALL-UNNAMED`, which HotSpot accepts as JNI options in the `=` form (as 1.21.11's did).
+- **Microsoft sign-in, user decision:** sign in the way Amethyst-iOS does, using login.live.com and Microsoft's Minecraft launcher client ID `00000000402b5328`, instead of waiting for Mojang to approve an Azure ID.
+  - Implemented as `MicrosoftAuth.live` and `liveAuthorizeURL`/`liveCode(from:)`/`redeemLiveCode`, plus refresh on the Live endpoint and a bare RPS ticket. 1 new test; 75/75 pass.
+  - `AccountModel` uses `ASWebAuthenticationSession` (ephemeral) and keeps the device-code flow for builds that bundle their own ID.
+  - Accounts record which client ID signed in, so a refresh uses the same one.
+  - The trade-off is noted in docs/MICROSOFT_SIGN_IN.md: the ID isn't ours and Microsoft could block it.
+  - **Build `202610170717`** (SHA-256 `e63d989e9ca3479d7ae0ba021d29099e93fdd99700649b44cbf37cca27606b89`). **Not yet run on device.**
+
+## 2026-10-17 — Device run of Java 8 / 25 builds: two bugs found and fixed
+- **Evidence:** launcher.log, jvm.log, latest.log and `logs/hs_err_pid6871.log` pulled from the device. Builds 202610170703 (until 07:21) and 202610170717 (from 07:21:44).
+- **What actually ran:**
+  - launcher.log shows launches of 1.13.2 (07:10:58), 26.1 (×4, one refused as "JIT is not enabled") and 1.21.11 (07:17:53). Both 26.3 attempts were refused as designed.
+  - **There is no launch of 1.16.5 or 1.12.2** in the log.
+  - **No Microsoft sign-in events.** On 0703 the button was disabled (no client ID), and 0717 only ran from 07:21:44. Logging is now added.
+- **Java 8 (1.13.2):** the JVM died about 2 s in, right after "Setting user", with `Out of Memory Error (allocation.cpp:389)`.
+  - Cause: C2 (`ConcurrentHashMap::putVal`, 362 bytes) was in `CodeSection::expand_locs` ← `MacroAssembler::read_polling_page` ← `MachEpilogNode::emit` ← `Compile::scratch_emit_size`, and requested a 134,217,776-byte arena chunk.
+  - The heap held only about 110 MB and the device showed 432 MB free. So this is a runaway in this iOS JDK 8 build's C2, not the game using up memory.
+  - **Workaround:** `-XX:TieredStopAtLevel=1` (C1 only) on Java 8. Not yet verified.
+- **Java 25 (26.1):** `UnsupportedClassVersionError: org/lwjgl/system/MemoryUtil … class file version 70.0`.
+  - Cause: LWJGL 3.4.1 compiles its `META-INF/versions/25` classes with `--release ${jdk.version} --enable-preview`, and `jdk.version` is the build JDK (26 here).
+  - **Fix in `build-lwjgl.sh`:** patch that to `--release 25` (the classes use no preview features: they were 70.0, not 70.65535), and drop the generated `versions/25/module-info.class`, which the module-info tool stamps with the build JDK's version and which is unused on the classpath.
+  - All 5390 classes in the 3.4.1 jars are now version ≤ 69; the bundled `MemoryUtil` (versions/25) is 69.
+- **Sign-in logging:** `AccountModel` now logs start, the code returned, cancel, and a failure to open the page (never tokens).
+- **Build `202610170727`** (SHA-256 `46c89ffc910f37a14a6e9775a23dac87b3de3a6cd3902f6c0b21d3b59f1bdf2f`). **Not yet run on device.**
+
+## 2026-10-17 — Java 8 and Java 25 failures on device; Microsoft sign-in works
+- **Evidence:** launcher.log, jvm.log, Minecraft crash reports (07.28.01, 07.33.03), `hs_err_pid7039.log` and iOS crash `ZalithIOS-2026-10-17-143504.ips` (build 202610170727), all pulled from the device.
+- **Microsoft sign-in works on the device (Live web flow):** every launch from 07:27:19 ran "as <the user's profile> (msa)", meaning a real Minecraft profile and token from the Keychain. The user reported no problem with the sign-in.
+- **Java 8 (1.13.2, 1.16.5, 1.12.2):**
+  - All fail early with `NoSuchMethodError: java.nio.ByteBuffer.position(I)Ljava/nio/ByteBuffer;` in `org.lwjgl.system.MemoryUtil.<clinit>`. (The earlier C2 OOM was a separate problem, and C1-only is still applied on Java 8.)
+  - Cause: LWJGL was compiled with `-source 8 -target 8` against JDK 26's class library, so the calls link to the Java 9+ covariant overrides. Official LWJGL builds compile against a JDK 8 `rt.jar` (`JAVA8_HOME`, `--boot-class-path`).
+  - `--release 8` is no substitute because it hides `sun.misc.Unsafe` (I tested this).
+  - **Fix:** `build-lwjgl.sh` points `JAVA8_HOME` at a directory linking the bundled iOS JRE 8's `rt.jar` (the same OpenJDK 8 class library). For 3.3.3, which builds in "JDK 8 mode" on JDK 26 and so never applied the boot class path, the boot class path is now applied whenever `JAVA8_HOME` is set.
+  - Verified with javap: `MemoryUtil` now calls `ByteBuffer.position:(I)Ljava/nio/Buffer;`, in both 3.3.3 and 3.4.1.
+- **Java 25 (26.1):**
+  - SIGBUS in `CodeBlob::CodeBlob` ← `UpcallStub::create` ← `jdk.internal.foreign.abi.UpcallLinker` ← `org.lwjgl.system.Upcalls.upcallCreate` ← `GLFWErrorCallback.create`. LWJGL 3.4.1's Java 25 classes (`META-INF/versions/25`) create callbacks with the FFM API, and this iOS JDK 25 writes upcall stubs straight into the JIT-protected code cache.
+  - **Fix:** the 3.4.1 jars ship without `META-INF/versions/25`, so LWJGL uses its libffi/Unsafe implementation, the same one 3.3.3 uses successfully on Java 17/21. Minecraft passes `--sun-misc-unsafe-memory-access=allow` for this.
+  - The earlier "--release 25" and "drop the JAVA8_HOME check" patches are gone: `JAVA8_HOME` is now real, and the script resets the fork's build files before each build.
+- **Scope (user, 2026-10-17):** versions up to 1.12.2 and alpha/beta are "probably not needed". The target is 1.13 – 26.2. lwjglx stays bundled, but is no longer pursued.
+- **Build `202610170739`** (SHA-256 `15fabddde22f19822dcfca308e36d2c7b68e582f5f4e35cb309a8f51352f75c7`). **Not yet run on device.**
+
+## 2026-10-17 — 26.1 and 1.16.5 get further; GLFW IME functions and gl4es added
+- **Evidence:** Minecraft crash reports 07.48.42 (26.1) and 07.49.06 (1.16.5), build 202610170739. No hs_err and no iOS crash log, so the earlier JVM-level failures are gone.
+- **26.1:** `NullPointerException` in `Checks.check` ← `GLFW.nglfwSetPreeditCallback` ← `InputConstants.setupKeyboardCallbacks`.
+  - LWJGL 3.4.1 binds 7 IME functions as optional: `glfwSetPreeditCallback`, `glfwSetIMEStatusCallback`, `glfwSetPreeditCandidateCallback`, `glfwResetPreeditText`, `glfw{Get,Set}PreeditCursorRectangle`, `glfwGetPreeditCandidate`. The bridge had none of them.
+  - **Fix:** ZLGLFW now provides them as no-ops: callbacks are stored and returned but never called, since iOS text goes through ZLKeyboardProxy. The bridge now exports every required (118) and optional (7) GLFW function LWJGL 3.4.1 binds.
+- **1.16.5:** got past start-up (the Java 8 LWJGL fix works) and failed while rendering a screen. `NullPointerException` in `Checks.check` ← `GL11.glFogfv` ← `RenderSystem.fog`: MobileGlues does not implement fixed-function GL, which 1.13–1.16.5 use.
+  - **gl4es added**, as Amethyst/ZalithLauncher use for these versions. `scripts/build-gl4es.sh` builds PojavLauncherTeam/gl4es `mergewithios` `c3d6a54f8a2c` (MIT) for iOS: NOX11 + NOEGL, ES2 backend, CMake policy minimum 3.5.
+  - Our patch `patches/gl4es/0001-ios-use-app-angle.patch` makes four changes:
+    - (a) On Apple, resolve GLES from the `LIBGL_GLES` library (ANGLE's libGLESv2, loaded before gl4es, which upstream's `RTLD_NEXT`-only lookup cannot see).
+    - (b) Don't link the branch's prebuilt MetalANGLE.framework.
+    - (c) Add `src/gl/zalith_ios.c`, exporting `OSMesaGetProcAddress` → `gl4es_GetProcAddress`. Mach-O has no symbol aliases, so gl4es exports no plain `gl*` names on Apple. LWJGL's `GL` on "macOS" resolves every function through `OSMesaGetProcAddress` when the library has it.
+    - (d) Define `glGenBuffers`/`glStencilFunc`/`glStencilOp`, which gl4es calls internally by their public names.
+  - **Result:** `libgl4es.dylib` is iOS platform 2 with no undefined `gl*` imports, and is bundled in Frameworks.
+- **Launcher:** Java 8 versions (1.13–1.16.5) now use gl4es (`org.lwjgl.opengl.libname`, plus `LIBGL_GLES` = ANGLE's libGLESv2 and `LIBGL_ES=2`); 1.17+ keep MobileGlues.
+  - ZLGLFW's `glfwGetProcAddress` now resolves from the active GL library (`ZALITH_GL_LIBRARY`, via `OSMesaGetProcAddress` when present) instead of always MobileGlues.
+- **Build `202610170757`** (SHA-256 `c219357d8a8afd4edb53382ad3a9fbe2a561b1195b3a55be07450c6ea1748f14`). **Not yet run on device.**
+
+## 2026-10-17 — Build 202610170757 on device: two GL-layer bugs found and fixed
+- **Evidence:** crash reports 08.07.08 and 08.08.34 (26.1) and 08.41.06 (1.21.11); `hs_err_pid7239/7259.log` (1.16.5); jvm.log.
+- **26.1 (MobileGlues):** start-up now completes up to `MainTarget.allocateDepthAttachment`, then `IllegalStateException: OpenGL error 1282` in `GlDevice.createTexture`.
+  - javap of the unobfuscated 26.1 jar: DEPTH32 = internal `GL_DEPTH_COMPONENT32`, `GL_DEPTH_COMPONENT`, `GL_FLOAT`, which is invalid in ES 3.
+  - But MobileGlues converts that format, and its `glGetError` always returns `GL_NO_ERROR`. So the error had to come from raw ANGLE.
+  - **Cause:** LWJGL 3.4.1's `GL` function provider tries `eglGetProcAddress` from the GL library before `OSMesaGetProcAddress`. `dlsym()` on libmobileglues also searches its dependencies and returns **ANGLE's** `eglGetProcAddress`, so 26.1 was calling raw GLES and bypassing MobileGlues. LWJGL 3.3.3 has no such step, which is why 1.20.1/1.21.11 work.
+  - **Fix:** `patches/lwjgl/3.4.1-0001-macos-no-egl-getprocaddress.patch` skips that lookup on MACOSX. `build-lwjgl.sh` now applies `patches/lwjgl/<series>-*.patch`, and javap confirms the check in `GL$1`.
+- **1.16.5 (gl4es):** SIGSEGV in `gl4es_glGetError` from `GL.createCapabilities`.
+  - gl4es on Apple defines `NO_INIT_CONSTRUCTOR` (init.c) and skips `load_libs()`, so nothing had initialised it and `glstate` was NULL.
+  - **Fix:** on the first on-screen `glfwMakeContextCurrent` with `ZALITH_GL_LIBRARY` = gl4es, ZLGLFW dlopens gl4es and calls `set_getprocaddress` (→ ANGLE's `eglGetProcAddress`), then `initialize_gl4es()`. LWJGL's later dlopen of the same path reuses it.
+- **1.21.11 (open):** about a minute into play, "Can't map buffer, opengl error 0" (`mapBuffer`): a buffer mapping returned NULL through MobileGlues/ANGLE. Not yet investigated; 1.21.11 had earlier played for over a minute without it.
+- **Build `202610171119`** (SHA-256 `fea8d1166a91c6303377aadf34546273fe5a6e6954f8ce885e7136a064064a90`). **Not yet run on device.**
+- **Device result for build 202610171119 (user report, 2026-10-17):** Minecraft 26.1 (Java 25, LWJGL 3.4.1, MobileGlues) and 1.16.5 (Java 8, LWJGL 3.3.3, gl4es) both start and run, and 1.21.11 "worked seamlessly". The user played them on the iPhone with their Microsoft account.

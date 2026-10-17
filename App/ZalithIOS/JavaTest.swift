@@ -180,9 +180,15 @@ struct JavaTestSection: View {
     @ObservedObject var test: JavaTestModel
     let paths: AppPaths?
 
+    /// Java runtimes in the app bundle (the tests here use Java 17).
+    static let bundledJavas: [Int] = GameRuntime.bundledJava.filter { major in
+        guard let res = Bundle.main.resourceURL else { return false }
+        return FileManager.default.fileExists(atPath: res.appendingPathComponent("java/jre\(major)/lib/server/libjvm.dylib").path)
+    }
+
     var body: some View {
         Section {
-            LabeledContent("Runtime bundled", value: test.runtimeBundled ? "Java 17 (iOS arm64)" : "No")
+            LabeledContent("Runtimes bundled", value: Self.bundledJavas.isEmpty ? "No" : "Java " + Self.bundledJavas.map(String.init).joined(separator: ", "))
             Text(test.jitDescription).font(.caption.monospaced()).textSelection(.enabled)
             switch test.state {
             case .idle:

@@ -68,6 +68,22 @@ final class ControlsModel: ObservableObject {
 
     func delete(_ id: UUID) { layout.buttons.removeAll { $0.id == id } }
 
+    func setOpacity(_ value: Double) {
+        var l = layout
+        l.opacity = value
+        layout = l.clamped(width: screen.width, height: screen.height)
+    }
+
+    /// Resizes the joystick around its centre.
+    func setJoystickSize(_ size: Double) {
+        var l = layout
+        let old = l.joystick.size
+        l.joystick.x -= (size - old) / 2 / screen.width
+        l.joystick.y -= (size - old) / 2 / screen.height
+        l.joystick.size = size
+        layout = l.clamped(width: screen.width, height: screen.height)
+    }
+
     /// The editor's floating toolbar, centred at (W/2, 0.45 H); new buttons are kept clear of it.
     static let toolbarSize = CGSize(width: 340, height: 130)
     var toolbarRect: ControlLayout.Rect {
@@ -143,6 +159,18 @@ struct ControlsView: View {
                     Button { newButton = controls.addButton() } label: { Label("Add button", systemImage: "plus.circle") }
                 } header: {
                     Text("Buttons (\(controls.layout.buttons.count))")
+                }
+                Section {
+                    VStack(alignment: .leading) {
+                        Text("Button opacity: \(Int((controls.layout.opacity * 100).rounded()))%")
+                        Slider(value: Binding(get: { controls.layout.opacity }, set: { controls.setOpacity($0) }),
+                               in: ControlLayout.opacityRange, step: 0.05)
+                    }
+                    Stepper("Joystick size: \(Int(controls.layout.joystick.size)) pt",
+                            value: Binding(get: { controls.layout.joystick.size }, set: { controls.setJoystickSize($0) }),
+                            in: ControlLayout.joystickSizeRange, step: 8)
+                } header: {
+                    Text("Appearance")
                 }
                 Section {
                     Button("Reset to default layout", role: .destructive) { confirmReset = true }
@@ -371,6 +399,7 @@ struct ControlsEditorView: View {
             .padding(4)
             .frame(width: b.width, height: b.height)
             .background(Color.black.opacity(0.3), in: RoundedRectangle(cornerRadius: min(b.width, b.height) / 2))
+            .opacity(controls.layout.opacity)
             .overlay(RoundedRectangle(cornerRadius: min(b.width, b.height) / 2)
                 .stroke(highlighted ? Color.accentColor : Color.white.opacity(0.6), lineWidth: highlighted ? 2 : 1))
             .position(x: b.x * W + b.width / 2 + o.width, y: b.y * H + b.height / 2 + o.height)
@@ -385,6 +414,7 @@ struct ControlsEditorView: View {
             .overlay(Circle().stroke(Color.white.opacity(0.6)))
             .overlay(Text("Joystick").font(.caption).foregroundStyle(.white.opacity(0.8)))
             .frame(width: j.size, height: j.size)
+            .opacity(controls.layout.opacity)
             .position(x: j.x * W + j.size / 2 + o.width, y: j.y * H + j.size / 2 + o.height)
             .gesture(drag(nil))
     }

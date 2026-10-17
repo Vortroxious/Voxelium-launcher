@@ -11,3 +11,4 @@ xcuserdata/
 *.p12
 *.cer
 .DS_Store
+.oauth_client_id.txt

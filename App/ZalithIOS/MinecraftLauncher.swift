@@ -21,39 +21,85 @@ final class MinecraftLauncher: ObservableObject {
     @Published private(set) var state: State = .idle
     private let log = Logger.shared
 
-    /// Java-side LWJGL modules Minecraft 1.20.1 uses (Mojang's own LWJGL entries
+    /// Java-side LWJGL modules every LWJGL 3 Minecraft uses (Mojang's own LWJGL entries
     /// are filtered out by GameFilePlanner and replaced with these iOS builds).
     static let lwjglModules = ["lwjgl", "lwjgl-glfw", "lwjgl-opengl", "lwjgl-openal", "lwjgl-stb", "lwjgl-tinyfd", "lwjgl-jemalloc"]
+    /// Added only when the version lists them.
+    static let optionalLWJGLModules = ["lwjgl-freetype", "lwjgl-vulkan"]
 
     /// One JVM per process: once Minecraft has been started, relaunch the app to start again.
     private static var started = false
 
-    func launch(versionID: String, paths: AppPaths, settings: LauncherSettings) {
+    func launch(versionID: String, paths: AppPaths, settings: LauncherSettings, accounts: AccountModel) async {
         guard !Self.started else {
             state = .finished(ok: false, message: "A JVM already ran in this launch. Close and relaunch the app.")
             return
         }
+        if case .running = state { return }
+        if case .starting = state { return }
+
+        // Who plays: the Microsoft account (token refreshed if needed) or the offline profile.
+        let identity: LaunchIdentity
+        if settings.useMicrosoftAccount, accounts.account != nil {
+            state = .starting("Checking your Microsoft sign-in…")
+            do {
+                identity = try await accounts.launchIdentity()
+            } catch {
+                state = .finished(ok: false, message: "Microsoft sign-in: \(error). Sign in again on the Account tab, or choose the offline profile.")
+                log.error("launch", "Microsoft token refresh failed: \(error)")
+                return
+            }
+        } else {
+            guard OfflineIdentity.isValidName(settings.playerName) else {
+                state = .finished(ok: false, message: "Set a valid player name (3–16 letters, digits or _) on the Account tab.")
+                return
+            }
+            identity = OfflineIdentity.identity(for: settings.playerName)
+        }
+        guard !Self.started else { return }
         guard let res = Bundle.main.resourceURL, let frameworks = Bundle.main.privateFrameworksURL else { return }
         let java = res.appendingPathComponent("java", isDirectory: true)
-        let lwjgl = java.appendingPathComponent("lwjgl", isDirectory: true)
-        let home = java.appendingPathComponent("jre17", isDirectory: true)
         let fm = FileManager.default
 
         do {
             let version = try VersionInfo.decode(Data(contentsOf: try paths.versionJSON(versionID)))
-            if let major = version.javaVersion?.majorVersion, major > 17 {
-                throw LaunchError.message("\(versionID) needs Java \(major); only Java 17 is bundled.")
+
+            // Java: the smallest bundled runtime that satisfies the version (8, 17, 21, 25).
+            let major = GameRuntime.javaMajor(for: version)
+            let bundled = GameRuntime.bundledJava.filter {
+                fm.fileExists(atPath: java.appendingPathComponent("jre\($0)/lib/server/libjvm.dylib").path)
             }
-            guard OfflineIdentity.isValidName(settings.playerName) else {
-                throw LaunchError.message("Set a valid player name (3–16 letters, digits or _) on the Account tab.")
+            guard let javaMajor = GameRuntime.java(for: major, available: bundled) else {
+                throw LaunchError.message("\(versionID) needs Java \(major); this build bundles Java \(bundled.map(String.init).joined(separator: ", ")).")
             }
-            let plan = try LaunchPlanner(paths: paths).plan(version: version, identity: OfflineIdentity.identity(for: settings.playerName))
+            let home = java.appendingPathComponent("jre\(javaMajor)", isDirectory: true)
+
+            // LWJGL: the app's iOS builds stand in for Mojang's (3.3.3, or 3.4.1 for LWJGL ≥ 3.4.1).
+            // Versions up to 1.12.2 (LWJGL 2) also get lwjglx, the LWJGL 2 API on top of LWJGL 3.
+            let wanted = GameRuntime.lwjgl(for: version)
+            let lwjgl2 = GameRuntime.needsLWJGL2Bridge(wanted)
+            let build = GameRuntime.lwjglBuild(for: wanted)
+            let lwjgl = java.appendingPathComponent(build == .v333 ? "lwjgl" : "lwjgl-\(build.rawValue)", isDirectory: true)
+            guard fm.fileExists(atPath: lwjgl.appendingPathComponent("lwjgl.jar").path) else {
+                throw LaunchError.message("\(versionID) uses LWJGL \(wanted.map { "\($0)" } ?? "?"), which needs the app's LWJGL \(build.rawValue) build; it is not in this build yet.")
+            }
+            let plan = try LaunchPlanner(paths: paths).plan(version: version, identity: identity)
             if !plan.missingFiles.isEmpty {
                 throw LaunchError.message("\(plan.missingFiles.count) game files are missing. Install or repair \(versionID) first.")
             }
 
             // Classpath: iOS LWJGL + compat stubs, then the game's libraries and client jar.
-            let ours = Self.lwjglModules.map { lwjgl.appendingPathComponent("\($0).jar") }
+            // Extra modules newer versions list (lwjgl-freetype from 1.20.5, lwjgl-vulkan in 26.2).
+            let requested = Set(version.libraries.compactMap { lib -> String? in
+                let c = lib.name.split(separator: ":")
+                return c.count >= 3 && c[0] == "org.lwjgl" ? String(c[1]) : nil
+            })
+            if requested.contains("lwjgl-sdl") {
+                throw LaunchError.message("\(versionID) uses SDL and Vulkan instead of GLFW and OpenGL (Minecraft 26.3 and later). This launcher's iOS window and graphics layers do not support that yet.")
+            }
+            let extras = Self.optionalLWJGLModules.filter(requested.contains)
+            let modules = Self.lwjglModules + extras + (lwjgl2 ? ["lwjgl-lwjglx"] : [])  // bridge last, as upstream
+            let ours = modules.map { lwjgl.appendingPathComponent("\($0).jar") }
                 + [java.appendingPathComponent("zalith-ios-compat.jar")]
             for url in ours where !fm.fileExists(atPath: url.path) {
                 throw LaunchError.message("Bundled file missing: \(url.lastPathComponent)")
@@ -72,10 +118,22 @@ final class MinecraftLauncher: ObservableObject {
                 jvmArgs.append(arg)
             }
 
+            // Desktop GL layer: Minecraft 1.13 - 1.16.5 (Java 8) render with fixed-function
+            // GL (glFog, matrix stacks), which MobileGlues does not implement (glFogfv was
+            // NULL on 1.16.5); they get gl4es, as on Amethyst and ZalithLauncher. 1.17+ use
+            // MobileGlues. Both run on the app's ANGLE context.
+            let useGL4ES = javaMajor == 8
+            let glLibrary = frameworks.appendingPathComponent(useGL4ES ? "libgl4es.dylib" : "libmobileglues.dylib")
+            guard fm.fileExists(atPath: glLibrary.path) else {
+                throw LaunchError.message("Bundled file missing: \(glLibrary.lastPathComponent)")
+            }
+
             let heap = Self.heapMegabytes(requested: settings.maxMemoryMB)
             var options = JavaTestModel.jvmOptions(paths: paths)
                 .filter { !$0.hasPrefix("-Xmx") && !$0.hasPrefix("-Xms") && !$0.hasPrefix("-Duser.dir=") }
             options += [
+                // One option list for Java 8–25: skip -XX flags a runtime does not know.
+                "-XX:+IgnoreUnrecognizedVMOptions",
                 "-Xms256M",
                 "-Xmx\(heap)M",
                 "-Djava.awt.headless=true",
@@ -83,11 +141,16 @@ final class MinecraftLauncher: ObservableObject {
                 "-Dorg.lwjgl.librarypath=\(lwjgl.path)",
                 "-Dorg.lwjgl.glfw.libname=\(ZLGLFWLibraryPath())",
                 "-Dorg.lwjgl.glfw.checkThread0=false",
-                "-Dorg.lwjgl.opengl.libname=\(frameworks.appendingPathComponent("libmobileglues.dylib").path)",
+                "-Dorg.lwjgl.opengl.libname=\(glLibrary.path)",
                 "-Dorg.lwjgl.system.allocator=system",
                 // Minecraft resolves logs/, crash-reports/ etc. against the working directory.
                 "-Duser.dir=\(paths.gameDir.path)",
             ]
+            // The iOS Java 8 build's C2 compiler asked for a 128 MB arena while emitting
+            // safepoint polls (ConcurrentHashMap.putVal) and the JVM died with "Out of
+            // Memory Error (allocation.cpp:389)" on 1.13.2 (hs_err, 2026-10-17).
+            // Use the C1 JIT only on Java 8.
+            if javaMajor == 8 { options.append("-XX:TieredStopAtLevel=1") }
             options += jvmArgs
 
             // iOS gives an app the "solo ambient" audio category by default, which
@@ -109,11 +172,12 @@ final class MinecraftLauncher: ObservableObject {
             } catch {
                 log.error("launch", "Could not write the control layout, using the built-in one: \(error)")
             }
-            // Render at half the native pixels by default (2796x1290 is a lot for a phone GPU).
-            if getenv("ZALITH_RENDER_SCALE") == nil { setenv("ZALITH_RENDER_SCALE", "0.5", 1) }
+            // Render resolution (Account tab; default half the native pixels, since 2796x1290 is a lot for a phone GPU).
+            let renderScale = min(max(settings.renderScale, LauncherSettings.renderScaleRange.lowerBound), LauncherSettings.renderScaleRange.upperBound)
+            setenv("ZALITH_RENDER_SCALE", String(format: "%.2f", renderScale), 1)
 
             let logURL = paths.logsDir.appendingPathComponent("jvm.log")
-            let header = "\n===== Minecraft \(versionID) \(ISO8601DateFormatter().string(from: Date())) heap=\(heap)M \(ZLJVMBridge.jitDescription())\n"
+            let header = "\n===== Minecraft \(versionID) \(ISO8601DateFormatter().string(from: Date())) java=\(javaMajor) heap=\(heap)M \(ZLJVMBridge.jitDescription())\n"
             if let h = try? FileHandle(forWritingTo: logURL) {
                 _ = try? h.seekToEnd()
                 try? h.write(contentsOf: Data(header.utf8))
@@ -122,9 +186,16 @@ final class MinecraftLauncher: ObservableObject {
                 fm.createFile(atPath: logURL.path, contents: Data(header.utf8))
             }
 
-            log.info("launch", "Starting Minecraft \(versionID): heap \(heap) MB, \(ours.count + plan.classpath.count) classpath entries, \(options.count) JVM options")
+            log.info("launch", "Starting Minecraft \(versionID) as \(identity.playerName) (\(identity.userType)): Java \(javaMajor) (asks \(major)), LWJGL \(build.rawValue) for \(wanted.map { "\($0)" } ?? "?"), GL \(useGL4ES ? "gl4es" : "MobileGlues"), heap \(heap) MB, render scale \(Int(renderScale * 100))%, \(ours.count + plan.classpath.count) classpath entries, \(options.count) JVM options")
             Self.started = true
-            MobileGluesSession.used = true
+            if !useGL4ES { MobileGluesSession.used = true }
+            // The app's GLFW resolves glfwGetProcAddress from this library.
+            setenv("ZALITH_GL_LIBRARY", glLibrary.path, 1)
+            if useGL4ES {
+                // gl4es loads GLES from here (ANGLE) and uses its GLES 2 backend.
+                setenv("LIBGL_GLES", frameworks.appendingPathComponent("libGLESv2.framework/libGLESv2").path, 1)
+                setenv("LIBGL_ES", "2", 1)
+            }
             state = .running("Minecraft \(versionID) is running. Its log goes to logs/jvm.log.")
 
             let mainClass = plan.mainClass

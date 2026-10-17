@@ -66,6 +66,17 @@ import Testing
         #expect(b.actionSummary == "Q")
     }
 
+    @Test func olderFilesWithoutOpacityStillLoad() throws {
+        let json = #"{"version":1,"joystick":{"x":0.9,"y":0.9,"size":900},"buttons":[]}"#
+        let layout = try JSONDecoder().decode(ControlLayout.self, from: Data(json.utf8)).clamped(width: 932, height: 430)
+        #expect(layout.opacity == 1)
+        #expect(layout.joystick.size == 300)
+        #expect(layout.joystick.x * 932 + 300 <= 932.001 && layout.joystick.y * 430 + 300 <= 430.001)
+        var faint = layout
+        faint.opacity = 0
+        #expect(faint.clamped(width: 932, height: 430).opacity == ControlLayout.opacityRange.lowerBound)
+    }
+
     @Test func clampingKeepsButtonsOnScreen() {
         let b = ControlButton(name: "X", keys: [1, 2, 3, 4, 5], x: 1.5, y: -1, width: 5, height: 900)
             .clamped(width: 932, height: 430)

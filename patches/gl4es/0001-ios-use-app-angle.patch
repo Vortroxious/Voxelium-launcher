@@ -1,0 +1,78 @@
+diff --git a/src/CMakeLists.txt b/src/CMakeLists.txt
+index 4364377..4ad5e3c 100644
+--- a/src/CMakeLists.txt
++++ b/src/CMakeLists.txt
+@@ -28,6 +28,7 @@ SET(GL_SRC
+     ${CMAKE_CURRENT_SOURCE_DIR}/gl/gl_lookup.c
+     ${CMAKE_CURRENT_SOURCE_DIR}/gl/getter.c
+     ${CMAKE_CURRENT_SOURCE_DIR}/gl/gl4es.c
++    ${CMAKE_CURRENT_SOURCE_DIR}/gl/zalith_ios.c
+     ${CMAKE_CURRENT_SOURCE_DIR}/gl/glstate.c
+     ${CMAKE_CURRENT_SOURCE_DIR}/gl/hint.c
+     ${CMAKE_CURRENT_SOURCE_DIR}/gl/init.c
+@@ -219,12 +220,8 @@ else()
+     if(ANDROID)
+         target_link_libraries(GL ${log-lib})
+     endif()
+-    if(${CMAKE_SYSTEM_NAME} MATCHES "iOS")
+-        target_link_libraries(GL
+-            "-FFrameworks"
+-            "-framework MetalANGLE"
+-        )
+-    endif()
++    # Zalith iOS: no prebuilt MetalANGLE; GLES comes from the app's own ANGLE at
++    # run time (LIBGL_GLES), so nothing is linked here.
+     
+     if(CMAKE_SHARED_LIBRARY_SUFFIX MATCHES ".so")
+         set_target_properties(GL PROPERTIES SUFFIX ".so.1")
+diff --git a/src/gl/loader.c b/src/gl/loader.c
+index 4a777e5..ce6f708 100644
+--- a/src/gl/loader.c
++++ b/src/gl/loader.c
+@@ -182,8 +182,13 @@ void *proc_address(void *lib, const char *name) {
+     void *emscripten_GetProcAddress(const char *name);
+     return emscripten_GetProcAddress(name);
+ #elif defined __APPLE__
+-    // apple code seems to use RTLD_NEXT which is usually ((void*)-1)
+-    // remove if it not needed
++    // Zalith iOS: use the GLES library named by LIBGL_GLES (ANGLE's libGLESv2,
++    // loaded by the app before gl4es, which RTLD_NEXT cannot see); fall back to
++    // the original RTLD_NEXT lookup.
++    if (lib) {
++        void *f = dlsym(lib, name);
++        if (f) return f;
++    }
+     return dlsym((void*)(~(uintptr_t)0), name);
+ #elif !defined NO_LOADER
+     return dlsym(lib, name);
+diff --git a/src/gl/zalith_ios.c b/src/gl/zalith_ios.c
+new file mode 100644
+index 0000000..a2951e0
+--- /dev/null
++++ b/src/gl/zalith_ios.c
+@@ -0,0 +1,25 @@
++// Zalith iOS additions for Apple builds, where gl4es cannot export its public gl*
++// names as aliases (Mach-O has no __attribute__((alias)); attributes.h makes
++// AliasExport empty there).
++//
++// - OSMesaGetProcAddress: LWJGL on "macOS" (org.lwjgl.opengl.GL) resolves every GL
++//   function through OSMesaGetProcAddress when the GL library exports it, so all
++//   of gl4es becomes reachable through its own name -> gl4es_* lookup table.
++// - glGenBuffers, glStencilFunc, glStencilOp: gl4es calls these public names
++//   internally (scratch buffers, glStencil*Separate); define them as the aliases
++//   would on other platforms.
++#ifdef __APPLE__
++#include "gl4es.h"
++#include "buffers.h"
++#include "stencil.h"
++
++void *gl4es_GetProcAddress(const char *name);  // gl_lookup.c (its header needs STUB_FCT)
++
++__attribute__((visibility("default"))) void *OSMesaGetProcAddress(const char *name) {
++    return gl4es_GetProcAddress(name);
++}
++
++void glGenBuffers(GLsizei n, GLuint *buffers) { gl4es_glGenBuffers(n, buffers); }
++void glStencilFunc(GLenum func, GLint ref, GLuint mask) { gl4es_glStencilFunc(func, ref, mask); }
++void glStencilOp(GLenum sfail, GLenum dpfail, GLenum dppass) { gl4es_glStencilOp(sfail, dpfail, dppass); }
++#endif

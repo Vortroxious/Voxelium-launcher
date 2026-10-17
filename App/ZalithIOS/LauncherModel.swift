@@ -111,8 +111,8 @@ final class LauncherModel: ObservableObject {
         }
     }
 
-    /// Builds the JVM command line. This does NOT start Java: the iOS JVM
-    /// bridge is not implemented (see docs/PORTING_FEASIBILITY.md, gate A).
+    /// Builds the JVM command line for inspection (Account tab). It does not start
+    /// Java; MinecraftLauncher does that.
     func preparePlan(_ id: String) {
         guard let paths else { return }
         do {

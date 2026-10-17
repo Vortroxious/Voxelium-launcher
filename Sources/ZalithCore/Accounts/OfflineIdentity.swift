@@ -3,7 +3,7 @@ import Foundation
 
 /// Offline identity, as offered by ZalithLauncher2 ("offline" account type).
 /// Offline play does not authenticate with Microsoft and cannot join
-/// online-mode servers. Microsoft account sign-in is NOT implemented yet.
+/// online-mode servers. Microsoft accounts: see MicrosoftAuth.
 public enum OfflineIdentity {
     /// Player names Minecraft accepts: 3–16 chars of [A-Za-z0-9_].
     public static func isValidName(_ name: String) -> Bool {

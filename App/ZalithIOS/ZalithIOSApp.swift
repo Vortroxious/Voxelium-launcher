@@ -6,6 +6,7 @@ struct ZalithIOSApp: App {
     @StateObject private var model = LauncherModel()
     @StateObject private var minecraft = MinecraftLauncher()
     @StateObject private var controls = ControlsModel()
+    @StateObject private var accounts = AccountModel()
 
     var body: some Scene {
         WindowGroup {
@@ -13,6 +14,7 @@ struct ZalithIOSApp: App {
                 .environmentObject(model)
                 .environmentObject(minecraft)
                 .environmentObject(controls)
+                .environmentObject(accounts)
                 .task { await model.start() }
         }
     }

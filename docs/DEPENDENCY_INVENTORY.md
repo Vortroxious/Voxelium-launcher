@@ -14,10 +14,14 @@ There are no third-party Swift packages. Native and Java components bundled in t
 | Component | Candidate | License | Status |
 |---|---|---|---|
 | JVM for iOS arm64 | AngelAuraMC iOS OpenJDK 17.0.20 (`scripts/fetch-runtime.sh`, SHA-256 pinned) | GPL-2.0 + Classpath Exception (per the runtime's `legal/` files) | **Bundled; smoke test passed on device 2026-10-16** |
+| JVMs for other versions | AngelAuraMC iOS OpenJDK 1.8.0_472, 21.0.8 and 25.0.4 (`scripts/fetch-runtime.sh`, SHA-256 pinned 2026-10-17). Each libjvm is an iOS (platform 2) arm64 build with the iOS 26 JIT hooks | GPL-2.0 + Classpath Exception (jre8: `LICENSE`/`ASSEMBLY_EXCEPTION`; 21/25: `legal/`) | **Bundled 2026-10-17; not yet run on device** |
+| FreeType (lwjgl-freetype, Minecraft 1.20.5+) | FreeType `VER-2-13-3`, built for iOS by `scripts/build-freetype.sh` (no zlib/png/bzip2/harfbuzz/brotli) | FTL or GPL-2.0 (dual) | **Built, bundled; not yet run on device** |
+| LWJGL 2 API (Minecraft 1.12.2 and older) | `lwjglx` binding of the AngelAuraMC LWJGL 3.3.3 fork (as ZalithLauncher2/Amethyst use) | BSD-3-Clause | **Built, bundled; not yet run on device** |
+| LWJGL 3.4.1 (Minecraft 26.1 - 26.2) | AngelAuraMC/lwjgl3 `wip/rebase_3.4.1` `702c2102a287`, `LWJGL_SERIES=3.4.1 scripts/build-lwjgl.sh` | BSD-3-Clause | See ENGINEERING_LOG 2026-10-17 |
 | GL on iOS (GLES provider) | ANGLE `33f8caff4b77`, Metal backend, built from source by `scripts/build-angle.sh` | BSD-3-Clause | **Built**; bundled; device test pending |
 | Desktop GL on top of GLES | MobileGlues `f0fb4d32794a` + glslang 15.0.0, SPIRV-Tools, SPIRV-Cross 1.4.304.0, built by `scripts/build-mobileglues.sh` | LGPL-2.1 (deps Apache/MIT/BSD; **FastSTL: no licence declared**) | **Built**; bundled; device test pending |
-| LWJGL Java + natives for iOS | LWJGL 3.3.3 from AngelAuraMC/lwjgl3 `6a564a8b4b14`, built by `scripts/build-lwjgl.sh` (Ant 1.10.18, libffi 3.4.8) | BSD-3-Clause (libffi MIT) | **Built**; bundled; device test pending. GLFW bridge not started |
-| OpenAL | openal-soft | LGPL-2.0+ | Not started |
+| LWJGL Java + natives for iOS | LWJGL 3.3.3 from AngelAuraMC/lwjgl3 `6a564a8b4b14`, built by `scripts/build-lwjgl.sh` (Ant 1.10.18, libffi 3.4.8) | BSD-3-Clause (libffi MIT) | **Built**; bundled; Minecraft 1.20.1 runs on device (2026-10-17) |
+| OpenAL | openal-soft 1.25.2, built by `scripts/build-openal.sh` (CoreAudio) | LGPL-2.0+ | **Bundled; sound confirmed on device 2026-10-17** |
 | JIT enabling | StikDebug 3.1.14 + built-in `universal.js` (external app, AGPL-3.0); Amethyst's `UniversalJIT26Extension.js` bundled (GPL-3.0) | — | **Verified on iPhone 15 Pro Max / iOS 27.0** |
 
 ## Upstream ZalithLauncher2 2.6.1 (from `gradle/libs.versions.toml`, selected)

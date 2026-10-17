@@ -1,0 +1,246 @@
+[07:08:57] [main/WARN]: Failed retrieving info for group processor
+java.lang.UnsatisfiedLinkError: /private/var/mobile/Containers/Data/Application/4282AD15-8830-474A-836A-51C398D46C92/Library/Application Support/ZalithIOS/minecraft/versions/1.21.11/natives/jna13518189520499586868.tmp: dlopen(/private/var/mobile/Containers/Data/Application/4282AD15-8830-474A-836A-51C398D46C92/Library/Application Support/ZalithIOS/minecraft/versions/1.21.11/natives/jna13518189520499586868.tmp, 0x0001): tried: '/private/var/mobile/Containers/Data/Application/4282AD15-8830-474A-836A-51C398D46C92/Library/Application Support/ZalithIOS/minecraft/versions/1.21.11/natives/jna13518189520499586868.tmp' (mach-o file (/private/var/mobile/Containers/Data/Application/4282AD15-8830-474A-836A-51C398D46C92/Library/Application Support/ZalithIOS/minecraft/versions/1.21.11/natives/jna13518189520499586868.tmp), but incompatible platform (have 'macOS', need 'iOS')), '/private/preboot/Cryptexes/OS/private/var/mobile/Containers/Data/Application/4282AD15-8830-474A-836A-51C398D46C92/Library/Application Support/ZalithIOS/minecraft/versions/1.21.11/n
+	at java.base/jdk.internal.loader.NativeLibraries.load(Native Method)
+	at java.base/jdk.internal.loader.NativeLibraries$NativeLibraryImpl.open(Unknown Source)
+	at java.base/jdk.internal.loader.NativeLibraries.loadLibrary(Unknown Source)
+	at java.base/jdk.internal.loader.NativeLibraries.loadLibrary(Unknown Source)
+	at java.base/java.lang.ClassLoader.loadLibrary(Unknown Source)
+	at java.base/java.lang.Runtime.load0(Unknown Source)
+	at java.base/java.lang.System.load(Unknown Source)
+	at com.sun.jna.Native.loadNativeDispatchLibraryFromClasspath(Native.java:1041)
+	at com.sun.jna.Native.loadNativeDispatchLibrary(Native.java:1011)
+	at com.sun.jna.Native.<clinit>(Native.java:221)
+	at com.sun.jna.platform.mac.SystemB.<clinit>(SystemB.java:40)
+	at oshi.util.platform.mac.SysctlUtil.sysctl(SysctlUtil.java:52)
+	at oshi.util.platform.mac.SysctlUtil.sysctl(SysctlUtil.java:40)
+	at oshi.hardware.platform.mac.MacCentralProcessor.initProcessorCounts(MacCentralProcessor.java:138)
+	at oshi.hardware.common.AbstractCentralProcessor.<init>(AbstractCentralProcessor.java:68)
+	at oshi.hardware.platform.mac.MacCentralProcessor.<init>(MacCentralProcessor.java:51)
+	at oshi.hardware.platform.mac.MacHardwareAbstractionLayer.createProcessor(MacHardwareAbstractionLayer.java:42)
+	at oshi.util.Memoizer$1.get(Memoizer.java:65)
+	at oshi.hardware.common.AbstractHardwareAbstractionLayer.getProcessor(AbstractHardwareAbstractionLayer.java:48)
+	at y.c(SourceFile:87)
+	at y.a(SourceFile:95)
+	at y.a(SourceFile:87)
+	at y.f(SourceFile:59)
+	at y.a(SourceFile:95)
+	at y.<init>(SourceFile:59)
+	at m.<init>(SourceFile:35)
+	at m.g(SourceFile:233)
+	at net.minecraft.client.main.Main.main(SourceFile:130)
+[07:08:57] [main/WARN]: Failed retrieving info for group virtual memory
+java.lang.NoClassDefFoundError: Could not initialize class com.sun.jna.platform.mac.SystemB
+	at oshi.util.platform.mac.SysctlUtil.sysctl(SysctlUtil.java:72)
+	at oshi.hardware.platform.mac.MacGlobalMemory.queryPhysMem(MacGlobalMemory.java:138)
+	at oshi.util.Memoizer$1.get(Memoizer.java:65)
+	at oshi.hardware.platform.mac.MacGlobalMemory.getTotal(MacGlobalMemory.java:55)
+	at oshi.hardware.platform.mac.MacVirtualMemory.getVirtualMax(MacVirtualMemory.java:62)
+	at y.e(SourceFile:116)
+	at y.a(SourceFile:78)
+	at y.a(SourceFile:116)
+	at y.b(SourceFile:124)
+	at y.a(SourceFile:95)
+	at y.a(SourceFile:124)
+	at y.a(SourceFile:89)
+	at y.a(SourceFile:95)
+	at y.a(SourceFile:89)
+	at y.f(SourceFile:59)
+	at y.a(SourceFile:95)
+	at y.<init>(SourceFile:59)
+	at m.<init>(SourceFile:35)
+	at m.g(SourceFile:233)
+	at net.minecraft.client.main.Main.main(SourceFile:130)
+Caused by: java.lang.ExceptionInInitializerError: Exception java.lang.UnsatisfiedLinkError: /private/var/mobile/Containers/Data/Application/4282AD15-8830-474A-836A-51C398D46C92/Library/Application Support/ZalithIOS/minecraft/versions/1.21.11/natives/jna13518189520499586868.tmp: dlopen(/private/var/mobile/Containers/Data/Application/4282AD15-8830-474A-836A-51C398D46C92/Library/Application Support/ZalithIOS/minecraft/versions/1.21.11/natives/jna13518189520499586868.tmp, 0x0001): tried: '/private/var/mobile/Containers/Data/Application/4282AD15-8830-474A-836A-51C398D46C92/Library/Application Support/ZalithIOS/minecraft/versions/1.21.11/natives/jna13518189520499586868.tmp' (mach-o file (/private/var/mobile/Containers/Data/Application/4282AD15-8830-474A-836A-51C398D46C92/Library/Application Support/ZalithIOS/minecraft/versions/1.21.11/natives/jna13518189520499586868.tmp), but incompatible platform (have 'macOS', need 'iOS')), '/private/preboot/Cryptexes/OS/private/var/mobile/Containers/Data/Application/4282AD15-8830-474A-836A-51C398D46C92/Library/Application Support/ZalithIOS/minecraft/versions/1.21.11/n [in thread "main"]
+	at java.base/jdk.internal.loader.NativeLibraries.load(Native Method)
+	at java.base/jdk.internal.loader.NativeLibraries$NativeLibraryImpl.open(Unknown Source)
+	at java.base/jdk.internal.loader.NativeLibraries.loadLibrary(Unknown Source)
+	at java.base/jdk.internal.loader.NativeLibraries.loadLibrary(Unknown Source)
+	at java.base/java.lang.ClassLoader.loadLibrary(Unknown Source)
+	at java.base/java.lang.Runtime.load0(Unknown Source)
+	at java.base/java.lang.System.load(Unknown Source)
+	at com.sun.jna.Native.loadNativeDispatchLibraryFromClasspath(Native.java:1041)
+	at com.sun.jna.Native.loadNativeDispatchLibrary(Native.java:1011)
+	at com.sun.jna.Native.<clinit>(Native.java:221)
+	at com.sun.jna.platform.mac.SystemB.<clinit>(SystemB.java:40)
+	at oshi.util.platform.mac.SysctlUtil.sysctl(SysctlUtil.java:52)
+	at oshi.util.platform.mac.SysctlUtil.sysctl(SysctlUtil.java:40)
+	at oshi.hardware.platform.mac.MacCentralProcessor.initProcessorCounts(MacCentralProcessor.java:138)
+	at oshi.hardware.common.AbstractCentralProcessor.<init>(AbstractCentralProcessor.java:68)
+	at oshi.hardware.platform.mac.MacCentralProcessor.<init>(MacCentralProcessor.java:51)
+	at oshi.hardware.platform.mac.MacHardwareAbstractionLayer.createProcessor(MacHardwareAbstractionLayer.java:42)
+	at oshi.util.Memoizer$1.get(Memoizer.java:65)
+	at oshi.hardware.common.AbstractHardwareAbstractionLayer.getProcessor(AbstractHardwareAbstractionLayer.java:48)
+	at y.c(SourceFile:87)
+	at y.a(SourceFile:95)
+	at y.a(SourceFile:87)
+	... 6 more
+[07:08:57] [Datafixer Bootstrap/INFO]: 287 Datafixer optimizations took 260 milliseconds
+[07:08:59] [Render thread/INFO]: Environment: Environment[sessionHost=https://sessionserver.mojang.com, servicesHost=https://api.minecraftservices.com, profilesHost=https://api.mojang.com, name=PROD]
+[07:08:59] [Render thread/INFO]: Setting user: Player
+[07:08:59] [Render thread/INFO]: [STDERR]: java.lang.UnsatisfiedLinkError: Expecting an absolute path of the library: null/AngelAuraAmethyst
+[07:08:59] [Render thread/INFO]: [STDERR]: 	at java.base/java.lang.Runtime.load0(Unknown Source)
+[07:08:59] [Render thread/INFO]: [STDERR]: 	at java.base/java.lang.System.load(Unknown Source)
+[07:08:59] [Render thread/INFO]: [STDERR]: 	at org.lwjgl.system.Library.<clinit>(Library.java:58)
+[07:08:59] [Render thread/INFO]: [STDERR]: 	at org.lwjgl.glfw.GLFW.<clinit>(GLFW.java:35)
+[07:08:59] [Render thread/INFO]: [STDERR]: 	at java.base/jdk.internal.misc.Unsafe.ensureClassInitialized0(Native Method)
+[07:08:59] [Render thread/INFO]: [STDERR]: 	at java.base/jdk.internal.misc.Unsafe.ensureClassInitialized(Unknown Source)
+[07:08:59] [Render thread/INFO]: [STDERR]: 	at java.base/java.lang.invoke.DirectMethodHandle.checkInitialized(Unknown Source)
+[07:08:59] [Render thread/INFO]: [STDERR]: 	at java.base/java.lang.invoke.DirectMethodHandle.ensureInitialized(Unknown Source)
+[07:08:59] [Render thread/INFO]: [STDERR]: 	at java.base/java.lang.invoke.DirectMethodHandle.ensureInitialized(Unknown Source)
+[07:08:59] [Render thread/INFO]: [STDERR]: 	at fyc.<clinit>(SourceFile:48)
+[07:08:59] [Render thread/INFO]: [STDERR]: 	at gfo.<init>(SourceFile:1253)
+[07:08:59] [Render thread/INFO]: [STDERR]: 	at gfj.<init>(SourceFile:477)
+[07:08:59] [Render thread/INFO]: [STDERR]: 	at net.minecraft.client.main.Main.main(SourceFile:234)
+[07:08:59] [Render thread/INFO]: Backend library: LWJGL version 3.3.3-snapshot+SNAPSHOT
+[07:09:00] [Render thread/INFO]: Using optional rendering extensions: 
+[07:09:00] [Render thread/ERROR]: Error while loading the narrator
+java.lang.NoSuchMethodError: 'com.sun.jna.Pointer ca.weblite.objc.Proxy.getPeer()'
+	at com.mojang.text2speech.NarratorMac.<init>(NarratorMac.java:25)
+	at com.mojang.text2speech.Narrator.getNarrator(Narrator.java:43)
+	at gfa.<init>(SourceFile:20)
+	at gfj.<init>(SourceFile:702)
+	at net.minecraft.client.main.Main.main(SourceFile:234)
+[07:09:00] [Render thread/INFO]: Reloading ResourceManager: vanilla
+[07:09:01] [Worker-Main-1/INFO]: Found unifont_all_no_pua-17.0.01.hex, loading
+[07:09:01] [Worker-Main-4/INFO]: Found unifont_pua-17.0.01.hex, loading
+[07:09:01] [Download-2/ERROR]: Failed to fetch user properties
+com.mojang.authlib.exceptions.InvalidCredentialsException: Status: 401
+	at com.mojang.authlib.exceptions.MinecraftClientHttpException.toAuthenticationException(MinecraftClientHttpException.java:59)
+	at com.mojang.authlib.yggdrasil.YggdrasilUserApiService.fetchProperties(YggdrasilUserApiService.java:150)
+	at gfj.bU(SourceFile:457)
+	at java.base/java.util.concurrent.CompletableFuture$AsyncSupply.run(Unknown Source)
+	at java.base/java.util.concurrent.ThreadPoolExecutor.runWorker(Unknown Source)
+	at java.base/java.util.concurrent.ThreadPoolExecutor$Worker.run(Unknown Source)
+	at java.base/java.lang.Thread.run(Unknown Source)
+Caused by: com.mojang.authlib.exceptions.MinecraftClientHttpException: Status: 401
+	at com.mojang.authlib.minecraft.client.MinecraftClient.readInputStream(MinecraftClient.java:103)
+	at com.mojang.authlib.minecraft.client.MinecraftClient.get(MinecraftClient.java:56)
+	at com.mojang.authlib.yggdrasil.YggdrasilUserApiService.fetchProperties(YggdrasilUserApiService.java:121)
+	... 5 more
+[07:09:01] [Worker-Main-1/INFO]: Found unifont_jp_patch-17.0.01.hex, loading
+[07:09:01] [Download-3/INFO]: Could not authorize you against Realms server: java.lang.RuntimeException: Failed to parse into SignedJWT: 0
+[07:09:01] [Download-3/ERROR]: Failed to fetch Realms feature flags
+gce: Realms authentication error with message 'java.lang.RuntimeException: Failed to parse into SignedJWT: 0'
+	at fzz.a(SourceFile:526)
+	at fzz.o(SourceFile:186)
+	at java.base/java.util.concurrent.CompletableFuture$AsyncSupply.run(Unknown Source)
+	at java.base/java.util.concurrent.ThreadPoolExecutor.runWorker(Unknown Source)
+	at java.base/java.util.concurrent.ThreadPoolExecutor$Worker.run(Unknown Source)
+	at java.base/java.lang.Thread.run(Unknown Source)
+[07:09:05] [Render thread/INFO]: OpenAL initialized on device CoreAudio Default
+[07:09:05] [Render thread/INFO]: Sound engine started
+[07:09:05] [Render thread/INFO]: Created: 512x256x0 minecraft:textures/atlas/particles.png-atlas
+[07:09:05] [Render thread/INFO]: Created: 128x128x0 minecraft:textures/atlas/decorated_pot.png-atlas
+[07:09:05] [Render thread/INFO]: Created: 2048x1024x0 minecraft:textures/atlas/armor_trims.png-atlas
+[07:09:05] [Render thread/INFO]: Created: 512x256x0 minecraft:textures/atlas/paintings.png-atlas
+[07:09:05] [Render thread/INFO]: Created: 1024x512x0 minecraft:textures/atlas/shield_patterns.png-atlas
+[07:09:05] [Render thread/INFO]: Created: 2048x2048x4 minecraft:textures/atlas/blocks.png-atlas
+[07:09:06] [Render thread/INFO]: Created: 512x512x0 minecraft:textures/atlas/chest.png-atlas
+[07:09:06] [Render thread/INFO]: Created: 256x128x0 minecraft:textures/atlas/celestials.png-atlas
+[07:09:06] [Render thread/INFO]: Created: 1024x512x0 minecraft:textures/atlas/banner_patterns.png-atlas
+[07:09:06] [Render thread/INFO]: Created: 512x512x0 minecraft:textures/atlas/beds.png-atlas
+[07:09:06] [Render thread/INFO]: Created: 1024x512x0 minecraft:textures/atlas/items.png-atlas
+[07:09:06] [Render thread/INFO]: Created: 1024x1024x0 minecraft:textures/atlas/gui.png-atlas
+[07:09:06] [Render thread/INFO]: Created: 128x64x0 minecraft:textures/atlas/map_decorations.png-atlas
+[07:09:06] [Render thread/INFO]: Created: 512x256x0 minecraft:textures/atlas/signs.png-atlas
+[07:09:06] [Render thread/INFO]: Created: 512x512x0 minecraft:textures/atlas/shulker_boxes.png-atlas
+[07:09:06] [IO-Worker-1/INFO]: Could not authorize you against Realms server: java.lang.RuntimeException: Failed to parse into SignedJWT: 0
+[07:09:06] [IO-Worker-1/ERROR]: Couldn't connect to realms
+gce: Realms authentication error with message 'java.lang.RuntimeException: Failed to parse into SignedJWT: 0'
+	at fzz.a(SourceFile:526)
+	at fzz.i(SourceFile:307)
+	at fzt.c(SourceFile:48)
+	at java.base/java.util.concurrent.CompletableFuture$AsyncSupply.run(Unknown Source)
+	at java.base/java.util.concurrent.ThreadPoolExecutor.runWorker(Unknown Source)
+	at java.base/java.util.concurrent.ThreadPoolExecutor$Worker.run(Unknown Source)
+	at java.base/java.lang.Thread.run(Unknown Source)
+[07:09:09] [Render thread/INFO]: Resizing Dynamic Transforms UBO, capacity limit of 2 reached during a single frame. New capacity will be 4.
+[07:09:10] [Render thread/INFO]: Loaded 1470 recipes
+[07:09:10] [Render thread/INFO]: Loaded 1584 advancements
+[07:09:11] [Server thread/INFO]: Starting integrated minecraft server version 1.21.11
+[07:09:11] [Server thread/INFO]: Generating keypair
+[07:09:11] [Server thread/ERROR]: Failed to parse saved data for 'SavedDataType[random_sequences]': No key salt in MapLike[{sequences:{"minecraft:blocks/poppy":{source:[L;-1492673386082910860L,-6137392520654721083L]},"minecraft:blocks/seagrass":{source:[L;4696490893134760712L,8588482262250466675L]},"minecraft:entities/chicken":{source:[L;5488743735549861424L,-4504773316673195523L]}}}]
+[07:09:11] [Server thread/INFO]: Loading 0 persistent chunks...
+[07:09:11] [Server thread/INFO]: Preparing spawn area: 16%
+[07:09:11] [Server thread/INFO]: Loading 49 chunks for player spawn...
+[07:09:11] [Server thread/INFO]: Preparing spawn area: 16%
+[07:09:12] [Server thread/INFO]: Preparing spawn area: 16%
+[07:09:12] [Server thread/INFO]: Preparing spawn area: 16%
+[07:09:13] [Server thread/INFO]: Preparing spawn area: 16%
+[07:09:13] [Server thread/INFO]: Preparing spawn area: 35%
+[07:09:14] [Server thread/INFO]: Time elapsed: 2730 ms
+[07:09:14] [Server thread/INFO]: Player[local:E:b0e52701] logged in with entity id 72 at (21.314520646293673, 65.0, 2.6998493078476886)
+[07:09:14] [Server thread/INFO]: Player joined the game
+[07:09:14] [Server thread/INFO]: Changing view distance to 12, from 10
+[07:09:14] [Server thread/INFO]: Changing simulation distance to 12, from 0
+[07:09:15] [Render thread/INFO]: Resizing Dynamic Transforms UBO, capacity limit of 4 reached during a single frame. New capacity will be 8.
+[07:09:15] [Render thread/INFO]: Loaded 2 advancements
+[07:09:15] [Render thread/INFO]: Resizing Chunk Sections UBO, capacity limit of 2 reached during a single frame. New capacity will be 8.
+[07:09:15] [Render thread/INFO]: Resizing Chunk Sections UBO, capacity limit of 8 reached during a single frame. New capacity will be 16.
+[07:09:15] [Render thread/INFO]: Resizing Chunk Sections UBO, capacity limit of 16 reached during a single frame. New capacity will be 32.
+[07:09:16] [Render thread/INFO]: Resizing Chunk Sections UBO, capacity limit of 32 reached during a single frame. New capacity will be 64.
+[07:09:16] [Render thread/INFO]: Resizing Chunk Sections UBO, capacity limit of 64 reached during a single frame. New capacity will be 128.
+[07:09:16] [Render thread/INFO]: Resizing Chunk Sections UBO, capacity limit of 128 reached during a single frame. New capacity will be 256.
+[07:09:18] [Render thread/INFO]: Resizing Chunk Sections UBO, capacity limit of 256 reached during a single frame. New capacity will be 512.
+[07:09:22] [Server thread/INFO]: Saving and pausing game...
+[07:09:22] [Server thread/INFO]: Saving chunks for level 'ServerLevel[New World]'/minecraft:overworld
+[07:09:22] [Server thread/INFO]: Saving chunks for level 'ServerLevel[New World]'/minecraft:the_end
+[07:09:22] [Server thread/INFO]: Saving chunks for level 'ServerLevel[New World]'/minecraft:the_nether
+[07:09:22] [Render thread/INFO]: Resizing Dynamic Transforms UBO, capacity limit of 8 reached during a single frame. New capacity will be 16.
+[07:09:22] [Server thread/INFO]: Player lost connection: Disconnected
+[07:09:22] [Server thread/INFO]: Player left the game
+[07:09:22] [Server thread/INFO]: Stopping singleplayer server as player logged out
+[07:09:22] [Server thread/INFO]: Stopping server
+[07:09:22] [Server thread/INFO]: Saving players
+[07:09:22] [Server thread/INFO]: Saving worlds
+[07:09:23] [Server thread/INFO]: Saving chunks for level 'ServerLevel[New World]'/minecraft:overworld
+[07:09:23] [Server thread/INFO]: Saving chunks for level 'ServerLevel[New World]'/minecraft:the_end
+[07:09:23] [Server thread/INFO]: Saving chunks for level 'ServerLevel[New World]'/minecraft:the_nether
+[07:09:23] [Server thread/INFO]: ThreadedAnvilChunkStorage (New World (2)): All chunks are saved
+[07:09:23] [Server thread/INFO]: ThreadedAnvilChunkStorage (DIM1): All chunks are saved
+[07:09:23] [Server thread/INFO]: ThreadedAnvilChunkStorage (DIM-1): All chunks are saved
+[07:09:23] [Server thread/INFO]: ThreadedAnvilChunkStorage: All dimensions are saved
+[07:09:25] [Render thread/INFO]: Loaded 1470 recipes
+[07:09:25] [Render thread/INFO]: Loaded 1584 advancements
+[07:09:27] [Server thread/INFO]: Starting integrated minecraft server version 1.21.11
+[07:09:27] [Server thread/INFO]: Generating keypair
+[07:09:27] [Server thread/INFO]: Selecting global world spawn...
+[07:09:30] [Server thread/INFO]: Loading 0 persistent chunks...
+[07:09:30] [Server thread/INFO]: Preparing spawn area: 16%
+[07:09:31] [Server thread/INFO]: Loading 47 chunks for player spawn...
+[07:09:31] [Server thread/INFO]: Preparing spawn area: 16%
+[07:09:31] [Server thread/INFO]: Preparing spawn area: 16%
+[07:09:31] [Server thread/INFO]: Preparing spawn area: 16%
+[07:09:31] [Server thread/INFO]: Preparing spawn area: 16%
+[07:09:31] [Server thread/INFO]: Preparing spawn area: 16%
+[07:09:31] [Server thread/INFO]: Preparing spawn area: 16%
+[07:09:31] [Server thread/INFO]: Preparing spawn area: 16%
+[07:09:31] [Server thread/INFO]: Preparing spawn area: 16%
+[07:09:32] [Server thread/INFO]: Preparing spawn area: 29%
+[07:09:32] [Server thread/INFO]: Preparing spawn area: 29%
+[07:09:33] [Server thread/INFO]: Preparing spawn area: 57%
+[07:09:33] [Server thread/INFO]: Preparing spawn area: 57%
+[07:09:33] [Server thread/INFO]: Time elapsed: 6428 ms
+[07:09:33] [Server thread/INFO]: Player[local:E:1d2faa44] logged in with entity id 566 at (3.5, 67.0, -9.5)
+[07:09:33] [Server thread/INFO]: Player joined the game
+[07:09:34] [Server thread/INFO]: Changing view distance to 12, from 10
+[07:09:34] [Server thread/INFO]: Changing simulation distance to 12, from 0
+[07:09:34] [Render thread/INFO]: Loaded 2 advancements
+[07:09:54] [Server thread/INFO]: Saving and pausing game...
+[07:09:54] [Server thread/INFO]: Saving chunks for level 'ServerLevel[New World]'/minecraft:overworld
+[07:09:54] [Server thread/INFO]: Saving chunks for level 'ServerLevel[New World]'/minecraft:the_end
+[07:09:54] [Server thread/INFO]: Saving chunks for level 'ServerLevel[New World]'/minecraft:the_nether
+[07:09:55] [Server thread/INFO]: Player lost connection: Disconnected
+[07:09:55] [Server thread/INFO]: Player left the game
+[07:09:55] [Server thread/INFO]: Stopping singleplayer server as player logged out
+[07:09:55] [Server thread/INFO]: Stopping server
+[07:09:55] [Server thread/INFO]: Saving players
+[07:09:55] [Server thread/INFO]: Saving worlds
+[07:09:55] [Server thread/INFO]: Saving chunks for level 'ServerLevel[New World]'/minecraft:overworld
+[07:09:56] [Server thread/INFO]: Saving chunks for level 'ServerLevel[New World]'/minecraft:the_end
+[07:09:56] [Server thread/INFO]: Saving chunks for level 'ServerLevel[New World]'/minecraft:the_nether
+[07:09:56] [Server thread/INFO]: ThreadedAnvilChunkStorage (New World (3)): All chunks are saved
+[07:09:56] [Server thread/INFO]: ThreadedAnvilChunkStorage (DIM1): All chunks are saved
+[07:09:56] [Server thread/INFO]: ThreadedAnvilChunkStorage (DIM-1): All chunks are saved
+[07:09:56] [Server thread/INFO]: ThreadedAnvilChunkStorage: All dimensions are saved
+[07:09:58] [Render thread/INFO]: Stopping!

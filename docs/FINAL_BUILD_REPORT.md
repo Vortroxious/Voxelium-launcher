@@ -23,7 +23,7 @@
 | Desktop GL via MobileGlues (native + Java/LWJGL) | **Yes, passed on iPhone** (2026-10-16, build 202610161548) | GL 4.0.0 MobileGlues 1.3.3 on ANGLE/Metal, exact pixels. `docs/evidence/2026-10-16-*desktopgl*.log` |
 | GLFW bridge (window, context, input) | **Yes, passed on iPhone** (2026-10-16, build 202610161611) | 60 fps, exact pixels, 1476 cursor events from drags, landscape, close button. `docs/evidence/2026-10-16-glfw-*.log` |
 | Minecraft reached the main menu | **Yes** (2026-10-16, build 202610161636) | Resource reload completed and a world was created from the title screen. `docs/evidence/2026-10-16-minecraft-1.20.1-first-launch.log` |
-| Actual gameplay verified | **Partly**: joined a world, world saved on exit; on-screen controls, haptics, sound (OpenAL/CoreAudio) and camera look reported working by the user (2026-10-17, build 202610170123) | FPS not measured; the user reports controls and sound only, without logs of each control. `docs/ENGINEERING_LOG.md` 2026-10-17 |
+| Actual gameplay verified | **Yes, on the user's iPhone**: 1.16.5, 1.20.1, 1.21.11 and 26.1 run and are playable (user reports and pulled logs, 2026-10-17, build 202610171119), with on-screen controls, haptics, sound, hotbar, custom layouts, save-on-leave and Microsoft sign-in | FPS not measured. 1.12.2 and older are not pursued; 26.3+ is refused (SDL + Vulkan). `docs/ENGINEERING_LOG.md` 2026-10-17 |
 
 ## IPA
 | Field | Value |

@@ -45,6 +45,7 @@ struct VersionsView: View {
 struct VersionRow: View {
     @EnvironmentObject var model: LauncherModel
     @EnvironmentObject var minecraft: MinecraftLauncher
+    @EnvironmentObject var accounts: AccountModel
     let entry: VersionManifest.Entry
 
     var body: some View {
@@ -69,7 +70,9 @@ struct VersionRow: View {
             if model.installed.contains(entry.id) {
                 Menu {
                     Button("Launch Minecraft (experimental, needs JIT)") {
-                        if let paths = model.paths { minecraft.launch(versionID: entry.id, paths: paths, settings: model.settings) }
+                        if let paths = model.paths {
+                            Task { await minecraft.launch(versionID: entry.id, paths: paths, settings: model.settings, accounts: accounts) }
+                        }
                     }
                     Button("Verify / repair files") { Task { await model.install(entry) } }
                     Button("Prepare launch plan") { model.preparePlan(entry.id) }
@@ -99,10 +102,21 @@ struct VersionRow: View {
 
 struct AccountView: View {
     @EnvironmentObject var model: LauncherModel
+    @EnvironmentObject var accounts: AccountModel
+    @Environment(\.openURL) private var openURL
 
     var body: some View {
         NavigationStack {
             Form {
+                microsoftSection
+                if accounts.account != nil {
+                    Section {
+                        Picker("Play as", selection: $model.settings.useMicrosoftAccount) {
+                            Text(accounts.account?.username ?? "Microsoft account").tag(true)
+                            Text("Offline: \(model.settings.playerName)").tag(false)
+                        }
+                    }
+                }
                 Section {
                     TextField("Player name", text: $model.settings.playerName)
                         .textInputAutocapitalization(.never)
@@ -113,10 +127,18 @@ struct AccountView: View {
                 } header: {
                     Text("Offline profile")
                 } footer: {
-                    Text("Microsoft account sign-in is not implemented yet. Offline profiles cannot join online-mode servers.")
+                    Text("Offline profiles cannot join online-mode servers or Realms.")
                 }
-                Section("Game") {
+                Section {
                     Stepper("Max memory: \(model.settings.maxMemoryMB) MB", value: $model.settings.maxMemoryMB, in: 512...8192, step: 256)
+                    VStack(alignment: .leading) {
+                        Text("Resolution: \(Int((model.settings.renderScale * 100).rounded()))% (\(Self.renderPixels(model.settings.renderScale)))")
+                        Slider(value: $model.settings.renderScale, in: LauncherSettings.renderScaleRange, step: 0.05)
+                    }
+                } header: {
+                    Text("Game")
+                } footer: {
+                    Text("Lower resolution runs faster and uses less battery. Memory is capped at 40% of what iOS allows the app. Both apply the next time you launch Minecraft.")
                 }
                 if let plan = model.lastPlan {
                     Section("Last launch plan (not executed)") {
@@ -129,6 +151,47 @@ struct AccountView: View {
             }
             .navigationTitle("Account & Game")
         }
+    }
+
+    @ViewBuilder var microsoftSection: some View {
+        Section {
+            if let acc = accounts.account {
+                LabeledContent("Signed in as", value: acc.username)
+                Button("Sign out", role: .destructive) { accounts.signOut() }
+            } else {
+                switch accounts.signIn {
+                case .idle:
+                    Button { accounts.startSignIn() } label: { Label("Sign in with Microsoft", systemImage: "person.badge.key") }
+                case .working(let m):
+                    HStack { ProgressView(); Text(m) }
+                    Button("Cancel", role: .cancel) { accounts.cancelSignIn() }
+                case .waitingForUser(let code):
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text("Enter this code at \(code.verificationURL.host ?? "microsoft.com/link"):").font(.callout)
+                        Text(code.userCode).font(.system(.title, design: .monospaced).bold()).textSelection(.enabled)
+                        HStack { ProgressView(); Text("Waiting for you to approve…").font(.caption).foregroundStyle(.secondary) }
+                    }
+                    Button {
+                        UIPasteboard.general.string = code.userCode
+                        openURL(code.verificationURL)
+                    } label: { Label("Copy code and open the sign-in page", systemImage: "safari") }
+                    Button("Cancel", role: .cancel) { accounts.cancelSignIn() }
+                case .failed(let m):
+                    Text(m).font(.callout).foregroundStyle(.red)
+                    Button("Try again") { accounts.startSignIn() }
+                }
+            }
+        } header: {
+            Text("Microsoft account")
+        } footer: {
+            Text("Needed for online servers and Realms; the account must own Minecraft: Java Edition. Signs in on Microsoft's own page; tokens are kept in the iOS Keychain.")
+        }
+    }
+
+    /// The landscape framebuffer the game will render at, e.g. "1398×645 px".
+    static func renderPixels(_ scale: Double) -> String {
+        let s = UIScreen.main.bounds.size, k = UIScreen.main.nativeScale * scale
+        return "\(Int((max(s.width, s.height) * k).rounded()))×\(Int((min(s.width, s.height) * k).rounded())) px"
     }
 }
 
@@ -159,7 +222,7 @@ struct DiagnosticsView: View {
                     }
                 }
                 Section("Status") {
-                    Text("This build can download and verify game files and run a Java smoke test. It cannot start Minecraft.")
+                    Text("This build downloads and verifies game files and starts Minecraft Java (Java 17 versions, offline profile) in the app. Starting the game needs JIT: open the app from StikDebug.")
                         .font(.footnote)
                 }
                 if let root = model.paths?.root {

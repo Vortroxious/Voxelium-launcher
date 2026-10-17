@@ -500,6 +500,7 @@ typedef NS_ENUM(NSInteger, ZLSpecial) {
     ZLKeyboardProxy *_keyboard;
     CGSize _loggedSize;
     CGFloat _stickX, _stickY, _stickSize;  // fractions of the overlay / points; _stickY < 0 = default
+    CGFloat _controlsAlpha;                // layout "opacity" (Controls tab), applied to buttons and joystick
 }
 
 // The layout from the launcher's Controls tab: JSON at $ZALITH_CONTROLS_PATH, written by
@@ -539,6 +540,8 @@ typedef NS_ENUM(NSInteger, ZLSpecial) {
         if (btn.inDrawer) btn.inGame = btn.inMenu = YES;
         if (btn.special == ZLSpecialDrawer) btn.layer.borderWidth = 1.5;
     }
+    double opacity = root[@"opacity"] ? [root[@"opacity"] doubleValue] : 1;
+    _controlsAlpha = MIN(MAX(opacity, 0.2), 1);
     NSDictionary *stick = root[@"joystick"];
     if ([stick isKindOfClass:NSDictionary.class]) {
         _stickX = [stick[@"x"] doubleValue];
@@ -608,11 +611,14 @@ typedef NS_ENUM(NSInteger, ZLSpecial) {
         _stickX = 0.02326631;
         _stickSize = 204.8;
         _stickY = -1;  // Amethyst default: 0.9753418 * H - size
+        _controlsAlpha = 1;
         if (![self loadLayoutFile]) [self addBuiltInLayout];
 
         _stick = [[ZLJoystick alloc] initWithFrame:CGRectZero];
         _stick.owner = owner;
         [self addSubview:_stick];
+        _stick.alpha = _controlsAlpha;
+        for (ZLControlButton *btn in _buttons) btn.alpha = _controlsAlpha;
 
         _keyboard = [[ZLKeyboardProxy alloc] initWithFrame:CGRectZero];
         _keyboard.owner = owner;
@@ -1349,6 +1355,33 @@ ZLAPI void glfwDestroyWindow(GLFWwindow *window) {
 ZLAPI int glfwWindowShouldClose(GLFWwindow *window) { return window && W(window)->shouldClose; }
 ZLAPI void glfwSetWindowShouldClose(GLFWwindow *window, int value) { if (window) W(window)->shouldClose = value != 0; }
 ZLAPI void glfwSetWindowTitle(GLFWwindow *window, const char *title) { if (window && title) W(window).title = @(title); }
+// GLFW 3.4; required by LWJGL 3.4.1 (Minecraft 26.x). UTF-8, valid until the title changes.
+ZLAPI const char *glfwGetWindowTitle(GLFWwindow *window) { return window ? W(window).title.UTF8String : NULL; }
+
+// IME preedit API (GLFW's IME branch; LWJGL 3.4.1 binds these as optional and
+// Minecraft 26.x calls glfwSetPreeditCallback during start-up, which fails with a
+// NullPointerException when the function is missing). Text input on iOS goes through
+// ZLKeyboardProxy as plain char events, so there is never preedit text: the setters
+// keep the callback (and return the previous one, as GLFW does) but never call it.
+static void *gPreeditCB, *gIMEStatusCB, *gPreeditCandidateCB;
+static int gPreeditRect[4];
+ZLAPI void *glfwSetPreeditCallback(GLFWwindow *window, void *cb) { void *p = gPreeditCB; gPreeditCB = cb; return p; }
+ZLAPI void *glfwSetIMEStatusCallback(GLFWwindow *window, void *cb) { void *p = gIMEStatusCB; gIMEStatusCB = cb; return p; }
+ZLAPI void *glfwSetPreeditCandidateCallback(GLFWwindow *window, void *cb) { void *p = gPreeditCandidateCB; gPreeditCandidateCB = cb; return p; }
+ZLAPI void glfwResetPreeditText(GLFWwindow *window) {}
+ZLAPI void glfwGetPreeditCursorRectangle(GLFWwindow *window, int *x, int *y, int *w, int *h) {
+    if (x) *x = gPreeditRect[0];
+    if (y) *y = gPreeditRect[1];
+    if (w) *w = gPreeditRect[2];
+    if (h) *h = gPreeditRect[3];
+}
+ZLAPI void glfwSetPreeditCursorRectangle(GLFWwindow *window, int x, int y, int w, int h) {
+    gPreeditRect[0] = x; gPreeditRect[1] = y; gPreeditRect[2] = w; gPreeditRect[3] = h;
+}
+ZLAPI unsigned int *glfwGetPreeditCandidate(GLFWwindow *window, int index, int *textCount) {
+    if (textCount) *textCount = 0;
+    return NULL;
+}
 ZLAPI void glfwSetWindowIcon(GLFWwindow *window, int count, const GLFWimage *images) {}
 ZLAPI void glfwGetWindowPos(GLFWwindow *window, int *x, int *y) { if (x) *x = 0; if (y) *y = 0; }
 ZLAPI void glfwSetWindowPos(GLFWwindow *window, int x, int y) {}
@@ -1707,6 +1740,30 @@ ZLAPI uint64_t glfwGetTimerFrequency(void) {
 
 #pragma mark - Context
 
+// gl4es (Minecraft 1.13 - 1.16.5) is built without an init constructor on Apple and
+// has no GLX/EGL of its own here: it must be pointed at the GLES functions and
+// initialised once a GLES context is current, before LWJGL makes its first GL call
+// (without that, gl4es_glGetError dereferenced a NULL glstate on 1.16.5). Do that
+// when the first context becomes current; LWJGL's later dlopen of the same path
+// then gets this already-initialised copy. ANGLE's eglGetProcAddress returns every
+// GLES entry point.
+static void *zlGLESProc(const char *name) { return p_eglGetProcAddress ? (void *)p_eglGetProcAddress(name) : NULL; }
+
+static void zlInitGL4ESIfUsed(void) {
+    static BOOL done;
+    if (done) return;
+    done = YES;
+    const char *lib = getenv("ZALITH_GL_LIBRARY");
+    if (!lib || !strstr(lib, "gl4es")) return;
+    void *h = dlopen(lib, RTLD_NOW | RTLD_LOCAL);
+    if (!h) { NSLog(@"[ZLGLFW] gl4es: dlopen failed: %s", dlerror()); return; }
+    void (*setProc)(void *(*)(const char *)) = (void (*)(void *(*)(const char *)))dlsym(h, "set_getprocaddress");
+    void (*init)(void) = (void (*)(void))dlsym(h, "initialize_gl4es");
+    if (setProc) setProc(zlGLESProc);
+    if (init) init();
+    NSLog(@"[ZLGLFW] gl4es initialised on the current ANGLE context (set_getprocaddress=%d, initialize_gl4es=%d)", setProc != NULL, init != NULL);
+}
+
 ZLAPI void glfwMakeContextCurrent(GLFWwindow *window) {
     if (!gInitialized) return;
     ZLGLFWWindowObj *w = window ? W(window) : nil;
@@ -1717,6 +1774,7 @@ ZLAPI void glfwMakeContextCurrent(GLFWwindow *window) {
         return;
     }
     tCurrent = w;
+    if (w && !w->offscreen) zlInitGL4ESIfUsed();
 }
 
 ZLAPI GLFWwindow *glfwGetCurrentContext(void) { return tCurrent ? H(tCurrent) : NULL; }
@@ -1733,20 +1791,29 @@ ZLAPI void glfwSwapInterval(int interval) {
     if (gInitialized && p_eglSwapInterval) p_eglSwapInterval(gDisplay, interval);
 }
 
-// Desktop GL entry points come from MobileGlues when it has been loaded (LWJGL
-// loads it as its OpenGL library); otherwise fall back to ANGLE's GLES ones.
-static void *zlMobileGlues(void) {
-    static void *mg;
-    if (!mg) {
-        NSString *p = [NSBundle.mainBundle.privateFrameworksPath stringByAppendingPathComponent:@"libmobileglues.dylib"];
-        mg = dlopen(p.fileSystemRepresentation, RTLD_NOLOAD | RTLD_LAZY | RTLD_LOCAL);
+// Desktop GL entry points come from the GL library LWJGL loaded: MobileGlues, or
+// gl4es for Minecraft 1.13 - 1.16.5 ($ZALITH_GL_LIBRARY, set by the launcher;
+// MobileGlues when unset, e.g. in the GLFW test). gl4es exports no plain gl* names
+// on Apple, only OSMesaGetProcAddress. Otherwise fall back to ANGLE's GLES ones.
+static void *zlGLLibrary(void) {
+    static void *lib;
+    if (!lib) {
+        const char *env = getenv("ZALITH_GL_LIBRARY");
+        NSString *p = env ? @(env) : [NSBundle.mainBundle.privateFrameworksPath stringByAppendingPathComponent:@"libmobileglues.dylib"];
+        lib = dlopen(p.fileSystemRepresentation, RTLD_NOLOAD | RTLD_LAZY | RTLD_LOCAL);
     }
-    return mg;
+    return lib;
 }
 
 ZLAPI GLFWglproc glfwGetProcAddress(const char *procname) {
-    void *mg = zlMobileGlues();
-    void *p = mg ? dlsym(mg, procname) : NULL;
+    void *lib = zlGLLibrary();
+    void *p = NULL;
+    if (lib) {
+        typedef void *(*Lookup)(const char *);
+        Lookup osmesa = (Lookup)dlsym(lib, "OSMesaGetProcAddress");
+        p = osmesa ? osmesa(procname) : NULL;
+        if (!p) p = dlsym(lib, procname);
+    }
     if (!p && p_eglGetProcAddress) p = (void *)p_eglGetProcAddress(procname);
     return (GLFWglproc)p;
 }
