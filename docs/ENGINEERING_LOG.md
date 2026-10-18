@@ -1097,3 +1097,15 @@ Changes:
   - Includes the user's Airplane Mode rule: Airplane Mode on when launching from StikDebug over mobile data, off right after so the versions list can load. Not needed on Wi-Fi.
   - The GetMoreRam route is described from its README; reinstalling with Sideloadly instead of SideStore/AltStore is marked untested.
   - `docs/INSTALL.md` now points to the README for installation, and the release notes point there too.
+- **Device pass for the 0.1.0 IPA: not done yet (2026-10-18).**
+  - The user reported installing `Voxelium-0.1.0-unsigned.ipa` and running vanilla 1.21.11, Fabric with BSL, a modpack and 1.16.5.
+  - But `devicectl device info apps` shows only `io.github.voxelium.launcher.BANQ4R4Z6N` at **202610180704**, and launcher.log has no build 202610180725.
+  - After 07:09Z there is one run: Fabric 1.21.11 with BSL at 07:47Z, where "Lower to 8 and play" lowered the render distance (logged) and the world loaded at view distance 8. No vanilla, modpack or 1.16.5 runs since the 0704 install.
+  - The release IPA itself (build 202610180725) has not been run on a device. The checklist item stays open.
+
+## 2026-10-18 — App icon
+- **User request:** use their image (isometric grey blocks with a Minecraft grass block) as the app icon.
+- Added `App/Voxelium/Assets.xcassets/AppIcon.appiconset` with a single 1024×1024 PNG (resized from the 1254×1254 JPEG with `sips`; no alpha, as iOS icons require). `ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon` is set for both configurations.
+- actool generated `AppIcon60x60@2x.png`, `AppIcon76x76@2x~ipad.png` and `Assets.car`; Info.plist `CFBundleIcons` points to AppIcon60x60.
+- **Flagged to the user:** the grass block is Mojang artwork, and Mojang's brand guidelines ask unofficial projects not to use their assets in logos or icons. The user decides whether to keep it.
+- **Build `202610180750`** (SHA-256 `a870a4fd6be8afb9aef7b1d36f10a6616feba2605ab4d0249cffdb7f74893fa7`). This supersedes the 0.1.0 candidate (202610180725), so the release-notes checksum must be updated once the icon is committed and the final IPA rebuilt. **Not yet run on device.**
