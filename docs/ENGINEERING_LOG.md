@@ -18,7 +18,7 @@
 - **Simulator runtime:** none installed (`simctl list runtimes` is empty). It was not downloaded because of disk space (11 GiB free). So there was no runtime UI test.
 - **Unsigned IPA:** built with `scripts/build-ipa.sh`: arm64, platform iOS, 341,581 bytes, SHA-256 `5eb43dc8…cc70`. `codesign` reports it unsigned.
 - **Live check:** `zalith-cli plan 1.20.1` downloaded the manifest and version JSON (SHA-1 verified). The plan reports 41 game files (78.3 MB), 651.7 MB of assets, 49 LWJGL-family entries replaced, and 39 classpath entries.
-- **Commit `b8c0f21`:** the IPA was rebuilt from it (SHA-256 `f5b27b4e…8231`, unsigned).
+- **Commit `d8e388f`:** the IPA was rebuilt from it (SHA-256 `f5b27b4e…8231`, unsigned).
 - **First device install (user ran Sideloadly with a free Apple ID):** iPhone 15 Pro Max (iPhone16,2), iOS 27.0 (24A437), Developer Mode enabled, wired.
   - Installed as `io.github.zalithios.launcher.BANQ4R4Z6N`, version 0.1.0, display name "Zalith iOS". After the install, "Get More Ram" no longer appeared in `devicectl device info apps`; a free Apple ID can only keep 3 sideloaded apps at a time, which would explain it.
   - `devicectl device process launch` succeeded; the process was running (PID 58997).
@@ -720,7 +720,7 @@ Changes:
   - Quilt is not yet tried on device.
 
 ## 2026-10-18 — Mod manager (Part A of phase 2): add, enable/disable, remove mods, resource packs, shader packs
-- **User request:** "Commit phase 1 …, then start Part A: the mod manager to add, enable/disable and remove mods, resource packs and shader packs." Phase 1 was committed as `e273613`.
+- **User request:** "Commit phase 1 …, then start Part A: the mod manager to add, enable/disable and remove mods, resource packs and shader packs." Phase 1 was committed as `1154cb2`.
 - **VoxeliumCore `Content/`:**
   - **`ZipReader`:** a minimal read-only ZIP (jar) reader, so the core stays free of third-party dependencies. It reads the central directory plus stored (0) and deflated (8) entries via Apple's Compression framework (`COMPRESSION_ZLIB` = raw DEFLATE). No ZIP64 or encryption.
   - **`ContentManager`:** works on a game folder's `mods/`, `resourcepacks/` and `shaderpacks/`.
@@ -750,7 +750,7 @@ Changes:
   - The next launch logged "Loading 50 mods" (Fabric API's modules, Essential, fabricloader, java, minecraft), "Sound engine started" and a clean "Stopping!". The user reports it works.
 
 ## 2026-10-18 — Modrinth browse and install (Part B of phase 2)
-- **User request:** "Commit the mod manager …, then start Part B: browse and install mods, resource packs and shader packs from Modrinth inside the app, with dependencies." The mod manager was committed as `893dab5`.
+- **User request:** "Commit the mod manager …, then start Part B: browse and install mods, resource packs and shader packs from Modrinth inside the app, with dependencies." The mod manager was committed as `a4a2b27`.
 - **VoxeliumCore `Content/Modrinth.swift`:** Modrinth API v2 (public, no key; requests carry the `Voxelium/0.1.0` User-Agent, as Modrinth asks).
   - **`ModrinthAPI`:**
     - `search` builds the facets project type AND game version AND (loader categories): mods use the version's loader (Quilt also matches Fabric), shader packs `iris`, resource packs no loader.
@@ -1029,7 +1029,7 @@ Changes:
 - **Build `202610180648`:** normal MobileGlues (0001–0014, no diagnostics). `build/ipa/Voxelium-unsigned.ipa`, SHA-256 `cf9c97ec4b04e2743bc02b0328049490a405e42dc0afa5ee685db88bccccce53`; the diagnostic IPA was removed.
 
 ## 2026-10-18 — Mod update checks (Part C of phase 2)
-- Committed first, as the user asked: `93a572a` (MobileGlues 0012–0014), `ba23185` (offline message, skeleton loading), `3e19279` (modpacks, picker fix, Sodium 0.5 flag, docs).
+- Committed first, as the user asked: `2745b28` (MobileGlues 0012–0014), `42e37b8` (offline message, skeleton loading), `e4445fe` (modpacks, picker fix, Sodium 0.5 flag, docs).
 - **Modrinth:** `POST /version_files/update` with `{hashes, algorithm: sha1, loaders, game_versions}` returns the newest version of each file's project, betas included. For the Sodium 0.8.14 jar's SHA-1 and Fabric 1.21.11 it answered `mc1.21.11-0.8.15-beta.1` (saved as `Fixtures/modrinth/update-sodium-1.21.11.json`, 2026-10-18).
 - **VoxeliumCore:**
   - `ModrinthAPI.latestVersions(forSHA1:loaders:gameVersion:)`.
@@ -1046,7 +1046,7 @@ Changes:
   - Sodium 0.8.14 (newest release; 0.8.15 only in beta) was not offered, as intended. The switched-off `pointblank-…jar.disabled` was untouched.
 
 ## 2026-10-18 — Shader comfort: render-distance warning and memory gauge (Part C of phase 2)
-- Committed first: `dfaefab` (mod update checks).
+- Committed first: `758fd6b` (mod update checks).
 - **VoxeliumCore `Content/GameOptions.swift`:**
   - `GameOptions` reads `options.txt` and changes single keys, keeping every other line.
   - `ShaderLaunchAdvice.check(gameDirectory:)` gives advice when Iris shaders are on with a pack and `renderDistance` > 10. The thresholds come from the measurements above: shaders at 16 killed at the 3376 MB limit; 8 stable at 2.2 GB.
@@ -1067,7 +1067,7 @@ Changes:
 - **User confirmation (build 202610180704):** the in-game memory gauge changed colour as memory rose, and the low-memory notice appeared.
 
 ## 2026-10-18 — Release prep for 0.1.0
-- Committed first: `07ca62f` (render-distance warning, memory gauge).
+- Committed first: `8c0a3bb` (render-distance warning, memory gauge).
 - **Licences:**
   - New `scripts/collect-licenses.sh` builds `THIRD_PARTY_NOTICES.txt` (4874 lines, 256 KB) from the exact sources in build/deps, failing if a licence file is missing.
   - It covers OpenJDK, ANGLE and what is linked into it, MobileGlues and what is compiled in, SPIRV-Cross, gl4es, LWJGL (libffi, stb, tinyfiledialogs), FreeType (FTL), OpenAL Soft (LGPL) and the Amethyst JIT scripts.
@@ -1082,7 +1082,7 @@ Changes:
 - **Build `202610180717`:** includes the About screen and the notices. **Not yet run on device.**
 - **No git remote is configured:** publishing needs the maintainer's GitHub repository and go-ahead.
 - **Final 0.1.0 IPA (2026-10-18):**
-  - The first build from `2310ddf` printed an outdated note claiming Microsoft sign-in would be unavailable without `.oauth_client_id.txt`. In fact the app falls back to the built-in launcher client ID (`MicrosoftAuth.live()`). Corrected in `8e592a6`.
+  - The first build from `bd359ae` printed an outdated note claiming Microsoft sign-in would be unavailable without `.oauth_client_id.txt`. In fact the app falls back to the built-in launcher client ID (`MicrosoftAuth.live()`). Corrected in `261886a`.
   - Rebuilt from that clean commit: `Voxelium-0.1.0-unsigned.ipa`, build 202610180725, 183,355,846 bytes, SHA-256 `ab230812414aad8376e809332dde1ba0f76e5db991365dcdb53359e94f975280`.
   - Verified: no MobileGlues diagnostics, patch 0014 linked, notices identical to the repo, jre8/17/21/25 present, no signing or client-ID files; Info.plist reports 0.1.0, io.github.voxelium.launcher, iOS 16.0.
   - **Not yet run on device.**
@@ -1109,7 +1109,7 @@ Changes:
 - actool generated `AppIcon60x60@2x.png`, `AppIcon76x76@2x~ipad.png` and `Assets.car`; Info.plist `CFBundleIcons` points to AppIcon60x60.
 - **Flagged to the user:** the grass block is Mojang artwork, and Mojang's brand guidelines ask unofficial projects not to use their assets in logos or icons. The user decides whether to keep it.
 - **Build `202610180750`** (SHA-256 `a870a4fd6be8afb9aef7b1d36f10a6616feba2605ab4d0249cffdb7f74893fa7`). This supersedes the 0.1.0 candidate (202610180725), so the release-notes checksum must be updated once the icon is committed and the final IPA rebuilt. **Not yet run on device.**
-- **Final 0.1.0 IPA rebuilt with the icon:** committed as `4db779b`; `Voxelium-0.1.0-unsigned.ipa`, build 202610180753, 184,714,117 bytes, SHA-256 `d7e189b24c2aa7a4ee1872e5a6f98513a8767117064041892769a074801b8255`.
+- **Final 0.1.0 IPA rebuilt with the icon:** committed as `a05b565`; `Voxelium-0.1.0-unsigned.ipa`, build 202610180753, 184,714,117 bytes, SHA-256 `d7e189b24c2aa7a4ee1872e5a6f98513a8767117064041892769a074801b8255`.
   - Verified: no MobileGlues diagnostics, patch 0014 linked, notices identical, AppIcon60x60@2x and Assets.car present, jre8/17/21/25, no signing or client-ID files, Info.plist 0.1.0 (202610180753).
   - The release notes and checklist were updated. It replaces the 202610180725 candidate. **Not yet run on device.**
 - **Device pass on the 0.1.0 IPA (build 202610180753, confirmed installed via `devicectl device info apps`; launcher.log and jvm.log, 2026-10-18 07:57–08:01Z):**
@@ -1120,3 +1120,7 @@ Changes:
   - **No modpack launch on this build,** although the user listed one. Fabulously Optimized last ran on 202610180648 (same MobileGlues 0001–0014).
 - **Modpack on the 0.1.0 IPA (build 202610180753, 2026-10-18 08:03Z):** Fabulously Optimized 13.6.0 on 26.1.2 (Java 25, LWJGL 3.4.1), 149 mods, joined at view distance 8, footprint 1.85 GB (GPU 0.44 GB, 1.5 GB left), "Stopping!". **The device pass for the release IPA is complete:** vanilla, Fabric + BSL, a modpack and 1.16.5 (gl4es).
 - **Repository:** the user created https://github.com/Vortroxious/Voxelium-launcher; `git ls-remote` shows it reachable and empty. The README download link now points to its latest release. Added as `origin`; `v0.1.0` tagged locally. Not pushed yet: waiting for the user's go-ahead.
+- **Author identity (2026-10-18, before the first push):**
+  - The user made their GitHub email private. All 27 commits were rewritten (`git filter-branch --env-filter`) to author and committer **Vortroxious** <318707344+Vortroxious@users.noreply.github.com>, now also this repository's `user.name`/`user.email`. Their real name and Gmail appear in no tracked file (checked with `git grep`).
+  - The final tree is identical before and after the rewrite. Only commit IDs changed, and the IDs in the docs were mapped to the new ones.
+  - The 0.1.0 IPA (SHA-256 `d7e189b2…8255`) was built from the tree now at `a05b565`, so it still matches.

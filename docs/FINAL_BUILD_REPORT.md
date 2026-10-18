@@ -1,6 +1,6 @@
 # Build Report — 2026-10-15
 
-**Result: the IPA was built from commit `b8c0f21`. The user signed and installed it with Sideloadly (free Apple ID) on an iPhone 15 Pro Max running iOS 27.0. It starts and downloads Mojang's version list. It cannot launch Minecraft and is not release-ready.**
+**Result: the IPA was built from commit `d8e388f`. The user signed and installed it with Sideloadly (free Apple ID) on an iPhone 15 Pro Max running iOS 27.0. It starts and downloads Mojang's version list. It cannot launch Minecraft and is not release-ready.**
 
 ## Achievements (kept separate on purpose)
 | Achievement | Status | Evidence |
@@ -30,7 +30,7 @@
 |---|---|
 | Path | `build/ipa/Voxelium-unsigned.ipa` |
 | Size | 341,581 bytes |
-| SHA-256 | `f5b27b4e6a442985b7737957f155666a261ad222eaaf2a461ae9326e6ace8231` (rebuilt from `b8c0f21`) |
+| SHA-256 | `f5b27b4e6a442985b7737957f155666a261ad222eaaf2a461ae9326e6ace8231` (rebuilt from `d8e388f`) |
 | Bundle ID | `io.github.voxelium.launcher` (change it to your own when signing) |
 | Version | 0.1.0 (build 1) |
 | Minimum iOS | 16.0 |
@@ -45,7 +45,7 @@ The SHA-256 and metadata are also written by the script to `build/ipa/Voxelium-u
 ## Build configuration
 - macOS 27.0 (26A428), Apple M4. Xcode 27.0 (27A266a), iPhoneOS SDK 27.0 (24A430). Swift 6 language mode.
 - Release, `generic/platform=iOS`, `CODE_SIGNING_ALLOWED=NO`.
-- Source revision: `b8c0f2107bc8caeb5367f63f14110e27b759933d`.
+- Source revision: `d8e388f6edfc82f51f3c463276e6e7a7bd426815`.
 
 ## Exact commands
 ```bash

@@ -21,7 +21,7 @@ The first public release of Voxelium, a launcher that runs **Minecraft: Java Edi
 - Apps signed with a free Apple ID must be refreshed every 7 days.
 
 ## Files
-- `Voxelium-0.1.0-unsigned.ipa`: install it with Sideloadly. Step by step, including StikDebug, the pairing file and LocalDevVPN, in the [README](../README.md#installing-on-your-iphone). SHA-256: `d7e189b24c2aa7a4ee1872e5a6f98513a8767117064041892769a074801b8255` (build 202610180753, from commit `4db779b`, 184,714,117 bytes)
+- `Voxelium-0.1.0-unsigned.ipa`: install it with Sideloadly. Step by step, including StikDebug, the pairing file and LocalDevVPN, in the [README](../README.md#installing-on-your-iphone). SHA-256: `d7e189b24c2aa7a4ee1872e5a6f98513a8767117064041892769a074801b8255` (build 202610180753, from commit `a05b565`, 184,714,117 bytes)
 - `THIRD_PARTY_NOTICES.txt`: licences of the bundled components.
 - Source code: this tag, including patches and build scripts for every bundled library.
 
