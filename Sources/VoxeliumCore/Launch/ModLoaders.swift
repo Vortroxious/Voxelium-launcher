@@ -163,7 +163,7 @@ extension HTTPClient {
     func get(_ url: URL) async throws -> JSONResponse {
         var r = URLRequest(url: url)
         r.setValue("application/json", forHTTPHeaderField: "Accept")
-        r.setValue("Voxelium/0.1.0 (iOS Minecraft launcher)", forHTTPHeaderField: "User-Agent")
+        r.setValue("Voxelium/0.1.1 (iOS Minecraft launcher)", forHTTPHeaderField: "User-Agent")
         return try await send(r)
     }
 }
