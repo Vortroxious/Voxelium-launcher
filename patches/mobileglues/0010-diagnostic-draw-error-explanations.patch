@@ -1,0 +1,274 @@
+--- a/src/main/cpp/gles/loader.h
++++ b/src/main/cpp/gles/loader.h
+@@ -110,6 +110,12 @@
+ 
+ #define INIT_CHECK_GL_ERROR_FORCE GLenum ERR = GL_NO_ERROR;
+ 
++#ifdef VOXELIUM_CHECK_GL_ERRORS
++void voxelium_install_angle_debug(const char* where);  // gles/loader.cpp (patch 0010)
++void voxelium_explain_draw_error(GLenum err, const char* fn, GLenum mode, GLsizei count, GLenum type,
++                                 const void* indices);  // gl/drawing.cpp (patch 0010)
++#endif
++
+ // Voxelium diagnostic build: native pass-through calls check errors too, so an
+ // error is reported against the call that raised it.
+ #ifdef VOXELIUM_CHECK_GL_ERRORS
+--- a/src/main/cpp/gles/loader.cpp
++++ b/src/main/cpp/gles/loader.cpp
+@@ -90,6 +90,42 @@
+ #endif
+ }
+ 
++#ifdef VOXELIUM_CHECK_GL_ERRORS
++// ANGLE explains every error it raises through KHR_debug; print each distinct message
++// (first 5 times, then every 1000th), at most 300 distinct messages. Debug output is
++// per context: MobileGlues initialises on a context of its own (patch 0001 restores the
++// game's afterwards), so glBindFramebuffer installs this again on the game's context.
++void voxelium_install_angle_debug(const char* where) {
++    typedef void (*VoxeliumDebugProc)(GLenum, GLenum, GLuint, GLenum, GLsizei, const GLchar*, const void*);
++    typedef void (*VoxeliumSetCallback)(VoxeliumDebugProc, const void*);
++    auto set_callback = (VoxeliumSetCallback)dlsym(RTLD_DEFAULT, "glDebugMessageCallbackKHR");
++    if (!set_callback) {
++        fprintf(stderr, "[MG-CAPS] glDebugMessageCallbackKHR not found (%s)\n", where);
++        return;
++    }
++    set_callback(
++        [](GLenum source, GLenum type, GLuint id, GLenum severity, GLsizei, const GLchar* message, const void*) {
++            static std::unordered_map<std::string, int> seen;
++            std::string text = message ? message : "";
++            auto it = seen.find(text);
++            if (it == seen.end()) {
++                if (seen.size() >= 300) return;
++                it = seen.emplace(text, 0).first;
++            }
++            int n = it->second++;
++            if (n < 5 || n % 1000 == 0)
++                fprintf(stderr, "[MG-ANGLE] #%d type 0x%X severity 0x%X id %u: %s\n", n, type, severity, id,
++                        text.c_str());
++        },
++        nullptr);
++    GLES.glEnable(0x92E0); // GL_DEBUG_OUTPUT_KHR
++    GLES.glEnable(0x8242); // GL_DEBUG_OUTPUT_SYNCHRONOUS_KHR
++    GLboolean on = GLES.glIsEnabled(0x92E0);
++    GLES.glGetError();
++    fprintf(stderr, "[MG-CAPS] ANGLE debug messages %s (%s)\n", on ? "on" : "NOT on", where);
++}
++#endif
++
+ void* proc_address(void* lib, const char* name) {
+     return dlsym(lib, name);
+ }
+@@ -201,34 +237,7 @@
+             if (e) fprintf(stderr, " %s", e);
+         }
+         fprintf(stderr, "\n");
+-        // ANGLE explains every error it raises through KHR_debug; print each distinct
+-        // message (first 5 times, then every 1000th), at most 300 distinct messages.
+-        typedef void (*VoxeliumDebugProc)(GLenum, GLenum, GLuint, GLenum, GLsizei, const GLchar*, const void*);
+-        typedef void (*VoxeliumSetCallback)(VoxeliumDebugProc, const void*);
+-        auto set_callback = (VoxeliumSetCallback)dlsym(RTLD_DEFAULT, "glDebugMessageCallbackKHR");
+-        if (set_callback) {
+-            set_callback(
+-                [](GLenum source, GLenum type, GLuint id, GLenum severity, GLsizei, const GLchar* message, const void*) {
+-                    static std::unordered_map<std::string, int> seen;
+-                    std::string text = message ? message : "";
+-                    auto it = seen.find(text);
+-                    if (it == seen.end()) {
+-                        if (seen.size() >= 300) return;
+-                        it = seen.emplace(text, 0).first;
+-                    }
+-                    int n = it->second++;
+-                    if (n < 5 || n % 1000 == 0)
+-                        fprintf(stderr, "[MG-ANGLE] #%d type 0x%X severity 0x%X id %u: %s\n", n, type, severity, id,
+-                                text.c_str());
+-                },
+-                nullptr);
+-            GLES.glEnable(0x92E0); // GL_DEBUG_OUTPUT_KHR
+-            GLES.glEnable(0x8242); // GL_DEBUG_OUTPUT_SYNCHRONOUS_KHR
+-            GLES.glGetError();
+-            fprintf(stderr, "[MG-CAPS] ANGLE debug messages on\n");
+-        } else {
+-            fprintf(stderr, "[MG-CAPS] glDebugMessageCallbackKHR not found\n");
+-        }
++        voxelium_install_angle_debug("init");
+     }
+ #endif
+ 
+--- a/src/main/cpp/gl/framebuffer.cpp
++++ b/src/main/cpp/gl/framebuffer.cpp
+@@ -83,6 +83,11 @@
+ void glBindFramebuffer(GLenum target, GLuint framebuffer) {
+     ensure_max_attachments();
+ #ifdef VOXELIUM_CHECK_GL_ERRORS
++    static bool voxelium_debug_on_game_context = false;
++    if (!voxelium_debug_on_game_context) {
++        voxelium_debug_on_game_context = true;
++        voxelium_install_angle_debug("game context");
++    }
+     if (target != GL_READ_FRAMEBUFFER && current_draw_fbo != 0 && current_draw_fbo != framebuffer)
+         voxelium_check_draw_framebuffer(current_draw_fbo);
+ #endif
+--- a/src/main/cpp/gl/drawing.cpp
++++ b/src/main/cpp/gl/drawing.cpp
+@@ -102,13 +102,143 @@
+     prepareForDraw();
+     GLES.glDrawElementsInstanced(mode, count, type, indices, primcount);
+     CHECK_GL_ERROR
++}
++
++#ifdef VOXELIUM_CHECK_GL_ERRORS
++#include <set>
++static const char* voxelium_sampler_kind(GLenum t, GLenum* binding) {
++    switch (t) {
++    case GL_SAMPLER_2D: *binding = GL_TEXTURE_BINDING_2D; return "sampler2D";
++    case GL_SAMPLER_2D_SHADOW: *binding = GL_TEXTURE_BINDING_2D; return "sampler2DShadow";
++    case GL_INT_SAMPLER_2D: *binding = GL_TEXTURE_BINDING_2D; return "isampler2D";
++    case GL_UNSIGNED_INT_SAMPLER_2D: *binding = GL_TEXTURE_BINDING_2D; return "usampler2D";
++    case GL_SAMPLER_3D: *binding = GL_TEXTURE_BINDING_3D; return "sampler3D";
++    case GL_INT_SAMPLER_3D: *binding = GL_TEXTURE_BINDING_3D; return "isampler3D";
++    case GL_UNSIGNED_INT_SAMPLER_3D: *binding = GL_TEXTURE_BINDING_3D; return "usampler3D";
++    case GL_SAMPLER_CUBE: *binding = GL_TEXTURE_BINDING_CUBE_MAP; return "samplerCube";
++    case GL_SAMPLER_CUBE_SHADOW: *binding = GL_TEXTURE_BINDING_CUBE_MAP; return "samplerCubeShadow";
++    case GL_SAMPLER_2D_ARRAY: *binding = GL_TEXTURE_BINDING_2D_ARRAY; return "sampler2DArray";
++    case GL_SAMPLER_2D_ARRAY_SHADOW: *binding = GL_TEXTURE_BINDING_2D_ARRAY; return "sampler2DArrayShadow";
++    case GL_INT_SAMPLER_2D_ARRAY: *binding = GL_TEXTURE_BINDING_2D_ARRAY; return "isampler2DArray";
++    case GL_UNSIGNED_INT_SAMPLER_2D_ARRAY: *binding = GL_TEXTURE_BINDING_2D_ARRAY; return "usampler2DArray";
++    default: *binding = 0; return nullptr;
++    }
++}
++
++void voxelium_explain_draw_error(GLenum err, const char* fn, GLenum mode, GLsizei count, GLenum type,
++                                 const void* indices) {
++    static int failures = 0;
++    static std::set<GLint> explained;
++    failures++;
++    if (failures % 2000 == 0) fprintf(stderr, "[MG-DRAW] %d failed draws so far\n", failures);
++    GLint prog = 0;
++    GLES.glGetIntegerv(GL_CURRENT_PROGRAM, &prog);
++    if (explained.size() >= 40 || !explained.insert(prog).second) return;
++
++    GLint fbo = 0, ebo = 0, vao = 0;
++    GLES.glGetIntegerv(GL_DRAW_FRAMEBUFFER_BINDING, &fbo);
++    GLES.glGetIntegerv(GL_ELEMENT_ARRAY_BUFFER_BINDING, &ebo);
++    GLES.glGetIntegerv(GL_VERTEX_ARRAY_BINDING, &vao);
++    fprintf(stderr, "[MG-DRAW] %s error 0x%04X: program %d, mode 0x%X count %d type 0x%X indices %p, fbo %d, "
++            "element buffer %d, vao %d\n", fn, err, prog, mode, count, type, indices, fbo, ebo, vao);
++    if (prog == 0) return;
++
++    GLint linked = 0, valid = 0;
++    GLES.glGetProgramiv(prog, GL_LINK_STATUS, &linked);
++    GLES.glValidateProgram(prog);
++    GLES.glGetProgramiv(prog, GL_VALIDATE_STATUS, &valid);
++    char log[1024] = {0};
++    GLES.glGetProgramInfoLog(prog, sizeof(log) - 1, nullptr, log);
++    fprintf(stderr, "[MG-DRAW]   linked %d, validates %d: %s\n", linked, valid, log);
++
++    // Framebuffer attachments, to spot feedback loops.
++    GLint attached[10] = {0};
++    for (int i = 0; i < 10; i++) {
++        GLenum a = i < 8 ? GL_COLOR_ATTACHMENT0 + i : (i == 8 ? GL_DEPTH_ATTACHMENT : GL_STENCIL_ATTACHMENT);
++        GLint t = GL_NONE;
++        if (fbo != 0) {
++            GLES.glGetFramebufferAttachmentParameteriv(GL_DRAW_FRAMEBUFFER, a, GL_FRAMEBUFFER_ATTACHMENT_OBJECT_TYPE, &t);
++            if (t == GL_TEXTURE)
++                GLES.glGetFramebufferAttachmentParameteriv(GL_DRAW_FRAMEBUFFER, a, GL_FRAMEBUFFER_ATTACHMENT_OBJECT_NAME,
++                                                           &attached[i]);
++        }
++    }
++    fprintf(stderr, "[MG-DRAW]   fbo textures: c0 %d c1 %d c2 %d c3 %d c4 %d c5 %d c6 %d c7 %d depth %d stencil %d\n",
++            attached[0], attached[1], attached[2], attached[3], attached[4], attached[5], attached[6], attached[7],
++            attached[8], attached[9]);
++
++    // Samplers: two different sampler types on one unit is an error on ES 3.0.
++    GLint active_unit = 0, uniforms = 0;
++    GLES.glGetIntegerv(GL_ACTIVE_TEXTURE, &active_unit);
++    GLES.glGetProgramiv(prog, GL_ACTIVE_UNIFORMS, &uniforms);
++    for (GLint i = 0; i < uniforms; i++) {
++        char name[128] = {0};
++        GLint size = 0;
++        GLenum utype = 0;
++        GLES.glGetActiveUniform(prog, i, sizeof(name) - 1, nullptr, &size, &utype, name);
++        GLenum binding = 0;
++        const char* kind = voxelium_sampler_kind(utype, &binding);
++        if (!kind) continue;
++        GLint loc = GLES.glGetUniformLocation(prog, name), unit = -1, tex = 0;
++        if (loc >= 0) GLES.glGetUniformiv(prog, loc, &unit);
++        if (unit >= 0 && unit < 32) {
++            GLES.glActiveTexture(GL_TEXTURE0 + unit);
++            GLES.glGetIntegerv(binding, &tex);
++        }
++        bool loop = false;
++        for (int a = 0; a < 10; a++) loop |= (tex != 0 && attached[a] == tex);
++        fprintf(stderr, "[MG-DRAW]   %s %s -> unit %d, texture %d%s\n", kind, name, unit, tex,
++                loop ? "  <-- ALSO ATTACHED TO THE FRAMEBUFFER (feedback loop)" : "");
++    }
++    GLES.glActiveTexture(active_unit);
++
++    // Uniform blocks: ANGLE rejects draws when a block's buffer is missing or too small.
++    GLint blocks = 0;
++    GLES.glGetProgramiv(prog, GL_ACTIVE_UNIFORM_BLOCKS, &blocks);
++    for (GLint b = 0; b < blocks; b++) {
++        char name[128] = {0};
++        GLint point = -1, data_size = 0, buf = 0;
++        GLint64 start = 0, bsize = 0;
++        GLES.glGetActiveUniformBlockName(prog, b, sizeof(name) - 1, nullptr, name);
++        GLES.glGetActiveUniformBlockiv(prog, b, GL_UNIFORM_BLOCK_BINDING, &point);
++        GLES.glGetActiveUniformBlockiv(prog, b, GL_UNIFORM_BLOCK_DATA_SIZE, &data_size);
++        if (point >= 0) {
++            GLES.glGetIntegeri_v(GL_UNIFORM_BUFFER_BINDING, point, &buf);
++            GLES.glGetInteger64i_v(GL_UNIFORM_BUFFER_START, point, &start);
++            GLES.glGetInteger64i_v(GL_UNIFORM_BUFFER_SIZE, point, &bsize);
++        }
++        fprintf(stderr, "[MG-DRAW]   block %s binding %d needs %d bytes: buffer %d start %lld size %lld%s\n", name,
++                point, data_size, buf, (long long)start, (long long)bsize,
++                buf == 0 ? "  <-- NO BUFFER" : (bsize != 0 && bsize < data_size ? "  <-- TOO SMALL" : ""));
++    }
++
++    // Enabled vertex attributes without a buffer (client arrays) fail on ANGLE.
++    for (GLuint a = 0; a < 16; a++) {
++        GLint enabled = 0, abuf = 0, asize = 0, atype = 0, integer = 0;
++        GLES.glGetVertexAttribiv(a, GL_VERTEX_ATTRIB_ARRAY_ENABLED, &enabled);
++        if (!enabled) continue;
++        GLES.glGetVertexAttribiv(a, GL_VERTEX_ATTRIB_ARRAY_BUFFER_BINDING, &abuf);
++        GLES.glGetVertexAttribiv(a, GL_VERTEX_ATTRIB_ARRAY_SIZE, &asize);
++        GLES.glGetVertexAttribiv(a, GL_VERTEX_ATTRIB_ARRAY_TYPE, &atype);
++        GLES.glGetVertexAttribiv(a, GL_VERTEX_ATTRIB_ARRAY_INTEGER, &integer);
++        fprintf(stderr, "[MG-DRAW]   attrib %u: buffer %d, %d x 0x%X%s%s\n", a, abuf, asize, atype,
++                integer ? " (integer)" : "", abuf == 0 ? "  <-- NO BUFFER" : "");
++    }
++    GLES.glGetError();
+ }
++#endif
+ 
+ void glDrawElements(GLenum mode, GLsizei count, GLenum type, const void* indices) {
+     LOG()
+     LOG_D("glDrawElements, mode: %d, count: %d, type: %d, indices: %p", mode, count, type, indices)
+     prepareForDraw();
+     GLES.glDrawElements(mode, count, type, indices);
++#ifdef VOXELIUM_CHECK_GL_ERRORS
++    {
++        GLenum voxelium_err = GLES.glGetError();
++        if (voxelium_err != GL_NO_ERROR) voxelium_explain_draw_error(voxelium_err, "glDrawElements", mode, count, type, indices);
++    }
++#endif
+     CHECK_GL_ERROR
+ }
+ 
+--- a/src/main/cpp/gl/buffer.cpp
++++ b/src/main/cpp/gl/buffer.cpp
+@@ -551,6 +551,15 @@
+ // Todo: any glGet* related to this function?
+ void glTexBuffer(GLenum target, GLenum internalformat, GLuint buffer) {
+     LOG()
++#ifdef VOXELIUM_CHECK_GL_ERRORS
++    {
++        static int voxelium_tbo_calls = 0;
++        if (voxelium_tbo_calls < 10 || voxelium_tbo_calls % 1000 == 0)
++            fprintf(stderr, "[MG-TBO] glTexBuffer #%d target 0x%X internalformat 0x%X buffer %u\n", voxelium_tbo_calls,
++                    target, internalformat, buffer);
++        voxelium_tbo_calls++;
++    }
++#endif
+     LOG_D("glTexBuffer, target = %s, internalformat = %s, buffer = %d", glEnumToString(target),
+           glEnumToString(internalformat), buffer)
+     if (target != GL_TEXTURE_BUFFER) return;

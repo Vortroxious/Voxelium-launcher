@@ -1,0 +1,230 @@
+--- a/src/main/cpp/gles/loader.h
++++ b/src/main/cpp/gles/loader.h
+@@ -77,19 +77,22 @@
+ #elif defined(VOXELIUM_CHECK_GL_ERRORS)
+ // Voxelium diagnostic build (-DVOXELIUM_CHECK_GL_ERRORS): after each checked call,
+ // read ANGLE's real error and print it with the MobileGlues function, file and line
+-// (the normal build hides GLES errors). Capped so the log stays readable.
++// (the normal build hides GLES errors). Capped per call site (first 20, then every
++// 500th) so the log stays readable.
+ #include <stdio.h>
+-static inline void voxelium_report_gl_error(unsigned int err, const char *file, int line, const char *fn) {
+-    static int reported = 0;
+-    if (reported < 400 || reported % 1000 == 0)
+-        fprintf(stderr, "[MG-GLERR] 0x%04X in %s (%s:%d) #%d\n", err, fn, file, line, reported);
+-    reported++;
++#include <string.h>
++static inline void voxelium_report_gl_error(unsigned int err, const char *file, int line, const char *fn, int count) {
++    const char *base = strrchr(file, '/');
++    fprintf(stderr, "[MG-GLERR] 0x%04X in %s (%s:%d) #%d\n", err, fn, base ? base + 1 : file, line, count);
+ }
+ #define CHECK_GL_ERROR                                                                                                 \
+     {                                                                                                                  \
++        static int voxelium_site_errors = 0; /* per call site (patch 0008) */                                          \
+         GLenum VOXELIUM_ERR = GLES.glGetError();                                                                         \
+         while (VOXELIUM_ERR != GL_NO_ERROR) {                                                                            \
+-            voxelium_report_gl_error(VOXELIUM_ERR, __FILE__, __LINE__, __func__);                                         \
++            if (voxelium_site_errors < 20 || voxelium_site_errors % 500 == 0)                                          \
++                voxelium_report_gl_error(VOXELIUM_ERR, __FILE__, __LINE__, __func__, voxelium_site_errors);            \
++            voxelium_site_errors++;                                                                                    \
+             VOXELIUM_ERR = GLES.glGetError();                                                                            \
+         }                                                                                                              \
+     }
+@@ -107,6 +110,14 @@
+ 
+ #define INIT_CHECK_GL_ERROR_FORCE GLenum ERR = GL_NO_ERROR;
+ 
++// Voxelium diagnostic build: native pass-through calls check errors too, so an
++// error is reported against the call that raised it.
++#ifdef VOXELIUM_CHECK_GL_ERRORS
++#define VOXELIUM_NATIVE_CHECK CHECK_GL_ERROR
++#else
++#define VOXELIUM_NATIVE_CHECK
++#endif
++
+ #ifndef __APPLE__
+ #define NATIVE_FUNCTION_HEAD(type, name, ...)                                                                          \
+     extern "C" GLAPI GLAPIENTRY type name##ARB(__VA_ARGS__) __attribute__((alias(#name)));                             \
+@@ -142,6 +153,7 @@
+ #define NATIVE_FUNCTION_END_NO_RETURN(type, name, ...)                                                                 \
+     LOG_D("Use native function: %s @ %s(...)", RENDERERNAME, __FUNCTION__);                                            \
+     GLES.name(__VA_ARGS__);                                                                                            \
++    VOXELIUM_NATIVE_CHECK                                                                                              \
+     }
+ #endif
+ 
+--- a/src/main/cpp/gles/loader.cpp
++++ b/src/main/cpp/gles/loader.cpp
+@@ -2,6 +2,11 @@
+ // Created by Swung 0x48 on 2024/10/10.
+ //
+ 
++#ifdef VOXELIUM_CHECK_GL_ERRORS
++#include <dlfcn.h>
++#include <string>
++#include <unordered_map>
++#endif
+ #include <cstring>
+ #include <cstdio>
+ #include "loader.h"
+@@ -182,6 +187,50 @@
+     }
+ 
+     LOG_I("%sDetected GL_EXT_multi_draw_indirect!", g_gles_caps.GL_EXT_multi_draw_indirect ? "" : "Not ")
++#ifdef VOXELIUM_CHECK_GL_ERRORS
++    {
++        GLint draw_buffers = 0, color_attachments = 0, samples = 0;
++        GLES.glGetIntegerv(GL_MAX_DRAW_BUFFERS, &draw_buffers);
++        GLES.glGetIntegerv(GL_MAX_COLOR_ATTACHMENTS, &color_attachments);
++        GLES.glGetIntegerv(GL_MAX_SAMPLES, &samples);
++        fprintf(stderr, "[MG-CAPS] max draw buffers %d, color attachments %d, samples %d\n", draw_buffers,
++                color_attachments, samples);
++        fprintf(stderr, "[MG-CAPS] GLES extensions:");
++        for (GLint i = 0; i < num_es_extensions; i++) {
++            const char* e = (const char*)GLES.glGetStringi(GL_EXTENSIONS, i);
++            if (e) fprintf(stderr, " %s", e);
++        }
++        fprintf(stderr, "\n");
++        // ANGLE explains every error it raises through KHR_debug; print each distinct
++        // message (first 5 times, then every 1000th), at most 300 distinct messages.
++        typedef void (*VoxeliumDebugProc)(GLenum, GLenum, GLuint, GLenum, GLsizei, const GLchar*, const void*);
++        typedef void (*VoxeliumSetCallback)(VoxeliumDebugProc, const void*);
++        auto set_callback = (VoxeliumSetCallback)dlsym(RTLD_DEFAULT, "glDebugMessageCallbackKHR");
++        if (set_callback) {
++            set_callback(
++                [](GLenum source, GLenum type, GLuint id, GLenum severity, GLsizei, const GLchar* message, const void*) {
++                    static std::unordered_map<std::string, int> seen;
++                    std::string text = message ? message : "";
++                    auto it = seen.find(text);
++                    if (it == seen.end()) {
++                        if (seen.size() >= 300) return;
++                        it = seen.emplace(text, 0).first;
++                    }
++                    int n = it->second++;
++                    if (n < 5 || n % 1000 == 0)
++                        fprintf(stderr, "[MG-ANGLE] #%d type 0x%X severity 0x%X id %u: %s\n", n, type, severity, id,
++                                text.c_str());
++                },
++                nullptr);
++            GLES.glEnable(0x92E0); // GL_DEBUG_OUTPUT_KHR
++            GLES.glEnable(0x8242); // GL_DEBUG_OUTPUT_SYNCHRONOUS_KHR
++            GLES.glGetError();
++            fprintf(stderr, "[MG-CAPS] ANGLE debug messages on\n");
++        } else {
++            fprintf(stderr, "[MG-CAPS] glDebugMessageCallbackKHR not found\n");
++        }
++    }
++#endif
+ 
+     if (g_gles_caps.GL_EXT_buffer_storage) {
+         AppendExtension("GL_ARB_buffer_storage");
+--- a/src/main/cpp/gl/framebuffer.cpp
++++ b/src/main/cpp/gl/framebuffer.cpp
+@@ -40,8 +40,52 @@
+         fbo.initialized = true;
+     }
+ }
++#ifdef VOXELIUM_CHECK_GL_ERRORS
++#include <set>
++#include <utility>
++static void voxelium_report_attachment(GLenum attachment, const char* name) {
++    GLint type = GL_NONE;
++    GLES.glGetFramebufferAttachmentParameteriv(GL_DRAW_FRAMEBUFFER, attachment,
++                                               GL_FRAMEBUFFER_ATTACHMENT_OBJECT_TYPE, &type);
++    if (type == GL_NONE) { GLES.glGetError(); return; }
++    GLint object = 0, ctype = 0, r = 0, g = 0, b = 0, a = 0, d = 0, s = 0;
++    GLES.glGetFramebufferAttachmentParameteriv(GL_DRAW_FRAMEBUFFER, attachment, GL_FRAMEBUFFER_ATTACHMENT_OBJECT_NAME, &object);
++    GLES.glGetFramebufferAttachmentParameteriv(GL_DRAW_FRAMEBUFFER, attachment, GL_FRAMEBUFFER_ATTACHMENT_COMPONENT_TYPE, &ctype);
++    GLES.glGetFramebufferAttachmentParameteriv(GL_DRAW_FRAMEBUFFER, attachment, GL_FRAMEBUFFER_ATTACHMENT_RED_SIZE, &r);
++    GLES.glGetFramebufferAttachmentParameteriv(GL_DRAW_FRAMEBUFFER, attachment, GL_FRAMEBUFFER_ATTACHMENT_GREEN_SIZE, &g);
++    GLES.glGetFramebufferAttachmentParameteriv(GL_DRAW_FRAMEBUFFER, attachment, GL_FRAMEBUFFER_ATTACHMENT_BLUE_SIZE, &b);
++    GLES.glGetFramebufferAttachmentParameteriv(GL_DRAW_FRAMEBUFFER, attachment, GL_FRAMEBUFFER_ATTACHMENT_ALPHA_SIZE, &a);
++    GLES.glGetFramebufferAttachmentParameteriv(GL_DRAW_FRAMEBUFFER, attachment, GL_FRAMEBUFFER_ATTACHMENT_DEPTH_SIZE, &d);
++    GLES.glGetFramebufferAttachmentParameteriv(GL_DRAW_FRAMEBUFFER, attachment, GL_FRAMEBUFFER_ATTACHMENT_STENCIL_SIZE, &s);
++    GLES.glGetError();
++    fprintf(stderr, "[MG-FBO]   %s: %s %d, component type 0x%X, bits R%d G%d B%d A%d D%d S%d\n", name,
++            type == GL_TEXTURE ? "texture" : "renderbuffer", object, ctype, r, g, b, a, d, s);
++}
++static void voxelium_check_draw_framebuffer(GLuint fbo) {
++    static std::set<std::pair<GLuint, GLenum>> reported;
++    static int checks = 0;
++    if (fbo == 0) return;
++    GLenum status = GLES.glCheckFramebufferStatus(GL_DRAW_FRAMEBUFFER);
++    if (++checks == 1) fprintf(stderr, "[MG-FBO] framebuffer completeness reporting on\n");
++    if (status == GL_FRAMEBUFFER_COMPLETE || reported.size() >= 60 || !reported.insert({fbo, status}).second) return;
++    fprintf(stderr, "[MG-FBO] framebuffer %u INCOMPLETE: 0x%X\n", fbo, status);
++    static const char* names[] = {"color0", "color1", "color2", "color3", "color4", "color5", "color6", "color7"};
++    for (int i = 0; i < 8; i++) voxelium_report_attachment(GL_COLOR_ATTACHMENT0 + i, names[i]);
++    voxelium_report_attachment(GL_DEPTH_ATTACHMENT, "depth");
++    voxelium_report_attachment(GL_STENCIL_ATTACHMENT, "stencil");
++    GLint bufs[8] = {0};
++    for (int i = 0; i < 8; i++) GLES.glGetIntegerv(GL_DRAW_BUFFER0 + i, &bufs[i]);
++    GLES.glGetError();
++    fprintf(stderr, "[MG-FBO]   draw buffers: 0x%X 0x%X 0x%X 0x%X 0x%X 0x%X 0x%X 0x%X\n", bufs[0], bufs[1], bufs[2],
++            bufs[3], bufs[4], bufs[5], bufs[6], bufs[7]);
++}
++#endif
+ void glBindFramebuffer(GLenum target, GLuint framebuffer) {
+     ensure_max_attachments();
++#ifdef VOXELIUM_CHECK_GL_ERRORS
++    if (target != GL_READ_FRAMEBUFFER && current_draw_fbo != 0 && current_draw_fbo != framebuffer)
++        voxelium_check_draw_framebuffer(current_draw_fbo);
++#endif
+     framebuffer_t& fbo = get_framebuffer(framebuffer);
+ 
+     if (framebuffer == 0 && target != GL_READ_FRAMEBUFFER) {
+--- a/src/main/cpp/gl/texture.cpp
++++ b/src/main/cpp/gl/texture.cpp
+@@ -524,10 +524,26 @@
+     CHECK_GL_ERROR
+ }
+ 
++#ifdef VOXELIUM_CHECK_GL_ERRORS
++static void voxelium_report_tex_error(const char* fn, GLenum in_internal, GLenum in_format, GLenum in_type,
++                                      GLenum internal, GLenum format, GLenum type, GLsizei w, GLsizei h) {
++    static int reported = 0;
++    GLenum err = GLES.glGetError();
++    while (err != GL_NO_ERROR) {
++        if (reported++ < 60)
++            fprintf(stderr, "[MG-TEX] 0x%04X in %s %dx%d: internal 0x%X->0x%X format 0x%X->0x%X type 0x%X->0x%X\n",
++                    err, fn, w, h, in_internal, internal, in_format, format, in_type, type);
++        err = GLES.glGetError();
++    }
++}
++#endif
+ void glTexImage2D(GLenum target, GLint level, GLint internalFormat, GLsizei width, GLsizei height, GLint border,
+                   GLenum format, GLenum type, const GLvoid* pixels) {
+     LOG()
+     GLenum transfer_format = format;
++#ifdef VOXELIUM_CHECK_GL_ERRORS
++    const GLenum voxelium_in_internal = internalFormat, voxelium_in_format = format, voxelium_in_type = type;
++#endif
+ 
+     LOG_D("mg_glTexImage2D,target: %s,level: %d,internalFormat: %s->%s,width: "
+           "%d,height: %d,border: %d,format: %s,type: %s, pixels: 0x%x",
+@@ -594,6 +610,10 @@
+ 
+     GLES.glTexImage2D(target, level, internalFormat, width, height, border, format, type, pixels);
+ 
++#ifdef VOXELIUM_CHECK_GL_ERRORS
++    voxelium_report_tex_error("glTexImage2D", voxelium_in_internal, voxelium_in_format, voxelium_in_type,
++                              internalFormat, format, type, width, height);
++#endif
+     CHECK_GL_ERROR
+ }
+ 
+@@ -663,8 +683,14 @@
+           "%d, height: %d",
+           target, levels, internalFormat, width, height)
+ 
++#ifdef VOXELIUM_CHECK_GL_ERRORS
++    const GLenum voxelium_in_internal = internalFormat;
++#endif
+     internal_convert(&internalFormat, nullptr, nullptr);
+     GLES.glTexStorage2D(target, levels, internalFormat, width, height);
++#ifdef VOXELIUM_CHECK_GL_ERRORS
++    voxelium_report_tex_error("glTexStorage2D", voxelium_in_internal, 0, 0, internalFormat, 0, 0, width, height);
++#endif
+ 
+     auto tex = GetTextureUnit(GetCurrentTextureUnitIndex())
+                    .GetBindingSlot(ConvertGLEnumToTextureTarget(target))

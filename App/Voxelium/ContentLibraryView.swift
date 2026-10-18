@@ -16,6 +16,7 @@ struct ContentLibraryView: View {
     @State private var message: (text: String, isError: Bool)?
     @State private var pendingDelete: ContentItem?
     @State private var browsing = false
+    @State private var iris: IrisSettings?
 
     private var kinds: [ContentKind] { version.isModded ? ContentKind.allCases : [.resourcePacks] }
     private var manager: ContentManager? { model.gameDirectory(for: version.id).map(ContentManager.init(gameDirectory:)) }
@@ -33,6 +34,19 @@ struct ContentLibraryView: View {
                 }
                 if let message {
                     Text(message.text).font(.callout).foregroundStyle(message.isError ? Color.red : Color.green)
+                }
+                if kind == .shaderPacks, let iris, iris.exists {
+                    Section {
+                        Toggle(isOn: Binding(get: { iris.shadersEnabled }, set: { setShaders($0) })) {
+                            VStack(alignment: .leading, spacing: 3) {
+                                Text("Shaders in game")
+                                Text(iris.shaderPack.map { "Iris pack: \($0)" } ?? "No pack chosen in Iris yet")
+                                    .font(.caption).foregroundStyle(.secondary)
+                            }
+                        }
+                    } footer: {
+                        Text("If a shader pack leaves the screen black, switch this off and start again. Choose packs in Minecraft's Options → Video Settings → Shader Packs.")
+                    }
                 }
                 Section {
                     if items.isEmpty {
@@ -112,12 +126,25 @@ struct ContentLibraryView: View {
         case .resourcePacks:
             "Turn packs on in Minecraft's Options → Resource Packs. Switching one off here hides it from the game."
         case .shaderPacks:
-            "Shader packs need the Iris mod (Fabric or Quilt). Many may not render yet on iPhone's OpenGL ES 3.0."
+            "Shader packs need the Iris mod (Fabric or Quilt). Packs that use compute shaders (such as Photon) cannot run on the iPhone's OpenGL ES 3.0. With shaders, keep the render distance at 8–10: more runs out of memory."
         }
     }
 
     private func reload() {
         items = manager?.list(kind) ?? []
+        iris = model.gameDirectory(for: version.id).map(IrisSettings.init(gameDirectory:))
+    }
+
+    private func setShaders(_ on: Bool) {
+        guard var settings = iris else { return }
+        do {
+            try settings.setShadersEnabled(on)
+            message = ("Shaders \(on ? "on" : "off") from the next start.", false)
+            model.log.info("content", "Iris shaders \(on ? "on" : "off") for \(version.id) (pack: \(settings.shaderPack ?? "none"))")
+        } catch {
+            message = ("Could not change Iris settings: \(error.localizedDescription)", true)
+        }
+        reload()
     }
 
     private func setEnabled(_ item: ContentItem, _ on: Bool) {

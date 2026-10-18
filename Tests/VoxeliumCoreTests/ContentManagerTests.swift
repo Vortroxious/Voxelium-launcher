@@ -105,3 +105,36 @@ import Testing
         #expect(ContentManager.compatibilityWarning(forge, loader: nil) == nil)
     }
 }
+
+@Suite struct IrisSettingsTests {
+    @Test func readsAndSwitchesShadersOff() throws {
+        let tmp = try TempDir()
+        let game = tmp.paths.root.appendingPathComponent("instance")
+        var none = IrisSettings(gameDirectory: game)
+        #expect(!none.exists && none.shadersEnabled && none.shaderPack == nil)
+
+        // As Iris 1.10.8 wrote it on the iPhone (2026-10-18), with an escaped name.
+        try FileManager.default.createDirectory(at: game.appendingPathComponent("config"), withIntermediateDirectories: true)
+        let original = """
+            #This file stores configuration options for Iris, such as the currently active shaderpack
+            #Sun Oct 18 02:07:36 GMT 2026
+            allowUnknownShaders=false
+            enableShaders=true
+            maxShadowRenderDistance=32
+            shaderPack=My\\: Pack.zip
+
+            """
+        try original.write(to: game.appendingPathComponent("config/iris.properties"), atomically: true, encoding: .utf8)
+        var iris = IrisSettings(gameDirectory: game)
+        #expect(iris.exists && iris.shadersEnabled && iris.shaderPack == "My: Pack.zip")
+
+        try iris.setShadersEnabled(false)
+        let written = try String(contentsOf: iris.file, encoding: .utf8)
+        #expect(written == original.replacingOccurrences(of: "enableShaders=true", with: "enableShaders=false"))
+        #expect(IrisSettings(gameDirectory: game).shadersEnabled == false)
+
+        // No file yet: the key is added.
+        try none.setShadersEnabled(false)
+        #expect(IrisSettings(gameDirectory: game).shadersEnabled == false)
+    }
+}

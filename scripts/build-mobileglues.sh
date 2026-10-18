@@ -61,7 +61,7 @@ fetch https://github.com/KhronosGroup/glslang.git "refs/tags/$GLSLANG_TAG" "$SRC
 fetch https://github.com/KhronosGroup/SPIRV-Tools.git "$SPIRV_TOOLS_REV" "$SRC/glslang/External/spirv-tools"
 fetch https://github.com/KhronosGroup/SPIRV-Headers.git "$SPIRV_HEADERS_REV" "$SRC/glslang/External/spirv-tools/external/spirv-headers"
 fetch https://github.com/KhronosGroup/SPIRV-Cross.git "refs/tags/$SPIRV_CROSS_TAG" "$SRC/SPIRV-Cross"
-PATCHED="src/main/cpp/egl/loader.cpp src/main/cpp/egl/loader.h src/main/cpp/main.cpp src/main/cpp/includes.h src/main/cpp/init.cpp src/main/cpp/gl/getter.cpp src/main/cpp/gl/gl_stub.cpp src/main/cpp/gl/multidraw.cpp src/main/cpp/gl/gl_native.cpp src/main/cpp/gl/gl.cpp src/main/cpp/gles/loader.h src/main/cpp/gl/program.cpp src/main/cpp/gl/shader.cpp"
+PATCHED="src/main/cpp/egl/loader.cpp src/main/cpp/egl/loader.h src/main/cpp/main.cpp src/main/cpp/includes.h src/main/cpp/init.cpp src/main/cpp/gl/getter.cpp src/main/cpp/gl/gl_stub.cpp src/main/cpp/gl/multidraw.cpp src/main/cpp/gl/gl_native.cpp src/main/cpp/gl/gl.cpp src/main/cpp/gles/loader.h src/main/cpp/gl/program.cpp src/main/cpp/gl/shader.cpp src/main/cpp/gles/loader.cpp src/main/cpp/gl/framebuffer.cpp src/main/cpp/gl/texture.cpp src/main/cpp/gl/drawing.cpp src/main/cpp/gl/buffer.cpp"
 [ -d "$SRC/MobileGlues/.git" ] && git -C "$SRC/MobileGlues" checkout -q -- $PATCHED 2>/dev/null || true
 fetch https://github.com/MobileGL-Dev/MobileGlues.git "$MG_REV" "$SRC/MobileGlues"
 # Our patch (patches/mobileglues/): restore the host's EGL context after init on Apple.
@@ -79,6 +79,18 @@ git -C "$SRC/MobileGlues" apply "$ROOT/patches/mobileglues/0005-colormaski-es30-
 # And: optional GL error reporting, compiled in only with VOXELIUM_MG_CHECK_ERRORS=1.
 git -C "$SRC/MobileGlues" apply "$ROOT/patches/mobileglues/0006-optional-gl-error-reporting.patch"
 git -C "$SRC/MobileGlues" apply "$ROOT/patches/mobileglues/0007-diagnostic-shader-link-reports.patch"
+# And (diagnostic builds only): incomplete framebuffers, texture format errors, GLES caps.
+git -C "$SRC/MobileGlues" apply "$ROOT/patches/mobileglues/0008-diagnostic-framebuffer-texture-reports.patch"
+# And: copy textures without glGetTexLevelParameteriv, which ES 3.0 lacks (Iris's depth
+# copy before translucent terrain failed, so shader-pack water rendered black).
+git -C "$SRC/MobileGlues" apply "$ROOT/patches/mobileglues/0009-es30-copy-texture-format-from-tracking.patch"
+# And (diagnostic builds only): explain failed draws, ANGLE's debug messages on the game's
+# context, and the formats glTexBuffer is asked for.
+git -C "$SRC/MobileGlues" apply "$ROOT/patches/mobileglues/0010-diagnostic-draw-error-explanations.patch"
+# And: match integer vertex attributes to the shader's signedness (Metal rejects
+# unsigned data into ivec inputs: Iris's hand, held and dropped items were not drawn),
+# and keep the texture-buffer emulation's last row inside the buffer.
+git -C "$SRC/MobileGlues" apply "$ROOT/patches/mobileglues/0011-es30-integer-attribute-signedness-and-tbo-rows.patch"
 # Submodules at the commits MobileGlues pins (perfetto is only for PROFILING builds).
 MGC="$SRC/MobileGlues/src/main/cpp"
 fetch https://github.com/g-truc/glm.git 2d4c4b4dd31fde06cfffad7915c2b3006402322f "$MGC/3rdparty/glm"

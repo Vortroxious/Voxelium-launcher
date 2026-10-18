@@ -1,0 +1,144 @@
+--- a/src/main/cpp/gl/drawing.cpp
++++ b/src/main/cpp/gl/drawing.cpp
+@@ -8,6 +8,7 @@
+ #include "mg.h"
+ #include "texture.h"
+ #include <ankerl/unordered_dense.h>
++#include <vector>
+ 
+ #define DEBUG 0
+ 
+@@ -85,6 +86,90 @@
+         GLES.glUniform1i(locHeight, texObject->height);
+ 
+         GLES.glActiveTexture(GL_TEXTURE0 + prev_unit);
++    }
++}
++
++// Voxelium: Metal cannot feed unsigned integer vertex data into a signed integer shader
++// input, or the reverse ("Cannot convert attribute from MTLAttributeFormatUShort4 to a
++// signed integer type"), so ANGLE drops the draw. Desktop drivers accept it, and Iris
++// relies on that: its iris_Entity attribute is GL_UNSIGNED_SHORT data read as ivec3, so
++// with a shader pack the hand, held items and item entities were never drawn. Before a
++// draw, integer attributes whose signedness differs from the program's input are
++// re-pointed with the matching type (same bits; values below 2^15, 2^7, 2^31 unchanged).
++struct VoxeliumIntAttrib {
++    GLuint location;
++    bool is_signed;
++};
++static ankerl::unordered_dense::map<GLuint, std::vector<VoxeliumIntAttrib>> voxelium_int_attribs;
++
++void voxelium_forget_program_attribs(GLuint program) { voxelium_int_attribs.erase(program); }
++
++static const std::vector<VoxeliumIntAttrib>& voxelium_program_int_attribs(GLuint program) {
++    auto it = voxelium_int_attribs.find(program);
++    if (it != voxelium_int_attribs.end()) return it->second;
++    std::vector<VoxeliumIntAttrib> found;
++    GLint count = 0;
++    GLES.glGetProgramiv(program, GL_ACTIVE_ATTRIBUTES, &count);
++    for (GLint i = 0; i < count; i++) {
++        char name[256] = {0};
++        GLint size = 0;
++        GLenum type = 0;
++        GLES.glGetActiveAttrib(program, i, sizeof(name) - 1, nullptr, &size, &type, name);
++        bool is_signed;
++        switch (type) {
++        case GL_INT: case GL_INT_VEC2: case GL_INT_VEC3: case GL_INT_VEC4:
++            is_signed = true;
++            break;
++        case GL_UNSIGNED_INT: case GL_UNSIGNED_INT_VEC2: case GL_UNSIGNED_INT_VEC3: case GL_UNSIGNED_INT_VEC4:
++            is_signed = false;
++            break;
++        default:
++            continue;
++        }
++        GLint location = GLES.glGetAttribLocation(program, name);
++        if (location >= 0) found.push_back({(GLuint)location, is_signed});
++    }
++    return voxelium_int_attribs.emplace(program, std::move(found)).first->second;
++}
++
++static GLenum voxelium_matching_int_type(GLenum type, bool want_signed) {
++    if (want_signed) {
++        switch (type) {
++        case GL_UNSIGNED_BYTE: return GL_BYTE;
++        case GL_UNSIGNED_SHORT: return GL_SHORT;
++        case GL_UNSIGNED_INT: return GL_INT;
++        default: return 0;
++        }
++    }
++    switch (type) {
++    case GL_BYTE: return GL_UNSIGNED_BYTE;
++    case GL_SHORT: return GL_UNSIGNED_SHORT;
++    case GL_INT: return GL_UNSIGNED_INT;
++    default: return 0;
++    }
++}
++
++static void voxelium_match_int_attrib_signedness(GLuint program) {
++    if (program == 0) return;
++    for (const auto& a : voxelium_program_int_attribs(program)) {
++        GLint enabled = 0, integer = 0, type = 0;
++        GLES.glGetVertexAttribiv(a.location, GL_VERTEX_ATTRIB_ARRAY_ENABLED, &enabled);
++        if (!enabled) continue;
++        GLES.glGetVertexAttribiv(a.location, GL_VERTEX_ATTRIB_ARRAY_INTEGER, &integer);
++        GLES.glGetVertexAttribiv(a.location, GL_VERTEX_ATTRIB_ARRAY_TYPE, &type);
++        GLenum matching = integer ? voxelium_matching_int_type((GLenum)type, a.is_signed) : 0;
++        if (!matching) continue;
++        GLint size = 0, stride = 0, buffer = 0, previous = 0;
++        void* pointer = nullptr;
++        GLES.glGetVertexAttribiv(a.location, GL_VERTEX_ATTRIB_ARRAY_SIZE, &size);
++        GLES.glGetVertexAttribiv(a.location, GL_VERTEX_ATTRIB_ARRAY_STRIDE, &stride);
++        GLES.glGetVertexAttribiv(a.location, GL_VERTEX_ATTRIB_ARRAY_BUFFER_BINDING, &buffer);
++        GLES.glGetVertexAttribPointerv(a.location, GL_VERTEX_ATTRIB_ARRAY_POINTER, &pointer);
++        if (buffer == 0) continue; // client memory: leave it
++        GLES.glGetIntegerv(GL_ARRAY_BUFFER_BINDING, &previous);
++        GLES.glBindBuffer(GL_ARRAY_BUFFER, buffer);
++        GLES.glVertexAttribIPointer(a.location, size, matching, stride, pointer);
++        GLES.glBindBuffer(GL_ARRAY_BUFFER, previous);
+     }
+ }
+ 
+@@ -93,6 +178,7 @@
+     if (hardware->emulate_texture_buffer) {
+         setupBufferTextureUniforms(gl_state->current_program);
+     }
++    voxelium_match_int_attrib_signedness(gl_state->current_program);
+ }
+ 
+ void glDrawElementsInstanced(GLenum mode, GLsizei count, GLenum type, const void* indices, GLsizei primcount) {
+--- a/src/main/cpp/gl/program.cpp
++++ b/src/main/cpp/gl/program.cpp
+@@ -117,8 +117,11 @@
+ 
+ 
+ static UnorderedMap<unsigned, GLuint> DefaultFSMap; // essl version <-> shader id
++void voxelium_forget_program_attribs(GLuint program); // drawing.cpp (patch 0011)
++
+ void glLinkProgram(GLuint program) {
+     LOG()
++    voxelium_forget_program_attribs(program);
+ 
+     LOG_D("glLinkProgram(%d)", program)
+     if (!shaderInfo.converted.empty() && shaderInfo.frag_data_changed) {
+--- a/src/main/cpp/gl/buffer.cpp
++++ b/src/main/cpp/gl/buffer.cpp
+@@ -635,9 +635,16 @@
+ 
+         GLES.glBindBuffer(GL_PIXEL_UNPACK_BUFFER, real_buffer);
+ 
++        // Voxelium: the last row holds only what is left of the buffer (a full-width
++        // row read past its end: "The provided parameters overflow with the provided
++        // buffer"), and rows are tightly packed whatever the game left in the unpack state.
++        GLES.glPixelStorei(GL_UNPACK_ALIGNMENT, 1);
++        GLES.glPixelStorei(GL_UNPACK_ROW_LENGTH, 0);
+         for (GLuint row = 0; row < height; ++row) {
+-            void* offset = (void*)(row * width * pixelSize);
+-            GLES.glTexSubImage2D(GL_TEXTURE_2D, 0, 0, row, width, 1, GL_RED_INTEGER, GL_BYTE, offset);
++            void* offset = (void*)(uintptr_t)(row * width * pixelSize);
++            GLuint row_width = (row == height - 1) ? numElements - row * width : width;
++            if (row_width == 0) break;
++            GLES.glTexSubImage2D(GL_TEXTURE_2D, 0, 0, row, row_width, 1, GL_RED_INTEGER, GL_BYTE, offset);
+         }
+ 
+         GLES.glPixelStorei(GL_UNPACK_ALIGNMENT, prev_alignment);

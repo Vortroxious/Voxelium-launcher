@@ -1,8 +1,6 @@
-diff --git a/src/main/cpp/gl/program.cpp b/src/main/cpp/gl/program.cpp
-index 3de5180..3922d3e 100644
 --- a/src/main/cpp/gl/program.cpp
 +++ b/src/main/cpp/gl/program.cpp
-@@ -171,6 +171,37 @@ void glLinkProgram(GLuint program) {
+@@ -171,6 +171,37 @@
      }
  
      GLES.glLinkProgram(program);
@@ -40,17 +38,29 @@ index 3de5180..3922d3e 100644
  
      CHECK_GL_ERROR
  }
-diff --git a/src/main/cpp/gl/shader.cpp b/src/main/cpp/gl/shader.cpp
-index e80fdf7..9838bb1 100644
 --- a/src/main/cpp/gl/shader.cpp
 +++ b/src/main/cpp/gl/shader.cpp
-@@ -107,6 +107,9 @@ void glShaderSource(GLuint shader, GLsizei count, const GLchar *const* string, c
+@@ -93,6 +93,9 @@
+ 
+         if (essl_src.empty()) {
+             LOG_E("Failed to convert shader %d.", shader)
++#ifdef VOXELIUM_CHECK_GL_ERRORS
++            fprintf(stderr, "[MG-LINK] GLSL -> ESSL conversion FAILED for shader %u\n", shader);
++#endif
+             return;
+         }
+         LOG_D("\n[INFO] [Shader] Converted Shader source: \n%s", essl_src.c_str())
+@@ -105,8 +108,12 @@
+         if (hardware->emulate_texture_buffer)
+             shader_map_is_sampler_buffer_emulated[shader] = is_sampler_buffer_emulated;
      }
-     else
+-    else
++    else {
          LOG_E("Failed to convert glsl.")
 +#ifdef VOXELIUM_CHECK_GL_ERRORS
 +        fprintf(stderr, "[MG-LINK] GLSL -> ESSL conversion FAILED for shader %u\n", shader);
 +#endif
++    }
      CHECK_GL_ERROR
  }
  

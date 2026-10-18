@@ -768,3 +768,98 @@ Changes:
   - Shader packs on a modded version without Iris offer "Get Iris (with Sodium)".
   - Installs are logged to launcher.log ("content: Modrinth: installed …").
 - **Build `202610180155`** (SHA-256 `bcf6a9b95966ecc5f96ce4364163a2effdd85c3c6aaf23d78e7f683c6e54a2ef`): builds with no errors or warnings in the new files. **Not yet run on device.**
+- **Device result for build 202610180155 (user report plus launcher.log/jvm.log/iris.properties, 2026-10-18):**
+  - **Modrinth installs work:** Sodium `mc1.21.11-0.8.14-fabric`, Iris `1.10.8+1.21.11-fabric`, Photon v1.3b and BSL 10.1.8 all installed from the browser into `fabric-loader-0.19.5-1.21.11` ("Loading 55 mods").
+  - **Shader packs do not work: the user reports a black screen.**
+    - **Photon (02:05):** the deferred passes are compute shaders (`#version 430 core`). MobileGlues has `enableExtComputeShader = false` on our OpenGL ES 3.0 (ANGLE Metal), so they reach ANGLE untranslated ("'core' : invalid version directive", "No precision specified"). Iris then reports "This PC does not support compute shaders" and "Failed to create shader rendering pipeline, disabling shaders!".
+    - **BSL (02:07):** the pipeline was created with no compile or link errors logged, and the world loaded (spawn, worker threads, Dynamic Transforms UBO resizes), but the screen stayed black. MobileGlues runs with `ignoreError = 1`, so no GL errors are reported.
+    - **Cause:** not found yet. It may be the same ES 3.0 ceiling that blocks 26.2. Finding it needs a diagnostic MobileGlues build (`-DVOXELIUM_CHECK_GL_ERRORS`, patches 0006/0007) and a run with BSL.
+  - iris.properties was left at `enableShaders=true`, `shaderPack=BSL_v10.1.8.zip`, so every later start would be black too.
+- **Recovery switch:** `IrisSettings` (VoxeliumCore) reads `config/iris.properties` and rewrites only the `enableShaders` line. The Shader packs tab shows a "Shaders in game" toggle with the active pack's name, and the tab's footer now explains the ES 3.0 limit. 1 new test, using the file as Iris wrote it on the phone; `swift test` passes 91/91.
+- **Build `202610180211`** (SHA-256 `497b88a207c8c397ea4f264bca04f0364b21b633235442d5281872ce15c7c793`). **Not yet run on device.**
+- **Device result for build 202610180211 (user screenshots plus launcher.log/jvm.log/iris.properties, 2026-10-18):**
+  - **The shader switch works:** "Iris shaders on for fabric-loader-0.19.5-1.21.11" was logged.
+  - **MakeUp - Ultra Fast 9.5g renders:** sky, clouds, terrain, grass and the HUD look right, but large flat areas (they look like water) are solid black. jvm.log has no shader compile or link errors for MakeUp or BSL in this run; MobileGlues `ignoreError = 1` hides GL errors.
+  - **The black is a rendering fault, not a performance limit:** a slow device gives low frame rates, not black pixels. Cause not found; finding it needs the diagnostic MobileGlues build.
+- **Static scan of the 15 most-downloaded Iris packs for 1.21.11** (Modrinth, 2026-10-18; downloaded to the scratchpad and only read): looked for compute (`.csh`), geometry and tessellation programs, image load/store, SSBOs, and the `program.*.enabled` gates in `shaders.properties`. ES 3.0 has no compute shaders and no geometry or tessellation shaders.
+  - **No compute at all:** MakeUp Ultra Fast (`#version 120`), Miniature Shader (120), AstraLex (130).
+  - **Compute only for optional colored lighting, which can be switched off:**
+    - BSL (`MULTICOLORED_BLOCKLIGHT`)
+    - Complementary Reimagined / Unbound and Spooklementary (`COLORED_LIGHTING == 0`)
+    - Solas (`VX_SUPPORT`)
+    - I Like Vanilla (`COLORED_LIGHTING_ENABLED`)
+    - Bliss and Bloop (LPV setup/shadowcomp)
+  - **Compute in passes with no gate found, so expected to fail like Photon:** Photon (confirmed on device), Noble (`prepare.csh`, `composite2/99.csh`), Mellow (`begin.csh`), Visual Vibrance (`prepare2.csh`, `composite5.csh`).
+  - **None of the 15** has geometry or tessellation shaders.
+
+## 2026-10-18 — Diagnostic build for black shader output (MakeUp water, BSL)
+- **User request:** "Make a diagnostic build with GL error reporting so we can find why water (MakeUp) and everything (BSL) renders black."
+- **Gaps found in MobileGlues (f0fb4d3) while preparing:**
+  - `glCheckFramebufferStatus` reports COMPLETE when `ignoreError` is Full.
+  - `glBindFramebuffer`, `glFramebufferTexture2D` and `glDrawBuffers` never check errors.
+  - With `VOXELIUM_CHECK_GL_ERRORS`, native pass-through calls (`glDrawArrays`, `glBlitFramebuffer`, …) didn't check either, so their errors surfaced under the next checked call.
+- **Render-target formats the packs ask for** (`shaders.properties` / `*Format` consts):
+  - MakeUp: colortex0/gaux1/gaux4 `R11F_G11F_B10F`, colortex1/3 `RGBA16F`, gaux3 `R16F`, colortex2/gaux2 `R8`.
+  - BSL: colortex0 `R11F_G11F_B10F`, colortex9 `RGB16F`, colortex2/gaux3/gaux4 `RGBA16` (MobileGlues makes these `RGBA16F` without `EXT_texture_norm16`), gaux2 `RGB10_A2`, colortex1/3/8 `RGB8`.
+  - ES 3.0 only renders to float formats with `EXT_color_buffer_float`/`_half_float`, and `RGB16F` not even with `EXT_color_buffer_float`. This is a hypothesis to check, not a finding.
+- **`patches/mobileglues/0008-diagnostic-framebuffer-texture-reports.patch`** (compiled in only with `VOXELIUM_MG_CHECK_ERRORS=1`):
+  - `[MG-CAPS]`: max draw buffers, color attachments and samples, plus the full GLES extension list.
+  - `[MG-FBO]`: when the game leaves a framebuffer, its real status; if incomplete, every attachment's component type and bit sizes and the draw buffers. Reported once per framebuffer and status, at most 60.
+  - `[MG-TEX]`: GLES errors from `glTexImage2D`/`glTexStorage2D`, with the requested and converted formats.
+  - Native pass-through calls now check errors (`[MG-GLERR]`, patch 0006).
+- **Build:** `VOXELIUM_MG_CHECK_ERRORS=1 scripts/build-mobileglues.sh` (exit 0) then `scripts/build-ipa.sh` gave build `202610180229`, saved as `build/ipa/Voxelium-diagnostic-unsigned.ipa` (SHA-256 `6e14c93d150cdfd07cdd16070124d3fe644a35fc000241d7f79cd1c01234967b`). The packaged `libmobileglues.dylib` contains the `[MG-FBO]` strings.
+- **Not for release:** `build/deps/mobileglues-out` and `Voxelium-unsigned.ipa` are the diagnostic build until MobileGlues is rebuilt without the flag. **Not yet run on device.**
+- **Device result for diagnostic build 202610180229 (jvm.log, 2026-10-18, MakeUp then BSL on Fabric 1.21.11):**
+  - **ANGLE caps:** `[MG-CAPS]` lists `GL_EXT_color_buffer_float`, `GL_EXT_color_buffer_half_float`, `GL_EXT_float_blend`, `GL_EXT_texture_norm16` and `GL_KHR_debug`; 8 draw buffers and 8 color attachments. **The float render-target hypothesis is ruled out**, and no `[MG-TEX]` errors were logged.
+  - **Framebuffers:** `[MG-FBO]` flagged 3 framebuffers (2, 194, 196) as `0x8CD7` (missing attachment) when the game left them, all with no attachments. Probably framebuffers bound before setup, not the cause.
+  - **Errors every frame from world load:**
+    - `glCopyTexSubImage2D`: GL_INVALID_OPERATION, about once per frame.
+    - `glDrawElements`: GL_INVALID_OPERATION, about 10 per frame, 28,000+ in total.
+    - With BSL, also `glTexBuffer`: GL_INVALID_OPERATION, 141 times.
+    - At pipeline creation: 2× `glCopyTexImage2D` GL_INVALID_ENUM + GL_INVALID_OPERATION.
+  - **Root cause of the copy errors (found in the source):** MobileGlues' `glCopyTexSubImage2D` and `glCopyTexImage2D` call `glGetTexLevelParameteriv(GL_TEXTURE_INTERNAL_FORMAT)`, which only exists from ES 3.1. On ANGLE's ES 3.0 it fails and leaves the variable unset.
+    - So `glCopyTexSubImage2D` misses its depth path and does a color `glCopyTexSubImage2D` on a depth texture, which fails. That is Iris's copy of opaque depth into `depthtex1` before translucent terrain, which water shaders read.
+    - `glCopyTexImage2D` even replaced the caller's internal format with the unset value.
+  - **Bug in my patch 0007:** its "GLSL -> ESSL conversion FAILED" line printed for every shader, because MobileGlues' `LOG_E` expands to `{}` and the `fprintf` sat after the `else`. Fixed with braces; also reported on the early-return failure path.
+- **Patch 0009 (a real fix, always applied): `0009-es30-copy-texture-format-from-tracking.patch`**
+  - Below ES 3.1, the copy functions take the bound texture's format from MobileGlues' own texture tracking.
+  - `glCopyTexImage2D` keeps the format it is given.
+  - `is_depth_format` now covers `DEPTH_COMPONENT32` and the depth-stencil formats.
+  - `glGetTexLevelParameteri/fv` answer width, height, depth and internal format from tracking instead of calling the missing ES function.
+- **Patch 0008, extended for the next run:**
+  - Error caps are now per call site (first 20, then every 500th) instead of one counter per file.
+  - `[MG-ANGLE]` installs a `glDebugMessageCallbackKHR` callback, so ANGLE's own text for each error is logged (each distinct message 5 times, then every 1000th). This should name the reason for the `glDrawElements` and `glTexBuffer` errors.
+- **Build `202610180244`** (diagnostic, with 0009): `build/ipa/Voxelium-diagnostic-unsigned.ipa`, SHA-256 `229eae6c225fc98bd1daed9368ac66c258ec6a1c4eb7fdf1e3b4db57ec309388`. **Not yet run on device.**
+- **Device result for diagnostic build 202610180244 (user report plus jvm.log, 2026-10-18):**
+  - **Patch 0009 worked:** no `glCopyTexSubImage2D` or `glCopyTexImage2D` errors in either run (BSL at 02:50, MakeUp at 02:53).
+  - **Still wrong:**
+    - With both MakeUp and BSL, the hand, held items and dropped item entities are invisible; picking items up works.
+    - BSL closed while the user was punching a tree. No Java exception, no `hs_err`, and no Voxelium crash or JetsamEvent report on the phone (`devicectl … systemCrashLogs`), so the cause is unknown.
+  - **Remaining GL errors:**
+    - `glDrawElements` GL_INVALID_OPERATION throughout, matching the missing items and hand.
+    - With BSL only, `glTexBuffer` GL_INVALID_OPERATION (2,500+). MobileGlues' ES 3.0 texture-buffer emulation always uploads with `GL_RED_INTEGER`/`GL_BYTE`, so it only works for R8I.
+  - **No `[MG-ANGLE]` lines:** the callback was installed during MobileGlues init, which runs on MobileGlues' own context (patch 0001 then restores the game's), and debug output is per context.
+- **Patch `0010-diagnostic-draw-error-explanations.patch`** (diagnostic only):
+  - The ANGLE callback is also installed on the first `glBindFramebuffer`, which runs on the game's context; the log says whether it took.
+  - **`[MG-DRAW]`:** once per program (at most 40), a failed `glDrawElements` is explained:
+    - program, mode, count, framebuffer, element buffer and VAO;
+    - link status, `glValidateProgram` status and log;
+    - every sampler with its type, unit and bound texture, flagging feedback loops with the framebuffer;
+    - every uniform block with its binding, needed size and the bound buffer range, flagging missing or too-small buffers;
+    - enabled vertex attributes without a buffer.
+  - **`[MG-TBO]`:** the internal formats `glTexBuffer` is asked for.
+- **Build `202610180300`** (diagnostic, 0001–0010): `build/ipa/Voxelium-diagnostic-unsigned.ipa`, SHA-256 `f0e6b49d6cbc21af69ded8f3c2c384c09f87a5b12c30480553601cdb21113eca`. **Not yet run on device.**
+- **Device result for diagnostic build 202610180300 (user: "same as before", plus jvm.log, 2026-10-18):**
+  - The ANGLE callback works on the game's context ("ANGLE debug messages on (game context)").
+  - **Cause of the missing hand, held items and dropped items:** every rejected `glDrawElements` carries ANGLE's message "Metal error: Cannot convert attribute from MTLAttributeFormatUShort4 to a signed integer type" (`mtl_pipeline_cache.mm`, `CreateRenderPipelineState`).
+    - `[MG-DRAW]` shows the failing Iris entity/item programs (413, 253, 433, 386, …). Each has an integer attribute of 3 × `GL_UNSIGNED_SHORT` (0x1403): Iris's `iris_Entity`, which its shaders declare as `ivec3`.
+    - Desktop drivers accept unsigned data into a signed integer input; Metal does not build the pipeline. Samplers, uniform blocks (all bound and large enough) and feedback loops checked out fine.
+    - About 28,000 draws failed in one session.
+  - **`glTexBuffer` is `GL_R8I`** (`[MG-TBO]`), which the emulation does support. Its errors come from "glTexSubImage2D: The provided parameters overflow with the provided buffer": the emulation uploads every row at full width, so the last partial row read past the buffer.
+  - **The BSL run from 02:59 (build 0244) also stopped mid-game:** no exception, no report. Cause unknown.
+- **Patch `0011-es30-integer-attribute-signedness-and-tbo-rows.patch`** (a real fix, always applied):
+  - **Attribute signedness:** `prepareForDraw` looks up the current program's integer inputs (cached per program, cleared on `glLinkProgram`). An enabled integer attribute whose signedness differs is re-pointed with the matching type (`UNSIGNED_SHORT` ↔ `SHORT`, etc.; same bits, so values below 2^15 are unchanged). Attributes in client memory are left alone.
+  - **Texture-buffer emulation:** uploads the last row at its real width, with `UNPACK_ALIGNMENT` 1 and `ROW_LENGTH` 0, which are restored after.
+- **Build `202610180310`** (diagnostic, 0001–0011): `build/ipa/Voxelium-diagnostic-unsigned.ipa`, SHA-256 `a12735b67e16a435a9d53027fc073a91056a56b0c68f63bb36a8c054546c65bd`. **Not yet run on device.**
+- **Device result for diagnostic build 202610180310 (user report plus jvm.log, 2026-10-18):**
+  - **Patch 0011 works:** the user reports BSL is "so GOOD" and MakeUp is good too. No `glDrawElements` errors, `[MG-DRAW]` reports or Metal attribute messages in any of the three runs. `glTexBuffer` errors are gone as well (only `[MG-TBO]` call logging remains).
