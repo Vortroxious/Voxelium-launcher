@@ -1146,3 +1146,11 @@ Changes:
   - **13:41:23Z:** Fabric 1.21.11 (56 mods, BSL) started, joined `New World` at 13:42:18, saved and "Stopping!" at 13:42:41.
   - The user reports the Files view, import, share and delete all work. The launcher log has no "Shared"/"Deleted" lines for this session, so share and delete are confirmed by the user's report only.
   - **Found:** a `Library/` folder now shows in Files. It came from the old root: Java's `user.home` is the data root, so mods writing to `~/Library` (here Essential's `Application Support/gg.essential.mod` HTTP/infra logs and `onboarding.json`) land there. No account or token files were in it.
+
+## 2026-10-18 — Voxelium 0.1.1
+- **User request:** ship the Files folder and Worlds screen as 0.1.1.
+- Version set to 0.1.1 (`MARKETING_VERSION`, `LaunchPlanner.launcherVersion`, the Modrinth User-Agent `Voxelium/0.1.1`) in `a40c0a2`; `swift test` 106/106.
+- **IPA from the clean tree at `a40c0a2`:** `build/ipa/Voxelium-0.1.1-unsigned.ipa`, build 202610181352, 184,786,307 bytes, SHA-256 `e93a716e5c21898e09cae6fea113c235435ff0506a097c8c058179d19054e0f1`. Unsigned, arm64, iOS platform.
+  - Compared with the 0.1.0 IPA: all 955 bundled files other than the `Voxelium` binary and `Info.plist` are byte-identical (MobileGlues without diagnostics, Java runtimes, notices, app icon).
+  - The device pass was on build 202610181331 (same code, version string 0.1.0). The 0.1.1 IPA itself has not been run on a device.
+- Release notes: [RELEASE_NOTES_0.1.1.md](RELEASE_NOTES_0.1.1.md). The 0.1.0 IPA (`d7e189b2…8255`) is kept unchanged next to it.

@@ -67,7 +67,7 @@ This takes about 15 minutes the first time. You need a Mac for steps 1–3; afte
 | **Sideloadly**: installs apps on your iPhone with your Apple ID | [sideloadly.io](https://sideloadly.io/index.html) |
 | **idevice_pair**: makes the pairing file StikDebug needs | [github.com/jkcoxson/idevice_pair/releases](https://github.com/jkcoxson/idevice_pair/releases) |
 | **StikDebug** (`.ipa`): turns on JIT, which Java needs | [github.com/StikDebug/StikDebug/releases/latest](https://github.com/StikDebug/StikDebug/releases/latest) |
-| **Voxelium** (`Voxelium-0.1.0-unsigned.ipa`) | [github.com/Vortroxious/Voxelium-launcher/releases/latest](https://github.com/Vortroxious/Voxelium-launcher/releases/latest) |
+| **Voxelium** (`Voxelium-0.1.1-unsigned.ipa`) | [github.com/Vortroxious/Voxelium-launcher/releases/latest](https://github.com/Vortroxious/Voxelium-launcher/releases/latest) |
 | *Optional:* **GetMoreRam** (`.ipa`): only if the game keeps closing from low memory (see [Troubleshooting](#troubleshooting)) | [github.com/hugeBlack/GetMoreRam/releases](https://github.com/hugeBlack/GetMoreRam/releases) |
 
 Also: a USB cable for your iPhone, and an Apple ID (a free one works).
@@ -134,5 +134,6 @@ Design notes: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md). Progress and evidenc
 | Phase 2 | Mod manager, Modrinth browser, shader packs, memory work | ✅ Done |
 | Phase 2, Part C | Modrinth modpacks, mod update checks, shader comfort (render-distance warning, memory gauge) | ✅ Done |
 | Release 0.1 | Licences and credits, install guide, GitHub release | ✅ [Published](https://github.com/Vortroxious/Voxelium-launcher/releases/tag/v0.1.0) 2026-10-18 |
+| Release 0.1.1 | Data folder in the Files app, Worlds screen (import, share, delete) | ✅ Built 2026-10-18 ([release notes](docs/RELEASE_NOTES_0.1.1.md)) |
 | Phase 3 | Forge / NeoForge | ⏳ Next |
 | Later | CurseForge (with your own API key), Minecraft 26.2 and newer, game controllers and hardware keyboards, launcher update checks | Ideas |
