@@ -138,3 +138,30 @@ import Testing
         #expect(IrisSettings(gameDirectory: game).shadersEnabled == false)
     }
 }
+
+@Suite struct ShaderLaunchAdviceTests {
+    @Test func warnsAboutHighRenderDistanceWithShadersAndLowersIt() throws {
+        let tmp = try TempDir()
+        let game = tmp.paths.root.appendingPathComponent("instance")
+        // No Iris settings or options yet: nothing to say.
+        #expect(ShaderLaunchAdvice.check(gameDirectory: game) == nil)
+
+        try FileManager.default.createDirectory(at: game.appendingPathComponent("config"), withIntermediateDirectories: true)
+        try "enableShaders=true\nshaderPack=BSL_v10.1.8.zip\n".write(to: game.appendingPathComponent("config/iris.properties"), atomically: true, encoding: .utf8)
+        let options = "version:4671\nrenderDistance:16\nsimulationDistance:12\nmaxFps:120\n"
+        try options.write(to: game.appendingPathComponent("options.txt"), atomically: true, encoding: .utf8)
+        #expect(ShaderLaunchAdvice.check(gameDirectory: game) == ShaderLaunchAdvice(shaderPack: "BSL_v10.1.8.zip", renderDistance: 16))
+
+        try ShaderLaunchAdvice.applySuggestion(gameDirectory: game)
+        #expect(try String(contentsOf: game.appendingPathComponent("options.txt"), encoding: .utf8)
+                == "version:4671\nrenderDistance:8\nsimulationDistance:8\nmaxFps:120\n")
+        #expect(ShaderLaunchAdvice.check(gameDirectory: game) == nil)
+
+        // Shaders off: no advice even at 16.
+        var o = GameOptions(gameDirectory: game)
+        try o.set("renderDistance", "16")
+        var iris = IrisSettings(gameDirectory: game)
+        try iris.setShadersEnabled(false)
+        #expect(ShaderLaunchAdvice.check(gameDirectory: game) == nil)
+    }
+}

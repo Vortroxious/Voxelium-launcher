@@ -96,16 +96,25 @@ struct InstalledRow: View {
     @EnvironmentObject var accounts: AccountModel
     let version: InstalledVersion
     @State private var showContent = false
+    @State private var advice: ShaderLaunchAdvice?
+
+    /// Loader installs are named like "fabric-loader-0.19.5-1.21.11"; anything else
+    /// modded is a modpack named after itself.
+    private var isModpack: Bool {
+        version.isModded && !version.id.hasPrefix("fabric-loader-") && !version.id.hasPrefix("quilt-loader-")
+    }
+    private var loaderLine: String { "\(version.loader ?? "Modded") \(version.base)" }
 
     var body: some View {
         HStack {
             VStack(alignment: .leading, spacing: 2) {
-                Text(version.isModded ? "\(version.loader ?? "Modded") \(version.base)" : version.id).font(.headline)
-                Text(version.isModded ? version.id : "Vanilla").font(.caption).foregroundStyle(.secondary)
+                Text(isModpack ? version.id : version.isModded ? loaderLine : version.id).font(.headline)
+                Text(isModpack ? "Modpack · \(loaderLine)" : version.isModded ? version.id : "Vanilla")
+                    .font(.caption).foregroundStyle(.secondary)
             }
             Spacer()
             Menu {
-                Button("Launch Minecraft (needs JIT)") { launchVersion(version.id, model: model, minecraft: minecraft, accounts: accounts) }
+                Button("Launch Minecraft (needs JIT)") { launch() }
                 Button(version.isModded ? "Mods & packs…" : "Resource packs…") { showContent = true }
                 Button("Prepare launch plan") { model.preparePlan(version.id) }
             } label: {
@@ -113,7 +122,40 @@ struct InstalledRow: View {
             }
         }
         .sheet(isPresented: $showContent) { ContentLibraryView(version: version) }
+        .confirmationDialog("Render distance \(advice?.renderDistance ?? 0) with shaders", isPresented: Binding(
+            get: { advice != nil }, set: { if !$0 { advice = nil } }), titleVisibility: .visible) {
+            Button("Lower to \(ShaderLaunchAdvice.suggestedRenderDistance) and play") {
+                if let dir = model.gameDirectory(for: version.id) {
+                    do {
+                        try ShaderLaunchAdvice.applySuggestion(gameDirectory: dir)
+                        model.log.info("launch", "Render distance lowered to \(ShaderLaunchAdvice.suggestedRenderDistance) for \(version.id) (shaders on)")
+                    } catch {
+                        model.log.error("launch", "Could not change options.txt for \(version.id): \(error)")
+                    }
+                }
+                start()
+            }
+            Button("Play anyway") {
+                model.log.info("launch", "Shader render-distance warning for \(version.id): played anyway at \(advice?.renderDistance ?? 0)")
+                start()
+            }
+            Button("Cancel", role: .cancel) { model.log.info("launch", "Shader render-distance warning for \(version.id): cancelled") }
+        } message: {
+            Text("With the shader pack \(advice?.shaderPack ?? "") on, render distances above \(ShaderLaunchAdvice.comfortableRenderDistance) can use more memory than iOS allows, and the game closes. \(ShaderLaunchAdvice.suggestedRenderDistance)–\(ShaderLaunchAdvice.comfortableRenderDistance) works well on iPhone.")
+        }
     }
+
+    /// Checks for a shader pack with a high render distance first (memory).
+    private func launch() {
+        if let dir = model.gameDirectory(for: version.id), let found = ShaderLaunchAdvice.check(gameDirectory: dir) {
+            model.log.info("launch", "Shader render-distance warning shown for \(version.id): \(found.shaderPack) at render distance \(found.renderDistance)")
+            advice = found
+        } else {
+            start()
+        }
+    }
+
+    private func start() { launchVersion(version.id, model: model, minecraft: minecraft, accounts: accounts) }
 }
 
 struct VersionRow: View {

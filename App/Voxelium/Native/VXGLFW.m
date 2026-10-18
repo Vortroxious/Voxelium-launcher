@@ -305,6 +305,16 @@ typedef NS_ENUM(NSInteger, VXSpecial) {
 @property (nonatomic, copy) CGPoint (^origin)(CGFloat W, CGFloat H);
 @end
 
+// The app's memory as iOS counts it (phys_footprint) and how much more it may use
+// before iOS kills it; footprint + available is the app's limit (3376 MB on an iPhone
+// 15 Pro Max).
+static void vxMemoryNow(uint64_t *footprint, uint64_t *available) {
+    task_vm_info_data_t info;
+    mach_msg_type_number_t count = TASK_VM_INFO_COUNT;
+    *footprint = task_info(mach_task_self(), TASK_VM_INFO, (task_info_t)&info, &count) == KERN_SUCCESS ? info.phys_footprint : 0;
+    *available = os_proc_available_memory();
+}
+
 @interface VXControlsOverlay : UIView
 @property (nonatomic, weak) VXGLFWWindowObj *owner;
 @property (nonatomic, weak) UIView *gameView;
@@ -314,6 +324,7 @@ typedef NS_ENUM(NSInteger, VXSpecial) {
 - (void)special:(VXSpecial)special from:(VXControlButton *)button;
 - (void)toggleKeyboard;
 - (void)refresh;
+- (void)showNotice:(NSString *)text;
 @end
 
 @implementation VXControlButton
@@ -504,6 +515,9 @@ typedef NS_ENUM(NSInteger, VXSpecial) {
     VXKeyboardProxy *_keyboard;
     CGSize _loggedSize;
     CGFloat _stickX, _stickY, _stickSize;  // fractions of the overlay / points; _stickY < 0 = default
+    UILabel *_memoryGauge;   // "1.7 / 3.4 GB" under More: orange from 80%, red from 90% of the limit
+    UILabel *_notice;        // short messages, e.g. after an iOS memory warning
+    NSTimer *_memoryTimer;
     CGFloat _controlsAlpha;                // layout "opacity" (Controls tab), applied to buttons and joystick
 }
 
@@ -636,9 +650,60 @@ typedef NS_ENUM(NSInteger, VXSpecial) {
         _pointer.userInteractionEnabled = NO;
         _pointer.hidden = YES;
         [self addSubview:_pointer];
+
+        _memoryGauge = [UILabel new];
+        _memoryGauge.font = [UIFont monospacedDigitSystemFontOfSize:11 weight:UIFontWeightSemibold];
+        _memoryGauge.textColor = UIColor.whiteColor;
+        _memoryGauge.textAlignment = NSTextAlignmentCenter;
+        _memoryGauge.layer.cornerRadius = 8;
+        _memoryGauge.layer.masksToBounds = YES;
+        _memoryGauge.userInteractionEnabled = NO;
+        _memoryGauge.accessibilityLabel = @"Memory use";
+        [self addSubview:_memoryGauge];
+        _notice = [UILabel new];
+        _notice.font = [UIFont systemFontOfSize:13 weight:UIFontWeightSemibold];
+        _notice.textColor = UIColor.whiteColor;
+        _notice.backgroundColor = [UIColor colorWithRed:0.75 green:0.2 blue:0.15 alpha:0.9];
+        _notice.numberOfLines = 0;
+        _notice.textAlignment = NSTextAlignmentCenter;
+        _notice.layer.cornerRadius = 10;
+        _notice.layer.masksToBounds = YES;
+        _notice.userInteractionEnabled = NO;
+        _notice.alpha = 0;
+        [self addSubview:_notice];
+        __weak VXControlsOverlay *weakSelf = self;
+        _memoryTimer = [NSTimer scheduledTimerWithTimeInterval:2 repeats:YES block:^(NSTimer *t) { [weakSelf updateMemoryGauge]; }];
+        [self updateMemoryGauge];
         [self refresh];
     }
     return self;
+}
+
+- (void)dealloc { [_memoryTimer invalidate]; }
+
+- (void)updateMemoryGauge {
+    uint64_t footprint = 0, available = 0;
+    vxMemoryNow(&footprint, &available);
+    double used = footprint / 1073741824.0, limit = (footprint + available) / 1073741824.0;
+    double share = limit > 0 ? used / limit : 0;
+    _memoryGauge.text = [NSString stringWithFormat:@"%.1f / %.1f GB", used, limit];
+    _memoryGauge.backgroundColor = share >= 0.9 ? [UIColor colorWithRed:0.8 green:0.15 blue:0.1 alpha:0.85]
+                                 : share >= 0.8 ? [UIColor colorWithRed:0.9 green:0.55 blue:0.0 alpha:0.85]
+                                                : [UIColor colorWithWhite:0 alpha:0.4];
+    [self setNeedsLayout];
+}
+
+- (void)showNotice:(NSString *)text {
+    _notice.text = text;
+    [self setNeedsLayout];
+    [self layoutIfNeeded];
+    [UIView animateWithDuration:0.25 animations:^{ self->_notice.alpha = 1; }];
+    [NSObject cancelPreviousPerformRequestsWithTarget:self selector:@selector(hideNotice) object:nil];
+    [self performSelector:@selector(hideNotice) withObject:nil afterDelay:6];
+}
+
+- (void)hideNotice {
+    [UIView animateWithDuration:0.4 animations:^{ self->_notice.alpha = 0; }];
 }
 
 - (VXControlButton *)add:(NSString *)name key:(int)key w:(CGFloat)w h:(CGFloat)h game:(BOOL)game menu:(BOOL)menu
@@ -676,6 +741,7 @@ typedef NS_ENUM(NSInteger, VXSpecial) {
     }
     _stick.hidden = !self.inGame || self.guiHidden;  // joystick: in game only
     self.pointer.hidden = !(self.virtualMouse && !self.inGame);
+    _memoryGauge.hidden = self.guiHidden || self.drawerOpen;
 }
 
 - (void)setInGame:(BOOL)inGame {
@@ -771,6 +837,17 @@ typedef NS_ENUM(NSInteger, VXSpecial) {
     const CGFloat stick = _stickSize;
     CGFloat sy = _stickY >= 0 ? _stickY * H : 0.9753418 * H - stick;
     _stick.frame = CGRectMake(MIN(MAX(_stickX * W, 0), W - stick), MIN(MAX(sy, 0), H - stick), stick, stick);
+
+    // Memory gauge just under the More button (wherever a custom layout puts it).
+    CGRect anchor = CGRectMake(0, 0, 100, 40);
+    for (VXControlButton *btn in _buttons) if (btn.special == VXSpecialDrawer) { anchor = btn.frame; break; }
+    CGSize g = [_memoryGauge sizeThatFits:CGSizeMake(200, 20)];
+    CGFloat gw = g.width + 14, gh = 18;
+    _memoryGauge.frame = CGRectMake(MIN(MAX(CGRectGetMidX(anchor) - gw / 2, 0), W - gw),
+                                    MIN(CGRectGetMaxY(anchor) + 4, H - gh), gw, gh);
+    CGFloat nw = MIN(W - 40, 420);
+    CGSize n = [_notice sizeThatFits:CGSizeMake(nw - 24, 200)];
+    _notice.frame = CGRectMake((W - nw) / 2, 60, nw, n.height + 16);
 }
 
 @end
@@ -1250,6 +1327,14 @@ static void vxInstallLifecycleObservers(void) {
         [nc addObserverForName:UIApplicationDidReceiveMemoryWarningNotification object:nil queue:main usingBlock:^(NSNotification *n) {
             vxLogMemory("iOS memory warning");
             VXJVMRequestGC("iOS memory warning");
+            static uint64_t lastNotice;
+            uint64_t now = clock_gettime_nsec_np(CLOCK_UPTIME_RAW);
+            if (gVisibleWindow && now - lastNotice > 60ull * NSEC_PER_SEC) {   // at most once a minute
+                lastNotice = now;
+                NSLog(@"[VXMEM] showing the low-memory notice in game");
+                [gVisibleWindow.view.overlay showNotice:@"Memory is almost full. Lower the render distance "
+                                                        @"(Options → Video Settings) to avoid a crash."];
+            }
         }];
         [nc addObserverForName:UIApplicationDidBecomeActiveNotification object:nil queue:main usingBlock:^(NSNotification *n) {
             vxEndBackgroundTask();

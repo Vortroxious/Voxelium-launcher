@@ -1044,3 +1044,24 @@ Changes:
   - Opening Fabric 1.21.11's mods tab logged "Updates for fabric-loader-0.19.5-1.21.11: essential-container 1.4.1.1 → 1.5.1"; the user tapped it, and 7 s later "Updated … 1.4.1.1 → 1.5.1".
   - The `mods/` folder holds `Essential_1-5-1_fabric_1-21-11.jar` (50.4 MB) and no 1.4.1.1 jar.
   - Sodium 0.8.14 (newest release; 0.8.15 only in beta) was not offered, as intended. The switched-off `pointblank-…jar.disabled` was untouched.
+
+## 2026-10-18 — Shader comfort: render-distance warning and memory gauge (Part C of phase 2)
+- Committed first: `dfaefab` (mod update checks).
+- **VoxeliumCore `Content/GameOptions.swift`:**
+  - `GameOptions` reads `options.txt` and changes single keys, keeping every other line.
+  - `ShaderLaunchAdvice.check(gameDirectory:)` gives advice when Iris shaders are on with a pack and `renderDistance` > 10. The thresholds come from the measurements above: shaders at 16 killed at the 3376 MB limit; 8 stable at 2.2 GB.
+  - `applySuggestion` sets render distance 8, and simulation distance 8 when it was higher.
+  - 1 new test (97 pass).
+- **Launcher:**
+  - Play on an installed version first checks that advice. When it applies, a dialog explains the memory risk with **Lower to 8 and play**, **Play anyway** or **Cancel**; lowering is logged.
+  - Modpack rows now show the pack's name ("Fabulously Optimized 13.6.0", "Modpack · Fabric 26.1.2") instead of only the loader line.
+- **In game (VXGLFW overlay):**
+  - A small memory gauge under the More button ("1.7 / 3.4 GB": footprint against footprint + `os_proc_available_memory`), refreshed every 2 s. It is neutral, orange from 80% and red from 90% of the limit; hidden with the HUD or when the More drawer is open; positioned from the More button, so custom layouts work.
+  - On an iOS memory warning, at most once a minute, a notice at the top says: "Memory is almost full. Lower the render distance (Options → Video Settings) to avoid a crash."
+- **Build `202610180704`** (normal MobileGlues): SHA-256 `ca0a311e42f4c71dacc8011dafcfca4adbc01c8f568187d9d30a726d8ca27702`. **Not yet run on device.**
+- **Device run on build 202610180704 (BSL, Fabric 1.21.11, 2026-10-18 07:09Z):**
+  - **The user confirms the warning dialog appeared, and they chose "Play anyway"** to see what happens: the game started at render distance 16 (simulation 5), and options.txt still says 16.
+  - iOS memory warnings from 2.70 GB about 1 minute in. The footprint then climbed to 3.35 GB (GPU 1.0–1.09 GB, rest 2.27–2.33 GB; G1 heap 1097→796 MB of 1177 MB committed), with 22 MB left. The log ends about 3 minutes in with no "Stopping!", the same pattern as the earlier memory kills.
+  - Gauge and notice are on-screen only and unverified from logs.
+- **Build `202610180713`** (SHA-256 `b09426f49c0e50311f25a2565e80f496081e6ddb0aa6bdd59f262d1dd272aa47`): logs the dialog (shown / played anyway / cancelled / lowered) and the in-game low-memory notice.
+- **User confirmation (build 202610180704):** the in-game memory gauge changed colour as memory rose, and the low-memory notice appeared.

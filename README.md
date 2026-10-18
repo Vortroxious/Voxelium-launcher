@@ -78,7 +78,7 @@ Design notes: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md). Progress and evidenc
 | Milestones 1–7 | Core, downloads, JVM on iOS with JIT, OpenGL on Metal, input, launching Minecraft | ✅ Done (1.13 – 26.1 on device) |
 | Phase 1 | Fabric and Quilt | ✅ Done (Quilt not yet tried on device) |
 | Phase 2 | Mod manager, Modrinth browser, shader packs, memory work | ✅ Done |
-| Phase 2, Part C | Modrinth modpacks ✅, mod update checks ✅, shader comfort (render-distance warning, memory gauge) | ⏳ Now |
-| Release 0.1 | Licences and credits, install guide, GitHub release | Next |
+| Phase 2, Part C | Modrinth modpacks, mod update checks, shader comfort (render-distance warning, memory gauge) | ✅ Done |
+| Release 0.1 | Licences and credits, install guide, GitHub release | ⏳ Now |
 | Phase 3 | Forge / NeoForge | After the first release |
 | Later | CurseForge (with your own API key), Minecraft 26.2 and newer, game controllers and hardware keyboards, launcher update checks | Ideas |
