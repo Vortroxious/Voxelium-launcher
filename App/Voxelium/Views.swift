@@ -71,6 +71,7 @@ struct InstalledRow: View {
     @EnvironmentObject var minecraft: MinecraftLauncher
     @EnvironmentObject var accounts: AccountModel
     let version: InstalledVersion
+    @State private var showContent = false
 
     var body: some View {
         HStack {
@@ -81,11 +82,13 @@ struct InstalledRow: View {
             Spacer()
             Menu {
                 Button("Launch Minecraft (needs JIT)") { launchVersion(version.id, model: model, minecraft: minecraft, accounts: accounts) }
+                Button(version.isModded ? "Mods & packs…" : "Resource packs…") { showContent = true }
                 Button("Prepare launch plan") { model.preparePlan(version.id) }
             } label: {
                 Label("Play", systemImage: "play.circle.fill")
             }
         }
+        .sheet(isPresented: $showContent) { ContentLibraryView(version: version) }
     }
 }
 

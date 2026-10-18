@@ -13,6 +13,8 @@ usage: voxelium-cli <command> [args]
   install-loader <fabric|quilt> <mc> [build] [--root DIR]
                                      install a Fabric/Quilt build (and its base version)
   check-macho <file>...              report Mach-O slices and iOS-device loadability
+  inspect <mods|resourcepacks|shaderpacks> <file>...
+                                     show what the mod manager reads from a jar/zip
 """
 
 func arg(_ name: String) -> String? {
@@ -107,6 +109,19 @@ do {
         let plan = try LaunchPlanner(paths: p).plan(version: resolved.info, identity: OfflineIdentity.identity(for: "Player"),
                                                     gameDirectory: try p.instanceDir(id))
         print("chain: \(resolved.chain.joined(separator: " -> ")), main \(plan.mainClass), \(plan.classpath.count) classpath entries, \(plan.missingFiles.count) missing")
+
+    case "inspect":
+        let rest = Array(args.dropFirst())
+        guard rest.count >= 2, let kind = ContentKind(rawValue: rest[0]) else { print(usage); exit(2) }
+        for path in rest.dropFirst() {
+            let item = ContentManager.inspect(URL(fileURLWithPath: path), kind: kind, isFolder: false)
+            print("\(item.fileName): name=\(item.name) version=\(item.version ?? "-") loaders=\(item.mod?.loaders.joined(separator: ",") ?? "-") id=\(item.mod?.id ?? "-") authors=\(item.mod?.authors.prefix(3).joined(separator: ",") ?? "-")")
+            if let d = item.description { print("  description: \(d.prefix(100))") }
+            if let p = item.problem { print("  problem: \(p)") }
+            for loader in ["fabric", "quilt", "neoforge"] {
+                if let w = ContentManager.compatibilityWarning(item, loader: loader) { print("  on \(loader): \(w)") }
+            }
+        }
 
     case "check-macho":
         for path in args.dropFirst() {

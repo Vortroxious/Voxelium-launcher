@@ -151,6 +151,13 @@ final class LauncherModel: ObservableObject {
         .sorted { ($0.releaseTime ?? .distantPast, $0.id) > ($1.releaseTime ?? .distantPast, $1.id) }
     }
 
+    /// Where a version's mods, packs and saves live: its own folder when modded,
+    /// the shared game folder for vanilla.
+    func gameDirectory(for id: String) -> URL? {
+        guard let paths, let r = try? VersionResolver(paths: paths).resolve(id) else { return nil }
+        return r.isModded ? try? paths.instanceDir(id) : paths.gameDir
+    }
+
     static func loaderName(of r: ResolvedVersion) -> String? {
         guard r.isModded else { return nil }
         let main = r.info.mainClass

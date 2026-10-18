@@ -718,3 +718,33 @@ Changes:
   - Both launched "on <base>, own game folder": 1.21.11 on Java 21 / LWJGL 3.3.3, 26.1 on Java 25 / LWJGL 3.4.1, both on MobileGlues.
   - jvm.log shows "Loading Minecraft 1.21.11 with Fabric Loader 0.19.5" (3 runs) and "… 26.1 …" (1 run), "Loading 4 mods" (Fabric's built-ins; no user mods yet), "Sound engine started", and clean "Stopping!".
   - Quilt is not yet tried on device.
+
+## 2026-10-18 — Mod manager (Part A of phase 2): add, enable/disable, remove mods, resource packs, shader packs
+- **User request:** "Commit phase 1 …, then start Part A: the mod manager to add, enable/disable and remove mods, resource packs and shader packs." Phase 1 was committed as `e273613`.
+- **VoxeliumCore `Content/`:**
+  - **`ZipReader`:** a minimal read-only ZIP (jar) reader, so the core stays free of third-party dependencies. It reads the central directory plus stored (0) and deflated (8) entries via Apple's Compression framework (`COMPRESSION_ZLIB` = raw DEFLATE). No ZIP64 or encryption.
+  - **`ContentManager`:** works on a game folder's `mods/`, `resourcepacks/` and `shaderpacks/`.
+    - `list` covers files, plus folders for packs.
+    - `setEnabled` renames `x.jar` ↔ `x.jar.disabled`, the convention ZalithLauncher2 and other launchers use, which loaders and Minecraft skip.
+    - `remove` deletes; the app confirms first.
+    - `add` copies, replacing a same-named file enabled or disabled. It validates the type: mods must be jars, packs zips; a shader pack needs `shaders/` and a resource pack needs `pack.mcmeta`, with a hint when a file looks like the other kind.
+  - **Metadata:**
+    - Fabric `fabric.mod.json`; Quilt `quilt.mod.json`; NeoForge `META-INF/neoforge.mods.toml` and Forge `META-INF/mods.toml` (first `[[mods]]` table, headers with comments, multi-line strings, `${file.jarVersion}` taken from `MANIFEST.MF Implementation-Version`); legacy `mcmod.info`.
+    - Pack descriptions from `pack.mcmeta`, whether plain string, text components or lists, with `§` codes stripped.
+  - **`compatibilityWarning`:** flags a mod made for another loader; Quilt accepts Fabric mods.
+  - **CLI:** `voxelium-cli inspect`.
+- **Checked against real files** from Modrinth, downloaded to the scratchpad and only read:
+  - Sodium 0.9.3-beta.1 (Fabric): name, version, id, authors, description.
+  - JEI 31.15.0.81 (NeoForge): needed the header-comment and multi-line fixes.
+  - Faithful 64x resource pack: description.
+  - Complementary Reimagined shader pack: recognised as a shader pack, refused as a resource pack.
+- **Tests:** 6 new, using small synthetic fixtures (`Fixtures/content`, built with `zip`, no third-party mods committed). They cover deflated and stored reads, metadata for all loaders, packs, the add/disable/enable/replace/remove cycle, wrong-kind refusals, and compatibility warnings. `swift test` passes 86/86.
+- **App:**
+  - `ContentLibraryView` opens from the Installed row's menu: "Mods & packs…" for modded versions, "Resource packs…" only for vanilla.
+  - It shows segmented Mods / Resource packs / Shader packs lists with an on/off toggle per item, plus name, version, size, description, a loader warning and a problem notice.
+  - Swipe to remove, with confirmation; Add imports multiple `.jar`/`.zip` files from the Files app with security-scoped access.
+  - Each kind has a footer explaining when changes apply, and that shader packs need Iris and may not render.
+- **Build `202610180137`** (SHA-256 `08ca50f3e83ef867c0c245426c299a1aafd3a55b2d1645b9e15a27cec59e7c60`): no compiler warnings in the new code. **Not yet run on device.**
+- **Device result for build 202610180137 (user report plus launcher.log/jvm.log, 2026-10-18): real mods load on the iPhone.**
+  - The user imported `Essential_1-4-1-1_fabric_1-21-11.jar` and `fabric-api-0.141.6+1.21.11.jar` through the mod manager (launcher.log "content: Added mods/…" at 01:44:11 and 01:44:29) into `fabric-loader-0.19.5-1.21.11`'s own `mods/` folder.
+  - The next launch logged "Loading 50 mods" (Fabric API's modules, Essential, fabricloader, java, minecraft), "Sound engine started" and a clean "Stopping!". The user reports it works.
