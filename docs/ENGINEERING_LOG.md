@@ -1109,3 +1109,13 @@ Changes:
 - actool generated `AppIcon60x60@2x.png`, `AppIcon76x76@2x~ipad.png` and `Assets.car`; Info.plist `CFBundleIcons` points to AppIcon60x60.
 - **Flagged to the user:** the grass block is Mojang artwork, and Mojang's brand guidelines ask unofficial projects not to use their assets in logos or icons. The user decides whether to keep it.
 - **Build `202610180750`** (SHA-256 `a870a4fd6be8afb9aef7b1d36f10a6616feba2605ab4d0249cffdb7f74893fa7`). This supersedes the 0.1.0 candidate (202610180725), so the release-notes checksum must be updated once the icon is committed and the final IPA rebuilt. **Not yet run on device.**
+- **Final 0.1.0 IPA rebuilt with the icon:** committed as `4db779b`; `Voxelium-0.1.0-unsigned.ipa`, build 202610180753, 184,714,117 bytes, SHA-256 `d7e189b24c2aa7a4ee1872e5a6f98513a8767117064041892769a074801b8255`.
+  - Verified: no MobileGlues diagnostics, patch 0014 linked, notices identical, AppIcon60x60@2x and Assets.car present, jre8/17/21/25, no signing or client-ID files, Info.plist 0.1.0 (202610180753).
+  - The release notes and checklist were updated. It replaces the 202610180725 candidate. **Not yet run on device.**
+- **Device pass on the 0.1.0 IPA (build 202610180753, confirmed installed via `devicectl device info apps`; launcher.log and jvm.log, 2026-10-18 07:57–08:01Z):**
+  - **07:58:00:** Fabric launch refused ("JIT is not enabled": opened without StikDebug); relaunched from StikDebug.
+  - **Vanilla 1.21.11 (07:58:24):** joined at view distance 16, 1.46 GB, "Stopping!".
+  - **Fabric 1.21.11 (07:59:26):** 55 mods, BSL, view distance 8 (lowered earlier by the warning dialog, so no dialog this time), 2.16 GB, "Stopping!".
+  - **1.16.5 (08:00:22):** Java 8 + gl4es, joined at view distance 15, 1.77 GB, "Stopping!".
+  - **No modpack launch on this build,** although the user listed one. Fabulously Optimized last ran on 202610180648 (same MobileGlues 0001–0014).
+- **Modpack on the 0.1.0 IPA (build 202610180753, 2026-10-18 08:03Z):** Fabulously Optimized 13.6.0 on 26.1.2 (Java 25, LWJGL 3.4.1), 149 mods, joined at view distance 8, footprint 1.85 GB (GPU 0.44 GB, 1.5 GB left), "Stopping!". **The device pass for the release IPA is complete:** vanilla, Fabric + BSL, a modpack and 1.16.5 (gl4es).
