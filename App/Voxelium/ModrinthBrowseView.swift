@@ -60,7 +60,7 @@ struct ModrinthBrowseView: View {
                         Spacer()
                     }
                 } else if loading && hits.isEmpty {
-                    HStack { Spacer(); ProgressView(); Spacer() }
+                    ForEach(0..<8, id: \.self) { ModrinthHitSkeleton(index: $0) }
                 }
             } header: {
                 Text(total > 0 ? "\(total) on Modrinth for \(version.base)\(gameLoader.map { " · \($0.capitalized)" } ?? "")" : "Modrinth")
@@ -95,7 +95,10 @@ struct ModrinthBrowseView: View {
             hits = reset ? page.hits : hits + page.hits
             total = page.totalHits
         } catch {
-            self.error = String(describing: error)
+            self.error = model.isOffline || LauncherModel.looksOffline(error)
+                ? "No internet connection. Please turn on your internet and try again."
+                : "Couldn't reach Modrinth. Please try again in a moment."
+            model.log.error("content", "Modrinth search failed: \(error)")
         }
     }
 

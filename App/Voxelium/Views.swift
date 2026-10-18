@@ -28,10 +28,24 @@ struct VersionsView: View {
                         Text(m).font(.caption)
                     }
                 }
-                if let error = model.manifestError {
+                if let problem = model.manifestProblem {
                     Section {
-                        Label(error, systemImage: "exclamationmark.triangle").foregroundStyle(.red)
-                        Button("Retry") { Task { await model.loadManifest() } }
+                        switch problem {
+                        case .offline:
+                            Label("No internet connection", systemImage: "wifi.slash").font(.headline)
+                            Text("Please turn on your internet and refresh the page.")
+                                .font(.callout).foregroundStyle(.secondary)
+                        case .unavailable:
+                            Label("Couldn't load the version list", systemImage: "exclamationmark.triangle").font(.headline)
+                            Text("Minecraft's servers didn't answer. Please try again in a moment. Details are in Logs.")
+                                .font(.callout).foregroundStyle(.secondary)
+                        case .startup(let detail):
+                            Label("Voxelium could not start", systemImage: "xmark.octagon").foregroundStyle(.red)
+                            Text(detail).font(.caption)
+                        }
+                        if problem.canRefresh {
+                            Button { Task { await model.loadManifest() } } label: { Label("Refresh", systemImage: "arrow.clockwise") }
+                        }
                     }
                 }
                 let installed = model.installedVersions
@@ -44,12 +58,15 @@ struct VersionsView: View {
                     Toggle("Show snapshots", isOn: $model.settings.showSnapshots)
                 }
                 Section("Versions") {
+                    if model.manifest == nil && model.manifestProblem == nil {
+                        // Still loading (or not started yet): placeholders shaped like the rows.
+                        ForEach(0..<9, id: \.self) { VersionRowSkeleton(index: $0) }
+                    }
                     ForEach(model.visibleVersions) { entry in
                         VersionRow(entry: entry) { loader in installTarget = InstallTarget(entry: entry, loader: loader) }
                     }
                 }
             }
-            .overlay { if model.loadingManifest && model.manifest == nil { ProgressView("Loading versions…") } }
             .refreshable { await model.loadManifest() }
             .navigationTitle("Minecraft Versions")
             .sheet(item: $installTarget) { target in

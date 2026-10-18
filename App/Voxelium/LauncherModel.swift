@@ -1,4 +1,5 @@
 import Foundation
+import Network
 import VoxeliumCore
 
 /// App state. All launcher logic lives in VoxeliumCore; this only adapts it to SwiftUI.
@@ -12,8 +13,23 @@ final class LauncherModel: ObservableObject {
         case failed(String)
     }
 
+    /// Why the version list is missing, in words for the player (details go to the log).
+    enum ManifestProblem: Equatable {
+        case offline
+        case unavailable
+        case startup(String)
+
+        var canRefresh: Bool {
+            if case .startup = self { return false }
+            return true
+        }
+    }
+
     @Published private(set) var manifest: VersionManifest?
-    @Published private(set) var manifestError: String?
+    @Published private(set) var manifestProblem: ManifestProblem?
+    /// No network path (Wi-Fi and mobile data off, airplane mode). Reloads the version
+    /// list by itself when a connection comes back.
+    @Published private(set) var isOffline = false
     @Published private(set) var loadingManifest = false
     @Published private(set) var installed: Set<String> = []
     @Published private(set) var installState: [String: InstallState] = [:]
@@ -26,6 +42,32 @@ final class LauncherModel: ObservableObject {
     private(set) var paths: AppPaths?
     private var settingsStore: SettingsStore?
     private var installer: GameInstaller?
+    private let pathMonitor = NWPathMonitor()
+
+    private func startNetworkMonitor() {
+        pathMonitor.pathUpdateHandler = { [weak self] path in
+            let offline = path.status != .satisfied
+            Task { @MainActor in
+                guard let self, self.isOffline != offline else { return }
+                self.isOffline = offline
+                self.log.info("network", offline ? "No internet connection" : "Internet connection available")
+                if !offline && self.manifest == nil && self.manifestProblem == .offline { await self.loadManifest() }
+            }
+        }
+        pathMonitor.start(queue: DispatchQueue(label: "Voxelium.network"))
+    }
+
+    /// Whether a download failed because there is no connection (URL errors arrive as
+    /// text through the downloader).
+    static func looksOffline(_ error: Error) -> Bool {
+        if let e = error as? URLError {
+            return [.notConnectedToInternet, .networkConnectionLost, .dataNotAllowed, .internationalRoamingOff]
+                .contains(e.code)
+        }
+        let text = String(describing: error).lowercased()
+        return ["-1009", "-1005", "-1020", "-1018", "appears to be offline", "not connected to the internet"]
+            .contains { text.contains($0) }
+    }
 
     func start() async {
         guard paths == nil else { return }
@@ -44,11 +86,12 @@ final class LauncherModel: ObservableObject {
             log.info("app", "JIT: \(VXJVMBridge.jitDescription())")
             log.info("app", "GLFW bridge: \(VXGLFWSelfCheck())")
             exportJITScript()
+            startNetworkMonitor()
             refreshInstalled()
             await loadManifest()
         } catch {
             log.error("app", "Startup failed: \(error)")
-            manifestError = "Startup failed: \(error)"
+            manifestProblem = .startup(String(describing: error))
         }
     }
 
@@ -71,14 +114,18 @@ final class LauncherModel: ObservableObject {
 
     func loadManifest() async {
         guard let installer else { return }
+        if isOffline {
+            manifestProblem = .offline
+            return
+        }
         loadingManifest = true
         defer { loadingManifest = false }
         do {
             manifest = try await installer.fetchManifest()
-            manifestError = nil
+            manifestProblem = nil
         } catch {
             log.error("versions", "Manifest download failed: \(error)")
-            manifestError = String(describing: error)
+            manifestProblem = isOffline || Self.looksOffline(error) ? .offline : .unavailable
         }
     }
 
