@@ -163,6 +163,15 @@ final class MinecraftLauncher: ObservableObject {
             // Memory Error (allocation.cpp:389)" on 1.13.2 (hs_err, 2026-10-17).
             // Use the C1 JIT only on Java 8.
             if javaMajor == 8 { options.append("-XX:TieredStopAtLevel=1") }
+            // iOS kills the app at a fixed footprint (3376 MB on an iPhone 15 Pro Max,
+            // "exceeded mem limit: ActiveHard", 2026-10-18 with shader packs), and a Java
+            // heap that grew once never shrinks by default. Give freed heap back to iOS
+            // (G1: shrink to at most 30% free after a collection, and collect every 15 s
+            // when idle so that happens), and log each collection's heap use to jvm.log.
+            if javaMajor >= 9 {
+                options += ["-XX:MinHeapFreeRatio=10", "-XX:MaxHeapFreeRatio=30", "-XX:G1PeriodicGCInterval=15000",
+                            "-Xlog:gc:stdout"]
+            }
             // Diagnostics: when logs/lwjgl-debug contains "on", LWJGL logs GL functions it
             // cannot find and extensions it rejects (to stderr, i.e. jvm.log). Off by default.
             let lwjglDebugFlag = (try? String(contentsOf: paths.logsDir.appendingPathComponent("lwjgl-debug"), encoding: .utf8)) ?? ""

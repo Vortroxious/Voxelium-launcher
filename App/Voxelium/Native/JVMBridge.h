@@ -37,4 +37,9 @@ typedef NS_ENUM(NSInteger, VXJVMStatus) {
 
 @end
 
+/// Asks the running JVM (if any) for a full garbage collection on a background thread,
+/// so the heap shrinks when iOS warns about memory. No-op without a JVM, while one is
+/// already running, or within 20 s of the last one. `why` is logged and must be a string literal.
+FOUNDATION_EXPORT void VXJVMRequestGC(const char *_Nullable why);
+
 NS_ASSUME_NONNULL_END

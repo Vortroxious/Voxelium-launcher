@@ -863,3 +863,55 @@ Changes:
 - **Build `202610180310`** (diagnostic, 0001–0011): `build/ipa/Voxelium-diagnostic-unsigned.ipa`, SHA-256 `a12735b67e16a435a9d53027fc073a91056a56b0c68f63bb36a8c054546c65bd`. **Not yet run on device.**
 - **Device result for diagnostic build 202610180310 (user report plus jvm.log, 2026-10-18):**
   - **Patch 0011 works:** the user reports BSL is "so GOOD" and MakeUp is good too. No `glDrawElements` errors, `[MG-DRAW]` reports or Metal attribute messages in any of the three runs. `glTexBuffer` errors are gone as well (only `[MG-TBO]` call logging remains).
+  - **The user suspected memory for the run endings. What the logs show:**
+    - **03:18 run, a real crash:** "Rendering screen: IllegalStateException: Can't map buffer, opengl error 0", on the title screen (panorama). Right after "app in background" at 10:19:04, ANGLE logged "Metal command buffer execution failed" twice (`ContextMtl.mm checkCommandBufferError`). The user had swiped the app away. iOS refuses GPU work from background apps and the title screen kept rendering (only in-game is paused). The crash report showed only 104 MiB of the Java heap in use (819 MiB committed, 1344 max).
+    - **03:17 run (BSL, about 10 s into the world) and 03:19 run (MakeUp, about 20 s in):** jvm.log just stops. No Java exception, no `hs_err`, no Voxelium crash report, and no JetsamEvent for today in `devicectl … systemCrashLogs`. Cause not proven. The system log needs root (`log collect --device-udid` → "Must be root").
+- **App changes (VXGLFW.m):**
+  - **Background:** on `DidEnterBackground` the render thread waits in `glfwSwapBuffers` until `WillEnterForeground` (logged "rendering paused/resumed"), so no GPU work is submitted while in the background.
+  - **`[VXMEM]`:** every 10 s while the game draws, and on every iOS memory warning, logs the app's `phys_footprint` (what jetsam limits) with its peak, and `os_proc_available_memory()` with its lowest value. The next run that ends silently will show whether memory was running out.
+- **Build `202610180323`** (diagnostic MobileGlues, 0001–0011): `build/ipa/Voxelium-diagnostic-unsigned.ipa`, SHA-256 `83494daf2942d63a5da572d9e7e622aa2be378d149b08e00d9fb476b71ec5442`. **Not yet run on device.**
+- **System log (user ran `sudo log collect --device-udid … --last 15m`, archive on their Desktop, 10:17–10:32 local, 2026-10-18). Both silent deaths of build 0310 were iOS memory kills:**
+  - runningboardd at launch: "Memory Limits: active 3376 inactive 3376".
+  - **BSL run, pid 10684:** UIKit "Received memory warning" ×5 at 10:17:52. Then at 10:18:18 kernel memorystatus: "Voxelium [10684] exceeded mem limit: ActiveHard 3376 MB (fatal)" and "killing_specific_process … (per-process-limit 100 65s …) 3457060KB".
+  - **MakeUp run, pid 10705** (the user switched from BSL in game): memory warnings at 10:20:00 and 10:20:06, then the same kill at 10:20:54 at 3457028 KB, 93 s in.
+  - The phone as a whole was under pressure too (jetsam killed assetsd for memory-highwater at 10:18:13).
+  - No JetsamEvent `.ips` was written for these kills (Corpse allowed 1 of 5). The jvm.log of 10684 stops at 10:17:53, although the process ran until 10:18:18.
+  - Settings at the time: Java heap `-Xmx1336M` (40% of available memory at launch; 819 MB committed with 104 MB used on the title screen in the 0310 crash report); render distance 16, simulation distance 12; Essential, Fabric API, Sodium and Iris loaded.
+- **Changes in build 202610180331:**
+  - **Launcher (Java 9+):** `-XX:MinHeapFreeRatio=10 -XX:MaxHeapFreeRatio=30 -XX:G1PeriodicGCInterval=15000`, so G1 gives freed heap back to iOS instead of keeping its high-water mark; `-Xlog:gc:stdout` logs used→after(committed) for each collection to jvm.log.
+  - **JVM bridge:** `VXJVMRequestGC` runs `System.gc()` on a background thread attached to the running VM; VXGLFW calls it on every iOS memory warning, coalesced, and logs how long it took.
+  - **`[VXMEM]`** now also shows GPU memory (`ledger_tag_graphics_footprint`), the non-GPU rest, and `limit_bytes_remaining`.
+  - Diagnostic MobileGlues (0001–0011). IPA SHA-256 `045dce3fef86010d625b533339217bc46738678b34ad53fff0c31789e65d31d7`. **Not yet run on device.**
+- **Next:** read `[VXMEM]` and the GC log from a shader run to see whether the footprint is Java heap, GPU (shader-pack render targets, Sodium geometry) or other native memory (MobileGlues buffer copies, JIT code), and cut the biggest one.
+- **Device result for build 202610180331 (BSL on Fabric 1.21.11, 2026-10-18 10:38–10:42 local; jvm.log `[VXMEM]` and G1 log):** the longest shader session so far, more than 3 minutes.
+  - **Footprint:**
+    - Title screen with mods: 959 MB (GPU 1 MB).
+    - Loading MakeUp then BSL: 1777 MB.
+    - In the world: 2588 MB at 10:39:14, and about 3100–3200 MB from 10:39:44 on, with 175–260 MB left before the limit.
+    - At the peak: GPU ≈ 1.0–1.07 GB; non-GPU "rest" ≈ 2.1 GB, up from 957 MB on the title screen.
+  - **Java heap (G1 log):** about 700–750 MB live after collections (e.g. `910M->727M(972M)`), committed 972 MB, never near `-Xmx1336M`. So about 720 MB of the 1.15 GB growth in "rest" is heap; the rest (≈430 MB) is metaspace, JIT code and native buffers.
+  - **iOS memory warnings** start at about 2700 MB footprint and repeat every 0.4–0.5 s while it stays there. Each warning triggered a full `System.gc()` taking 268–819 ms, so back-to-back pauses: a stutter I caused. They barely lowered the footprint (the live heap is the floor).
+  - **End of session:** at 10:42:06, after "Saving and pausing game…", a resource reload rebuilt the atlases (GPU dropped 1019 → 548 MB). jvm.log ends at about 10:42:15 with no "Stopping!", so probably killed again. The system log was not collected for this run.
+- **Reading:** the game's world data dominates. Render distance 16 (simulation 12) means 33×33 = 1089 chunks held by the client, and by the integrated server, which also loads that radius. Chunk geometry for all of them sits in GPU memory next to BSL's render targets and shadow maps. Essential adds heap and threads too.
+  - ANGLE's CPU shadow copies of buffers are not a factor: `useShadowBuffersWhenAppropriate` is enabled only on Intel (DisplayMtl.mm).
+  - MobileGlues maps buffers straight through to ANGLE (no copies).
+- **Changes, build `202610180344`:**
+  - **`VXJVMRequestGC`:** at most once per 20 s.
+  - **Normal (non-diagnostic) MobileGlues again:** no `[MG-*]` reporting; patches 0009 and 0011 are kept. The diagnostic build called `glGetError` after every GL call.
+  - `[VXMEM]` and the G1 log stay.
+  - `build/ipa/Voxelium-unsigned.ipa`, SHA-256 `783013f67964b0fd80f0a9872ae6203330f0783ec5a4b8fff650610ebf690dcc`. **Not yet run on device.**
+- **Next test:** BSL at render distance 8 and simulation distance 5, with and without Essential, comparing `[VXMEM]` against the 3.1–3.2 GB above.
+- **Device result for build 202610180344 (BSL, render distance 8, simulation distance 5; options.txt checked; 2026-10-18 10:51–10:53 local):** a stable session, ended by the user quitting ("Saving and pausing game…", "Stopping!"). **No iOS memory warnings.**
+
+  | | RD 16 / sim 12 (build 0331) | RD 8 / sim 5 (build 0344) |
+  |---|---|---|
+  | Footprint in world | 3.1–3.2 GB (killed at 3.38 GB) | 2.13–2.23 GB |
+  | Room left before iOS limit | 175–260 MB | 1.15–1.25 GB |
+  | GPU | 1.0–1.07 GB | 0.49–0.58 GB |
+  | Non-GPU rest | 2.1 GB | 1.63–1.65 GB |
+  | Java heap (G1, after GC) | ≈727 MB live, 972 MB committed | ≈583 MB live, 653 MB committed |
+
+  - The title screen alone (with mods, before the world) is about 1.1 GB, all non-GPU.
+  - Render distance roughly halves GPU memory and takes about 450 MB off the rest.
+  - The non-diagnostic MobileGlues build ran with BSL without visible problems (user report).
+- **Guidance:** with shader packs on this iPhone, render distance 8–10 fits comfortably; 16 runs out of memory within minutes.

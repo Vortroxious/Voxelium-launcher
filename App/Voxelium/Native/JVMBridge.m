@@ -20,6 +20,38 @@
 
 typedef jint (*CreateJavaVM_t)(JavaVM **, void **, void *);
 
+// The running VM, for VXJVMRequestGC (one VM per process).
+static _Atomic(JavaVM *) gRunningVM;
+
+void VXJVMRequestGC(const char *why) {
+    JavaVM *vm = atomic_load(&gRunningVM);
+    if (!vm) return;
+    // iOS repeats memory warnings every ~0.5 s while the app stays near its limit, and
+    // each full GC paused the game for 300-800 ms (build 0331): at most one per 20 s.
+    static atomic_bool busy;
+    static _Atomic uint64_t lastStart;
+    uint64_t now = clock_gettime_nsec_np(CLOCK_UPTIME_RAW);
+    if (now - atomic_load(&lastStart) < 20ull * NSEC_PER_SEC) return;
+    if (atomic_exchange(&busy, true)) return;
+    atomic_store(&lastStart, now);
+    const char *reason = why ? why : "request";
+    dispatch_async(dispatch_get_global_queue(QOS_CLASS_UTILITY, 0), ^{
+        JNIEnv *env = NULL;
+        if ((*vm)->AttachCurrentThreadAsDaemon(vm, (void **)&env, NULL) == JNI_OK && env) {
+            uint64_t start = clock_gettime_nsec_np(CLOCK_UPTIME_RAW);
+            jclass system = (*env)->FindClass(env, "java/lang/System");
+            jmethodID gc = system ? (*env)->GetStaticMethodID(env, system, "gc", "()V") : NULL;
+            if (gc) (*env)->CallStaticVoidMethod(env, system, gc);
+            if ((*env)->ExceptionCheck(env)) (*env)->ExceptionClear(env);
+            printf("[VXMEM] System.gc() for %s took %llu ms\n", reason,
+                   (clock_gettime_nsec_np(CLOCK_UPTIME_RAW) - start) / 1000000);
+            fflush(stdout);
+            (*vm)->DetachCurrentThread(vm);
+        }
+        atomic_store(&busy, false);
+    });
+}
+
 @implementation VXJVMResult
 - (instancetype)initWithStatus:(VXJVMStatus)status message:(NSString *)message {
     if ((self = [super init])) {
@@ -93,6 +125,7 @@ static void *jvmThread(void *p) {
         return NULL;
     }
 
+    atomic_store(&gRunningVM, vm);
     jclass cls = (*env)->FindClass(env, run->mainClass);
     jmethodID main = cls ? (*env)->GetStaticMethodID(env, cls, "main", "([Ljava/lang/String;)V") : NULL;
     if (!main) {

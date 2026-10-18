@@ -18,6 +18,9 @@
 #include <dlfcn.h>
 #include <mach/mach_time.h>
 #include <pthread.h>
+#include <mach/mach.h>
+#include <os/proc.h>
+#include <stdatomic.h>
 
 #define _GLFW_BUILD_DLL  // GLFWAPI = default visibility
 #define GLFW_INCLUDE_NONE
@@ -29,6 +32,7 @@
 #include <EGL/eglext_angle.h>
 
 #import "VXGLFW.h"
+#import "JVMBridge.h"
 
 // Keep every API function in the executable's export trie even though nothing
 // in the app calls them directly.
@@ -1174,13 +1178,43 @@ static EGLContext vxCreateContext(EGLContext share) {
 //    The app is still running while inactive, so this is processed right away.
 //  - enter background: hold a background task for a few seconds so that save can finish.
 //  - become active: report focus regained (the pause menu stays open).
+// While in the background the render thread waits in glfwSwapBuffers: iOS refuses GPU
+// work from background apps, and a failed Metal command buffer made Minecraft crash
+// ("Can't map buffer") after the app was swiped away on the title screen. The
+// integrated server keeps saving meanwhile (it does not render).
 static UIBackgroundTaskIdentifier gBackgroundTask;
+static atomic_bool gInBackground;
 static BOOL gHasBackgroundTask;
 
 static void vxEndBackgroundTask(void) {
     if (!gHasBackgroundTask) return;
     gHasBackgroundTask = NO;
     [UIApplication.sharedApplication endBackgroundTask:gBackgroundTask];
+}
+
+// Memory as iOS sees it: the app's footprint (what jetsam limits) and how much more it
+// may use before being killed. Logged every 10 s while the game draws and on memory
+// warnings, so a run that ends without a crash report shows whether memory ran out.
+static void vxLogMemory(const char *why) {
+    task_vm_info_data_t info;
+    mach_msg_type_number_t count = TASK_VM_INFO_COUNT;
+    uint64_t footprint = 0, graphics = 0, remaining = 0;
+    if (task_info(mach_task_self(), TASK_VM_INFO, (task_info_t)&info, &count) == KERN_SUCCESS) {
+        footprint = info.phys_footprint;
+        // GPU (Metal/IOSurface) memory charged to the app, and what iOS says is left
+        // before the per-process limit (iOS 26: 3376 MB here, "ActiveHard").
+        if (count >= TASK_VM_INFO_REV5_COUNT) {
+            graphics = (uint64_t)info.ledger_tag_graphics_footprint;
+            remaining = info.limit_bytes_remaining;
+        }
+    }
+    static uint64_t lowestAvailable = UINT64_MAX, peakFootprint = 0;
+    uint64_t available = os_proc_available_memory();
+    if (available < lowestAvailable) lowestAvailable = available;
+    if (footprint > peakFootprint) peakFootprint = footprint;
+    NSLog(@"[VXMEM] %s: footprint %llu MB (peak %llu MB; GPU %llu MB, rest %llu MB), iOS allows %llu MB more "
+          @"(lowest %llu MB, limit remaining %llu MB)", why, footprint >> 20, peakFootprint >> 20, graphics >> 20,
+          (footprint - MIN(graphics, footprint)) >> 20, available >> 20, lowestAvailable >> 20, remaining >> 20);
 }
 
 static void vxInstallLifecycleObservers(void) {
@@ -1206,6 +1240,16 @@ static void vxInstallLifecycleObservers(void) {
             gHasBackgroundTask = gBackgroundTask != UIBackgroundTaskInvalid;
             dispatch_after(dispatch_time(DISPATCH_TIME_NOW, 8 * NSEC_PER_SEC), dispatch_get_main_queue(), ^{ vxEndBackgroundTask(); });
             NSLog(@"[VXGLFW] app in background: holding a background task for 8 s");
+        }];
+        [nc addObserverForName:UIApplicationDidEnterBackgroundNotification object:nil queue:main usingBlock:^(NSNotification *n) {
+            atomic_store(&gInBackground, true);
+        }];
+        [nc addObserverForName:UIApplicationWillEnterForegroundNotification object:nil queue:main usingBlock:^(NSNotification *n) {
+            atomic_store(&gInBackground, false);
+        }];
+        [nc addObserverForName:UIApplicationDidReceiveMemoryWarningNotification object:nil queue:main usingBlock:^(NSNotification *n) {
+            vxLogMemory("iOS memory warning");
+            VXJVMRequestGC("iOS memory warning");
         }];
         [nc addObserverForName:UIApplicationDidBecomeActiveNotification object:nil queue:main usingBlock:^(NSNotification *n) {
             vxEndBackgroundTask();
@@ -1787,6 +1831,19 @@ VXAPI GLFWwindow *glfwGetCurrentContext(void) { return tCurrent ? H(tCurrent) : 
 VXAPI void glfwSwapBuffers(GLFWwindow *window) {
     if (!window) return;
     VXGLFWWindowObj *w = W(window);
+    if (!w->offscreen) {
+        static uint64_t lastMemoryLog;
+        uint64_t now = clock_gettime_nsec_np(CLOCK_UPTIME_RAW);
+        if (now - lastMemoryLog > 10ull * NSEC_PER_SEC) {
+            lastMemoryLog = now;
+            vxLogMemory("in game");
+        }
+        if (atomic_load(&gInBackground)) {
+            NSLog(@"[VXGLFW] in background: rendering paused");
+            while (atomic_load(&gInBackground)) usleep(50 * 1000);
+            NSLog(@"[VXGLFW] in foreground: rendering resumed");
+        }
+    }
     if (!p_eglSwapBuffers(gDisplay, w->surface)) {
         vxError(GLFW_PLATFORM_ERROR, "eglSwapBuffers failed: 0x%X", p_eglGetError());
     }
