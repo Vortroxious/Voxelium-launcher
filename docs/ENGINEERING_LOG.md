@@ -915,3 +915,115 @@ Changes:
   - Render distance roughly halves GPU memory and takes about 450 MB off the rest.
   - The non-diagnostic MobileGlues build ran with BSL without visible problems (user report).
 - **Guidance:** with shader packs on this iPhone, render distance 8–10 fits comfortably; 16 runs out of memory within minutes.
+
+## 2026-10-18 — Friendly message when there is no internet
+- **User request:** with the internet off, the Versions page should say there is no connection and ask to turn it on and refresh, instead of showing the raw downloader error.
+- **LauncherModel:**
+  - An `NWPathMonitor` tracks whether there is a network path (`isOffline`; transitions go to launcher.log under "network").
+  - `loadManifest` skips the download while offline; otherwise it was retried with backoff before failing.
+  - Failures are classified as `.offline`, by the monitor or the URL error codes (-1009, -1005, -1020, -1018) that arrive as text through `DownloadError`, or as `.unavailable`. The technical error still goes to the log.
+  - The list reloads by itself when the connection comes back.
+- **Versions page:**
+  - Offline: "No internet connection — Please turn on your internet and refresh the page." with a Refresh button; pull to refresh works too.
+  - Other failures: "Couldn't load the version list — Minecraft's servers didn't answer… Details are in Logs."
+  - The Modrinth search uses the same offline wording.
+- **Build `202610180401`** (SHA-256 `119ed31eba03812639f340ba1b171f3052eaa17639b4be0ada04dbb61894343a`): no errors or warnings in the changed files. **Not yet run on device.**
+- **Skeleton loading (user request: "dont show spinner, show the skeleton of the app page like … youtube"):**
+  - New `Skeleton.swift` with `SkeletonBlock`, a `shimmering()` modifier (a highlight sweep, off with Reduce Motion), `VersionRowSkeleton` and `ModrinthHitSkeleton`. All are hidden from VoiceOver.
+  - The Versions section shows 9 placeholder rows while the list loads (no list and no problem yet), replacing the centred "Loading versions…" spinner.
+  - The Modrinth browser shows 8 placeholder results while the first page loads.
+  - **Build `202610180408`** (SHA-256 `b65952f7409f80902927aa162fbb3c091b2f4319b9d1234d56240ec972e1c502`): no errors or warnings in the changed files. **Not yet seen on device** (the look and the shimmer are unverified).
+
+## 2026-10-18 — Modrinth modpacks (Part C of phase 2)
+- **User decisions:** follow the plan (modpacks, update checks and shader comfort, then release); Forge/NeoForge after the first release.
+- **Format:** checked against Fabulously Optimized 12.3.0 (`K0lc692U`, downloaded 2026-10-18 to the scratchpad and only read).
+  - `modrinth.index.json`: formatVersion 1, `dependencies {minecraft: 1.21.11, fabric-loader: 0.19.3}`, 50 files, each with path, sha1/sha512, env, Modrinth CDN download and size.
+  - `overrides/`: 70 files, 366 KB.
+- **VoxeliumCore `Content/Modpack.swift`:**
+  - **`ModpackIndex`** decoding:
+    - the loader comes from `fabric-loader`, `quilt-loader`, `neoforge` or `forge`;
+    - `env.client == "unsupported"` files (server-only) are skipped.
+  - **`ModpackInstaller`:**
+    - `read` refuses non-modpacks, other formats and other games.
+    - `versionID` is the pack's name and version, limited to safe characters.
+    - **Checked before anything is written:** every file path and every `overrides/` / `client-overrides/` entry must stay inside the instance (`AppPaths.resolve`), and downloads must come from the hosts the format allows (cdn.modrinth.com, github.com, raw.githubusercontent.com, gitlab.com).
+    - **`install` order:**
+      1. Minecraft and the Fabric/Quilt profile (`installLoader`); NeoForge and Forge packs are refused with a clear message.
+      2. A small version JSON building on the loader profile (own game folder, like any modded version).
+      3. The pack's files, SHA-1 verified.
+      4. The overrides, then the client overrides, which win.
+      5. A `.voxelium-modpack.json` record (name, version, Modrinth ids) for updates later.
+      6. The completion marker, written only when everything succeeded.
+    - Installing the same pack version again is refused.
+  - `ModrinthAPI.searchModpacks` (project type modpack, Fabric or Quilt) and `modpackVersions`.
+- **Tests:** 4 new, 95 pass.
+  - The real index, trimmed.
+  - Unsafe paths (`../`, absolute) and hosts refused; server-only files skipped.
+  - An end-to-end install of a synthetic vanilla pack: verified download, overrides plus winning client override, the record, the marker, and re-install refused.
+  - A NeoForge pack refused.
+  - A throwaway check (not committed) planned the real 12.3.0 file: 50 downloads, all with SHA-1s from allowed hosts, and 70 overrides read.
+- **App:**
+  - The Versions page has a **Modpacks** toolbar button. `ModpackBrowseView` searches Fabric/Quilt modpacks (skeleton while loading; a memory note in the footer). It imports a `.mrpack` from Files, copied out of its security scope first.
+  - `ModpackDetailView` picks a version (Minecraft and loader shown). `ModpackImportView` shows an imported pack's name, Minecraft, loader and file count.
+  - Install progress shows the stage (Minecraft, mod loader, mods n/m, settings). The result says where the pack is; friendly errors, with offline detected.
+  - The sheet can't be closed while installing. Installed packs appear under Installed with their loader badge.
+- **Build `202610180420`** (SHA-256 `709693d2ff6d05a7652de34b62899fbbc9edb70d19dfe14d1b7acc8e80882a6b`): no errors or warnings in the changed files. Includes the uncommitted offline message and skeleton loading. **Not yet run on device.**
+- **Device result for build 202610180420 (user: "it crashed"; launcher.log and jvm.log, 2026-10-18 04:27–04:32Z):**
+  - **The install worked:** "Landscapes Reimagined Genesis 3.2" (Fabric 0.16.0, Minecraft 1.20.1) from Modrinth in about 4 minutes, including Minecraft 1.20.1 itself (3624 game files).
+  - **Launch 1** did not start: StikDebug was no longer attached ("debuggerNow=0"). It had detached during the long install; relaunching from StikDebug fixed it.
+  - **Launches 2 and 3:** Fabric loaded **507 mods** (Create and others), then Sodium 0.5 stopped the game: "The game failed to start because the currently active LWJGL version is not compatible. Installed version: 3.3.3-snapshot. Required version: 3.3.1" (exit, not a crash).
+    - The check is in Sodium `mc1.20.1-0.5.13` (`PreLaunchChecks.checkLwjglRuntimeVersion`, `REQUIRED_LWJGL_VERSION` "3.3.1"), gated by `BugChecks.ISSUE_2561 = configureCheck("issue2561", …)`, i.e. system property `sodium.checks.issue2561`. Read from the jar with javap; the jar was downloaded from Modrinth to the scratchpad.
+    - Every Minecraft 1.20.x Fabric setup with Sodium 0.5 would hit it, modpack or not.
+  - The version id repeated the version ("Genesis 3.2 3.2"), because the pack's name already ends with it.
+- **Fixes, build `202610180433`:**
+  - The launcher always passes `-Dsodium.checks.issue2561=false`.
+  - `ModpackInstaller.versionID` doesn't append a version the name already ends with.
+  - `ModpackIndex.clientModCount`. The import view lists the mod count, and both the import view and a finished Modrinth install warn above 150 mods: "Packs this large are unlikely to fit in an iPhone's memory". The 150 is a judgement, not a measured limit: 55 mods plus BSL reached the 3.4 GB limit.
+  - Tests updated (95 pass). SHA-256 `ebd241979e400c117059a590260245862b01b539f0dc10fedb6940886f1888a6`. **Not yet run on device.**
+- **Bug (user report, 2026-10-18): picking an older modpack version (for Minecraft 26.1.2) didn't change the shown Minecraft and mod version, and the newest version was always installed.**
+  - The version picker uses `.pickerStyle(.navigationLink)`, which pushes a page. Coming back re-runs `.task`, which reloaded the versions and set the newest release again, overwriting the choice.
+  - `ModrinthProjectView` (mods, packs, shaders) had the same pattern.
+  - Both now load once (`started` flag); the modpack sheet also resets its install state only on first appearance, so a finished install isn't cleared by coming back from the picker.
+  - **Build `202610180442`** (SHA-256 `14f6131aa1fd915ddd84f86074a42b79120435aeb228de9f8dd30ab05d881888`). **Not yet run on device.**
+- **Device result for build 202610180442 (launcher.log/jvm.log, 2026-10-18 04:39–04:47Z):**
+  - **The version picker fix works.**
+    - Fabulously Optimized 14.1.1 (Minecraft 26.2) installed (49 mods) and was refused at launch, as intended: "26.2 not supported yet".
+    - The user then picked 13.6.0 (Minecraft 26.1.2): installed (48 mods), launched on Java 25 / LWJGL 3.4.1; 149 mods loaded (with Fabric API modules).
+    - Memory was fine: about 1.3 GB, about 2 GB left.
+    - Harmless errors: Controlify's SDL natives (desktop library), the narrator.
+  - **Crash on joining the world:** "Shader compilation log for sodium:blocks/block_layer_opaque.vsh: ERROR: 0:1: 'core' : invalid version directive / ERROR: 2:1: 'layout' : syntax error", then "NullPointerException: No uniform exists with name: u_BlockTex".
+    - The mods are Sodium 0.9.2+mc26.1.2 and Iris 1.11.4. Its shader (`#version 330 core`, uses `isamplerBuffer`) was read from the jar downloaded to the scratchpad.
+  - **MobileGlues bug found:** `glShaderSource` joins the game's `count` strings and converts them into one ES string, then calls `GLES.glShaderSource(shader, count, s, nullptr)` with a one-element `s`. When a game passes several strings, ANGLE reads past the array. Sodium 0.8 (1.21.11, worked) passed one string; the error naming source string 2 fits Sodium 0.9 passing several. Likely, not yet proven, to be the whole cause.
+- **Patch `0012-shader-source-single-converted-string.patch`** (a real fix, always applied): passes count 1.
+- **Build `202610180449`:** **diagnostic** MobileGlues (0001–0012), so a remaining shader failure prints `[MG-LINK]` with ANGLE's log and the ES source. `build/ipa/Voxelium-diagnostic-unsigned.ipa`, SHA-256 `07e2f5a87aab8c2760910fb8a938ada4ae5c1a594389e5ddd56ef247e5f1ecbe`. **Not yet run on device.**
+- **Device result for diagnostic build 202610180449 (Fabulously Optimized 13.6.0, 26.1.2, 2026-10-18 04:54Z): still crashes on joining the world.**
+  - With patch 0012 the second error ("2:1 'layout'") is gone. `sodium:blocks/block_layer_opaque.vsh` still fails: "ERROR: 0:1: 'core' : invalid version directive", then `[MG-LINK] program 208 link FAILED`, and "No uniform exists with name: u_BlockTex".
+  - The `[MG-LINK]` dump shows ANGLE's source for shader 206 as **empty**, and no "GLSL -> ESSL conversion FAILED" line was printed. So the source either doesn't reach ANGLE through MobileGlues' `glShaderSource` or is replaced afterwards. Not found yet.
+  - Also new from ANGLE: one "glTexImage2D: Invalid combination of format, type and internalFormat" and four "glTexSubImage2D: Level of detail outside of range" at world load.
+  - **Next:** log every `glShaderSource` call for that shader (count, lengths, the first bytes of each string) and every `glCompileShader`, to see which path sets its source. Paused here because the user's 5-hour usage reached 88%.
+- **Root cause of the Sodium 0.9 crash (found 2026-10-18 after the user's next run, same crash):**
+  - MobileGlues' `GLSLtoGLSLES` ends `return (return_code >= 0) ? converted : glsl_code;`. A failed conversion hands back the **original desktop GLSL**, and `glShaderSource` only treats an empty result as a failure. So ANGLE gets `#version 330 core` with no error logged.
+  - **The failure itself:** `process_sampler_buffer` (ES 3.0 texture-buffer emulation) rewrote `texelFetch(name, <index>)` with the regex `([^)]+?)`, which stops at the first `)`. Sodium 0.9.2's `texelFetch(u_SectionTimeInfo, int((u_RegionID * 256u) + uint(chunkId)))`, new in 0.9 (0.8.14's shader has no texture buffer), was cut into invalid GLSL. It also rewrote `texelFetch` on every sampler in such shaders.
+- **Patch `0013-sampler-buffer-rewrite-nested-parentheses.patch`** (a real fix, always applied):
+  - Finds the `[iu]samplerBuffer` uniforms by declaration and switches them to `[iu]sampler2D`.
+  - Rewrites only their `texelFetch` calls, matching nested parentheses, to `texelFetch(s, mg_bufferCoords(int(index)), 0)`.
+  - Inserts `u_BufferTexWidth/Height` and `mg_bufferCoords` once after `#version` (the same uniform names MobileGlues sets).
+  - Diagnostic builds also print glslang's compile or link log whenever a conversion fails.
+  - **Checked on the Mac** (the function compiled alone with clang++) against Sodium 0.9.2's `block_layer_opaque.vsh` and a mixed test: the full index is kept, and a `sampler2D` `texelFetch` is untouched. Not yet compiled by glslang on device.
+- **Build `202610180636`** (diagnostic MobileGlues 0001–0013): `build/ipa/Voxelium-diagnostic-unsigned.ipa`, SHA-256 `3d4fd1a24441af7398e96f2a10d47f8e4ee8f58309093e769e6f1efb3e70b759`. **Not yet run on device.**
+- **Device result for diagnostic build 202610180636 (Fabulously Optimized 13.6.0, user screenshot plus jvm.log, 2026-10-18 06:40Z):** **no crash any more; the world loads**, with sky, clouds, particles, HUD and the held block, **but no terrain.**
+  - 64+ `mg_glMultiDrawElementsBaseVertex_basevertex` GL_INVALID_OPERATION. ANGLE: "glDrawElementsBaseVertexOES: Two textures of different types use the same sampler location."
+  - `[MG-TBO]` shows Sodium 0.9 using an **R32I** texture buffer (0x8235) as well as the R8I one. `glTexBuffer` errors at the emulation's upload.
+  - **Cause, in MobileGlues `setupBufferTextureUniforms`:** it sets **every** `sampler2D`/`isampler2D` uniform of an emulated-buffer program to unit 15 (the buffer texture), including Sodium's `u_BlockTex` and `u_LightTex`, so ANGLE refused every chunk draw.
+  - **And the emulation uploads every buffer as RED_INTEGER/BYTE**, valid only for R8I.
+- **Patch `0014-buffer-sampler-units-and-formats.patch`** (a real fix, always applied):
+  - `glShaderSource` records the names declared as `[iu]samplerBuffer` from the original source. That step always runs, so it still works when the conversion comes from MobileGlues' cache.
+  - Only those uniforms are pointed at unit 15 (unsigned samplers included).
+  - Buffer textures are uploaded in their own format (R8/R16/R32 I/UI/F, RG32, RGBA32, RGBA8).
+  - The GLSL cache key gains `|voxelium-0014`, so conversions made by the old rewrite aren't reused.
+- **Build `202610180643`** (diagnostic MobileGlues 0001–0014): `build/ipa/Voxelium-diagnostic-unsigned.ipa`, SHA-256 `699f8b7059ef7ccc12fd4a035865f7d3b359265f5757ff225254fcd9614c51b2`. **Not yet run on device.** Usage at build time: 5-hour 16%, weekly 73%.
+- **Device result for diagnostic build 202610180643 (Fabulously Optimized 13.6.0 on Minecraft 26.1.2, 2026-10-18 06:46Z): works. The user reports the terrain renders.**
+  - jvm.log after joining has no `[MG-DRAW]`, `[MG-LINK]` or `[MG-ANGLE]` errors; only the two `glEnable` GL_INVALID_ENUM at start-up seen in every run.
+  - Footprint 1.35–1.69 GB (GPU about 0.3 GB), about 1.7 GB left before the iOS limit.
+  - So the 26.1.x + Sodium 0.9 path works after MobileGlues patches 0012–0014, and the modpack path is verified end to end on device: browse, version pick, install, launch, play.
+- **Build `202610180648`:** normal MobileGlues (0001–0014, no diagnostics). `build/ipa/Voxelium-unsigned.ipa`, SHA-256 `cf9c97ec4b04e2743bc02b0328049490a405e42dc0afa5ee685db88bccccce53`; the diagnostic IPA was removed.

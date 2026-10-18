@@ -150,6 +150,11 @@ final class MinecraftLauncher: ObservableObject {
                 "-Xmx\(heap)M",
                 "-Djava.awt.headless=true",
                 "-Dlog4j2.formatMsgNoLookups=true",
+                // Sodium 0.5 (Minecraft 1.20.x) refuses to start unless LWJGL is exactly
+                // 3.3.1 ("currently active LWJGL version is not compatible", seen with a
+                // 1.20.1 modpack, 2026-10-18); Voxelium ships 3.3.3. Sodium's own switch
+                // (BugChecks "sodium.checks.issue2561") turns that check off.
+                "-Dsodium.checks.issue2561=false",
                 "-Dorg.lwjgl.librarypath=\(lwjgl.path)",
                 "-Dorg.lwjgl.glfw.libname=\(VXGLFWLibraryPath())",
                 "-Dorg.lwjgl.glfw.checkThread0=false",

@@ -180,6 +180,70 @@ final class LauncherModel: ObservableObject {
         }
     }
 
+    enum ModpackState: Equatable {
+        case idle
+        case working(stage: String, completed: Int, total: Int)
+        case finished(id: String, mods: Int)
+        case failed(String)
+    }
+
+    @Published private(set) var modpackState: ModpackState = .idle
+
+    /// Downloads a Modrinth modpack version's .mrpack (checksum verified) and installs it.
+    func installModpack(_ version: ModrinthAPI.Version) async {
+        guard let installer, let file = version.primaryFile else { return }
+        modpackState = .working(stage: "Downloading the modpack", completed: 0, total: 1)
+        let dest = FileManager.default.temporaryDirectory.appendingPathComponent("modpacks", isDirectory: true)
+            .appendingPathComponent(file.filename.replacingOccurrences(of: "/", with: "_"))
+        do {
+            try FileManager.default.createDirectory(at: dest.deletingLastPathComponent(), withIntermediateDirectories: true)
+            _ = try await installer.downloader.ensure(DownloadItem(url: file.url, destination: dest, sha1: file.hashes.sha1, size: file.size))
+            await installModpackFile(dest, source: (version.projectId, version.id))
+        } catch {
+            log.error("modpack", "Download of \(file.filename) failed: \(error)")
+            modpackState = .failed(isOffline || Self.looksOffline(error)
+                ? "No internet connection. Please turn on your internet and try again."
+                : "The modpack could not be downloaded. Please try again in a moment.")
+        }
+    }
+
+    /// Installs a .mrpack file (from Modrinth or the Files app) as its own version.
+    func installModpackFile(_ file: URL, source: (projectID: String, versionID: String)? = nil) async {
+        guard let installer else { return }
+        let packs = ModpackInstaller(game: installer)
+        modpackState = .working(stage: "Reading the modpack", completed: 0, total: 1)
+        do {
+            let (id, report) = try await packs.install(file, source: source) { stage, p in
+                let label = switch stage {
+                case .minecraft: "Installing Minecraft"
+                case .loader: "Installing the mod loader"
+                case .modpackFiles: "Downloading mods"
+                case .overrides: "Copying settings"
+                }
+                Task { @MainActor in self.modpackState = .working(stage: label, completed: p.completed, total: p.total) }
+            }
+            for (item, err) in report.failures.prefix(20) { log.error("modpack", "\(item.destination.lastPathComponent): \(err)") }
+            if report.succeeded {
+                let mods = (try? ModpackInstaller.read(file).index.clientModCount) ?? 0
+                log.info("modpack", "Installed modpack \(id) (\(mods) mods, \(report.outcomes.count) game files)")
+                modpackState = .finished(id: id, mods: mods)
+            } else {
+                modpackState = .failed("\(report.failures.count) file\(report.failures.count == 1 ? "" : "s") could not be downloaded. Tap Install to try again; finished files are kept.")
+            }
+            refreshInstalled()
+        } catch let error as ModpackError {
+            log.error("modpack", "\(file.lastPathComponent): \(error)")
+            modpackState = .failed(error.description)
+        } catch {
+            log.error("modpack", "\(file.lastPathComponent): \(error)")
+            modpackState = .failed(isOffline || Self.looksOffline(error)
+                ? "No internet connection. Please turn on your internet and try again."
+                : "The modpack could not be installed. Details are in Logs.")
+        }
+    }
+
+    func resetModpackState() { modpackState = .idle }
+
     /// Loader builds offered for a Minecraft version (Fabric, Quilt).
     func loaderBuilds(_ loader: ModLoader, minecraft: String) async throws -> [LoaderVersion] {
         try await ModLoaderMeta().versions(for: loader, minecraft: minecraft)

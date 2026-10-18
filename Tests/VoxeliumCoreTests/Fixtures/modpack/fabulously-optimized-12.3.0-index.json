@@ -1,0 +1,57 @@
+{
+ "formatVersion": 1,
+ "game": "minecraft",
+ "versionId": "12.3.0",
+ "name": "Fabulously Optimized",
+ "files": [
+  {
+   "path": "mods/BetterGrassify-1.8.7+fabric.1.21.11.jar",
+   "hashes": {
+    "sha1": "7169f35f91ddaf3d9989de45f46072247c37e05c",
+    "sha512": "0ad59c792499457fce7b4c992af4b9595e1a142a2b5278b4497737c3b5ac0a93a48a2b081f729320f10d96a27f2c7a998c7991fa1e5f2d99d697973f4d625816"
+   },
+   "env": {
+    "client": "required",
+    "server": "required"
+   },
+   "downloads": [
+    "https://cdn.modrinth.com/data/m5T5xmUy/versions/kCu7aUmj/BetterGrassify-1.8.7%2Bfabric.1.21.11.jar"
+   ],
+   "fileSize": 88975
+  },
+  {
+   "path": "mods/ConfigManager-fabric-1.21.x-1.1.1.jar",
+   "hashes": {
+    "sha1": "9ea08cbfeca54a94afb92edf8b1b95396fb48129",
+    "sha512": "aeeacc39e5b31ee6a60a25d4f5cf9415a1c1492fa2a6679f6115ba37eb4917e95bf33fc276c7e89dbf5504f216e36e80cbf581cb32213e28cd76ea803c194d2d"
+   },
+   "env": {
+    "client": "required",
+    "server": "required"
+   },
+   "downloads": [
+    "https://cdn.modrinth.com/data/jlNms3Jp/versions/1gNhkJ1O/ConfigManager-fabric-1.21.x-1.1.1.jar"
+   ],
+   "fileSize": 87690
+  },
+  {
+   "path": "mods/CrashAssistant-fabric-1.21.5-1.21.11-1.11.12.jar",
+   "hashes": {
+    "sha1": "73327226f279787a5a872f5709d8902a4dfa8bb2",
+    "sha512": "07bfbf684ef9bb01272b34e394f62d29d881d190e394f8da67f76d05331f1303c3df76de00b891a9ae73e8cf119020413e8c0a5be7651f5007de246976fc4dde"
+   },
+   "env": {
+    "client": "required",
+    "server": "required"
+   },
+   "downloads": [
+    "https://cdn.modrinth.com/data/ix1qq8Ux/versions/j2E0IeRG/CrashAssistant-fabric-1.21.5-1.21.11-1.11.12.jar"
+   ],
+   "fileSize": 3492588
+  }
+ ],
+ "dependencies": {
+  "fabric-loader": "0.19.3",
+  "minecraft": "1.21.11"
+ }
+}

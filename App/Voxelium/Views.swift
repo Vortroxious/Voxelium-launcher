@@ -5,6 +5,7 @@ struct VersionsView: View {
     @EnvironmentObject var model: LauncherModel
     @EnvironmentObject var minecraft: MinecraftLauncher
     @State private var installTarget: InstallTarget?
+    @State private var showModpacks = false
 
     /// What the install sheet is for: a Minecraft version, preselecting a loader.
     struct InstallTarget: Identifiable {
@@ -69,9 +70,15 @@ struct VersionsView: View {
             }
             .refreshable { await model.loadManifest() }
             .navigationTitle("Minecraft Versions")
+            .toolbar {
+                ToolbarItem(placement: .primaryAction) {
+                    Button { showModpacks = true } label: { Label("Modpacks", systemImage: "shippingbox") }
+                }
+            }
             .sheet(item: $installTarget) { target in
                 InstallVersionSheet(entry: target.entry, initialLoader: target.loader)
             }
+            .sheet(isPresented: $showModpacks, onDismiss: { model.refreshInstalled() }) { ModpackBrowseView() }
         }
     }
 }

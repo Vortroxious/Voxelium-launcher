@@ -115,7 +115,7 @@ struct ModrinthBrowseView: View {
     }
 }
 
-private struct HitRow: View {
+struct HitRow: View {
     let hit: ModrinthAPI.SearchHit
     let installed: Bool
 
@@ -160,6 +160,9 @@ struct ModrinthProjectView: View {
     @State private var installing = false
     @State private var progress: (done: Int, total: Int)?
     @State private var result: (text: String, ok: Bool)?
+    /// The version picker opens as its own page, and coming back re-runs .task: without
+    /// this the list reloaded and the newest version was chosen again.
+    @State private var started = false
 
     private var installer: ModrinthInstaller { ModrinthInstaller() }
     private var gameLoader: String? { version.loader?.lowercased() }
@@ -233,7 +236,11 @@ struct ModrinthProjectView: View {
         .navigationTitle(hit.title)
         .navigationBarTitleDisplayMode(.inline)
         .toolbar { ToolbarItem(placement: .cancellationAction) { Button(result?.ok == true ? "Done" : "Cancel") { dismiss() } } }
-        .task { await loadVersions() }
+        .task {
+            guard !started else { return }
+            started = true
+            await loadVersions()
+        }
         .onChange(of: chosenID) { _ in Task { await makePlan() } }
     }
 
