@@ -748,3 +748,23 @@ Changes:
 - **Device result for build 202610180137 (user report plus launcher.log/jvm.log, 2026-10-18): real mods load on the iPhone.**
   - The user imported `Essential_1-4-1-1_fabric_1-21-11.jar` and `fabric-api-0.141.6+1.21.11.jar` through the mod manager (launcher.log "content: Added mods/…" at 01:44:11 and 01:44:29) into `fabric-loader-0.19.5-1.21.11`'s own `mods/` folder.
   - The next launch logged "Loading 50 mods" (Fabric API's modules, Essential, fabricloader, java, minecraft), "Sound engine started" and a clean "Stopping!". The user reports it works.
+
+## 2026-10-18 — Modrinth browse and install (Part B of phase 2)
+- **User request:** "Commit the mod manager …, then start Part B: browse and install mods, resource packs and shader packs from Modrinth inside the app, with dependencies." The mod manager was committed as `893dab5`.
+- **VoxeliumCore `Content/Modrinth.swift`:** Modrinth API v2 (public, no key; requests carry the `Voxelium/0.1.0` User-Agent, as Modrinth asks).
+  - **`ModrinthAPI`:**
+    - `search` builds the facets project type AND game version AND (loader categories): mods use the version's loader (Quilt also matches Fabric), shader packs `iris`, resource packs no loader.
+    - Also `versions(project:loaders:gameVersion:)`, `version(id:)`, `project(id:)` and `versions(forSHA1:)` (POST `/version_files`).
+    - `preferred` picks the newest release, else the newest version.
+  - **`ModrinthInstaller`:**
+    - `installedProjects` identifies installed files by SHA-1.
+    - `plan` walks required dependencies breadth-first. It uses a pinned `version_id` when the author gave one, else the preferred compatible version. It skips dependencies already installed and reports dependencies with no compatible version and `incompatible` conflicts with installed projects.
+    - `install` downloads through `DownloadManager`: 4 at a time, SHA-1 verified, with retries. Dependencies go to `mods/`. An older copy of the same project is deleted only after every download succeeded.
+- **Tests:** 4 new, using real Modrinth responses saved as fixtures (`Fixtures/modrinth`, fetched 2026-10-18): search facets, the pinned-dependency plan, installed-by-hash, and a verified install that replaces an older copy. `swift test` passes 90/90.
+- **Live check (curl, same query shapes, 2026-10-18):** for 1.21.11, Fabric "sodium" returned 44 hits, Iris shader packs 646, resource packs 17,666. Iris `1.10.8+1.21.11-fabric` declares Sodium (`AANobbMI`) as required.
+- **App `ModrinthBrowseView`:** + → "Browse Modrinth" in the mod manager, for the selected kind.
+  - Search and sort, with icon, author, downloads and an Installed badge; Load more pages.
+  - A project sheet: version picker (newest release preselected; betas labelled), a "Will install" list with the required dependencies and their sizes, already-installed / unavailable / conflict notices, then install with progress.
+  - Shader packs on a modded version without Iris offer "Get Iris (with Sodium)".
+  - Installs are logged to launcher.log ("content: Modrinth: installed …").
+- **Build `202610180155`** (SHA-256 `bcf6a9b95966ecc5f96ce4364163a2effdd85c3c6aaf23d78e7f683c6e54a2ef`): builds with no errors or warnings in the new files. **Not yet run on device.**

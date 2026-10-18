@@ -15,6 +15,7 @@ struct ContentLibraryView: View {
     @State private var importing = false
     @State private var message: (text: String, isError: Bool)?
     @State private var pendingDelete: ContentItem?
+    @State private var browsing = false
 
     private var kinds: [ContentKind] { version.isModded ? ContentKind.allCases : [.resourcePacks] }
     private var manager: ContentManager? { model.gameDirectory(for: version.id).map(ContentManager.init(gameDirectory:)) }
@@ -35,7 +36,7 @@ struct ContentLibraryView: View {
                 }
                 Section {
                     if items.isEmpty {
-                        Text("No \(kind.title.lowercased()) yet. Tap Add to import .\(kind.fileExtension) files from Files.")
+                        Text("No \(kind.title.lowercased()) yet. Tap + to browse Modrinth or import .\(kind.fileExtension) files from Files.")
                             .foregroundStyle(.secondary)
                     }
                     ForEach(items) { item in row(item) }
@@ -51,8 +52,14 @@ struct ContentLibraryView: View {
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) { Button("Done") { dismiss() } }
                 ToolbarItem(placement: .primaryAction) {
-                    Button { importing = true } label: { Label("Add", systemImage: "plus") }
+                    Menu {
+                        Button { browsing = true } label: { Label("Browse Modrinth", systemImage: "globe") }
+                        Button { importing = true } label: { Label("Import from Files", systemImage: "folder") }
+                    } label: { Label("Add", systemImage: "plus") }
                 }
+            }
+            .navigationDestination(isPresented: $browsing) {
+                ModrinthBrowseView(version: version, kind: kind) { reload() }
             }
             .fileImporter(isPresented: $importing, allowedContentTypes: allowedTypes, allowsMultipleSelection: true) { result in
                 importFiles(result)

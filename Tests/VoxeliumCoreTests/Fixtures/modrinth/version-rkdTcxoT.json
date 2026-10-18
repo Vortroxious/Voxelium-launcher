@@ -1,0 +1,37 @@
+{
+ "game_versions": [
+  "1.21.11"
+ ],
+ "loaders": [
+  "fabric"
+ ],
+ "environment": "client_only",
+ "id": "rkdTcxoT",
+ "project_id": "AANobbMI",
+ "author_id": "TEZXhE2U",
+ "featured": false,
+ "name": "Sodium 0.8.14 for Fabric 1.21.11",
+ "version_number": "mc1.21.11-0.8.14-fabric",
+ "changelog": "Sodium 0.8.14 fixes potential minor bugs.\n\n- Fix buffer overflow in Kernel32.getModuleFileName\n- Use the correct atomic operations on NativeBuffer.ALLOCATED\n- Use clearenv() to delete environment variables\n- Implement override/overlay priority in the graphics options Config API ([#3866](https://github.com/CaffeineMC/sodium/pull/3866))",
+ "changelog_url": null,
+ "date_published": "2026-08-28T21:00:18.180077Z",
+ "downloads": 2581905,
+ "version_type": "release",
+ "status": "listed",
+ "requested_status": null,
+ "files": [
+  {
+   "id": "bLpytwga",
+   "hashes": {
+    "sha1": "4a8733fe544168068d12fa94b2ab03e6c0c7bf91",
+    "sha512": "04c43f9e8534b87a52c42ffd51b0e344d4ef92dc9cc52da33d13af6a18bf74b05380d2027f1e0db982698d0aff274c42741c1e21b313b0cd75ed3af005fc98d9"
+   },
+   "url": "https://cdn.modrinth.com/data/AANobbMI/versions/rkdTcxoT/sodium-fabric-0.8.14%2Bmc1.21.11.jar",
+   "filename": "sodium-fabric-0.8.14+mc1.21.11.jar",
+   "primary": true,
+   "size": 1909150,
+   "file_type": null
+  }
+ ],
+ "dependencies": []
+}

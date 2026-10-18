@@ -1,0 +1,46 @@
+{
+ "acfbe6d065b6c35d85c14da04d35e073363f3acf": {
+  "game_versions": [
+   "1.21.11"
+  ],
+  "loaders": [
+   "fabric"
+  ],
+  "environment": "client_only",
+  "id": "ka9PDlsN",
+  "project_id": "YL57xq9U",
+  "author_id": "DzLrfrbK",
+  "featured": false,
+  "name": "Iris 1.10.8 for Fabric 1.21.11",
+  "version_number": "1.10.8+1.21.11-fabric",
+  "changelog": "Fixes support for latest Sodium",
+  "changelog_url": null,
+  "date_published": "2026-09-29T16:31:20.123897Z",
+  "downloads": 1231273,
+  "version_type": "release",
+  "status": "listed",
+  "requested_status": null,
+  "files": [
+   {
+    "id": "YYDuIEH3",
+    "hashes": {
+     "sha512": "f0cad4b6af593b6fc25738c4ef5a2b346125f9693d25a0d486858e54798d2ea87b24d1497e1bb4391729d7d9e490f42771f7fb468d4e1420e372d8643f9e2055",
+     "sha1": "acfbe6d065b6c35d85c14da04d35e073363f3acf"
+    },
+    "url": "https://cdn.modrinth.com/data/YL57xq9U/versions/ka9PDlsN/iris-fabric-1.10.8%2Bmc1.21.11.jar",
+    "filename": "iris-fabric-1.10.8+mc1.21.11.jar",
+    "primary": true,
+    "size": 2807718,
+    "file_type": null
+   }
+  ],
+  "dependencies": [
+   {
+    "version_id": "rkdTcxoT",
+    "project_id": "AANobbMI",
+    "file_name": null,
+    "dependency_type": "required"
+   }
+  ]
+ }
+}

@@ -22,7 +22,9 @@ final class MockHTTP: HTTPClient, @unchecked Sendable {
     func send(_ request: URLRequest) async throws -> JSONResponse {
         try lock.withLock {
             requests.append(request)
-            let key = request.url!.absoluteString
+            var key = request.url!.absoluteString
+            // Exact URL first, else the longest registered prefix (for URLs with query strings).
+            if queues[key] == nil, let prefix = queues.keys.filter({ key.hasPrefix($0) }).max(by: { $0.count < $1.count }) { key = prefix }
             guard var q = queues[key], !q.isEmpty else { throw URLError(.badURL) }
             let (status, body) = q.count > 1 ? q.removeFirst() : q[0]
             queues[key] = q

@@ -1,0 +1,90 @@
+[
+ {
+  "game_versions": [
+   "1.21.11"
+  ],
+  "loaders": [
+   "fabric"
+  ],
+  "environment": "client_only",
+  "id": "ka9PDlsN",
+  "project_id": "YL57xq9U",
+  "author_id": "DzLrfrbK",
+  "featured": false,
+  "name": "Iris 1.10.8 for Fabric 1.21.11",
+  "version_number": "1.10.8+1.21.11-fabric",
+  "changelog": "Fixes support for latest Sodium",
+  "changelog_url": null,
+  "date_published": "2026-09-29T16:31:20.123897Z",
+  "downloads": 1230216,
+  "version_type": "release",
+  "status": "listed",
+  "requested_status": null,
+  "files": [
+   {
+    "id": "YYDuIEH3",
+    "hashes": {
+     "sha1": "acfbe6d065b6c35d85c14da04d35e073363f3acf",
+     "sha512": "f0cad4b6af593b6fc25738c4ef5a2b346125f9693d25a0d486858e54798d2ea87b24d1497e1bb4391729d7d9e490f42771f7fb468d4e1420e372d8643f9e2055"
+    },
+    "url": "https://cdn.modrinth.com/data/YL57xq9U/versions/ka9PDlsN/iris-fabric-1.10.8%2Bmc1.21.11.jar",
+    "filename": "iris-fabric-1.10.8+mc1.21.11.jar",
+    "primary": true,
+    "size": 2807718,
+    "file_type": null
+   }
+  ],
+  "dependencies": [
+   {
+    "version_id": "rkdTcxoT",
+    "project_id": "AANobbMI",
+    "file_name": null,
+    "dependency_type": "required"
+   }
+  ]
+ },
+ {
+  "game_versions": [
+   "1.21.11"
+  ],
+  "loaders": [
+   "fabric"
+  ],
+  "environment": "client_only",
+  "id": "fDpuVzVr",
+  "project_id": "YL57xq9U",
+  "author_id": "DzLrfrbK",
+  "featured": false,
+  "name": "Iris 1.10.7 for Fabric 1.21.11",
+  "version_number": "1.10.7+1.21.11-fabric",
+  "changelog": "Fixed a bunch of bugs",
+  "changelog_url": null,
+  "date_published": "2026-03-24T17:04:26.898144Z",
+  "downloads": 10413285,
+  "version_type": "release",
+  "status": "listed",
+  "requested_status": null,
+  "files": [
+   {
+    "id": "NKRXHcAK",
+    "hashes": {
+     "sha512": "b009a07ecbdf3eb510b4acacbb435e058406ddbabcc4f1a5efeacad154cd26777474dcf4a2b5a3a92644b150f047977ada5687a9d9172132fbe6d3d036961b7e",
+     "sha1": "aae8567bd9ea397d50aff1d0b680a82ffe67040c"
+    },
+    "url": "https://cdn.modrinth.com/data/YL57xq9U/versions/fDpuVzVr/iris-fabric-1.10.7%2Bmc1.21.11.jar",
+    "filename": "iris-fabric-1.10.7+mc1.21.11.jar",
+    "primary": true,
+    "size": 2807547,
+    "file_type": null
+   }
+  ],
+  "dependencies": [
+   {
+    "version_id": "UddlN6L4",
+    "project_id": "AANobbMI",
+    "file_name": null,
+    "dependency_type": "required"
+   }
+  ]
+ }
+]
