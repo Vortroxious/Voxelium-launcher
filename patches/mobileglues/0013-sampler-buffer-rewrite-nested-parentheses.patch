@@ -1,0 +1,141 @@
+--- a/src/main/cpp/gl/glsl/glsl_for_es.cpp
++++ b/src/main/cpp/gl/glsl/glsl_for_es.cpp
+@@ -574,27 +574,69 @@
+     return true;
+ }
+ 
+-void process_sampler_buffer(std::string& source) { // a simplized version, should be rewritten in the future
+-    if (source.find("isamplerBuffer") == std::string::npos) {
++// Voxelium: texture buffers (samplerBuffer) do not exist on ES 3.0, so MobileGlues
++// stores them in 2D textures (see glTexBuffer) and rewrites the shader to match.
++// Upstream's rewrite took texelFetch's index with the regex [^)]+?, which stops at the
++// first ')': Sodium 0.9's texelFetch(u_SectionTimeInfo, int((u_RegionID * 256u) +
++// uint(chunkId))) became invalid GLSL, glslang failed, and the untranslated desktop
++// shader reached ANGLE ("'core' : invalid version directive"). It also rewrote
++// texelFetch on every sampler, not just buffer ones. This version finds the buffer
++// samplers by declaration and rewrites only their texelFetch calls, matching
++// parentheses.
++static size_t voxelium_matching_paren(const std::string& s, size_t open) {
++    int depth = 0;
++    for (size_t i = open; i < s.size(); i++) {
++        if (s[i] == '(') depth++;
++        else if (s[i] == ')' && --depth == 0) return i;
++    }
++    return std::string::npos;
++}
++
++void process_sampler_buffer(std::string& source) {
++    if (source.find("samplerBuffer") == std::string::npos) {
+         return;
++    }
++    // Buffer sampler uniforms, and their types switched to the 2D equivalents.
++    std::vector<std::string> names;
++    std::regex decl(R"(\b(i|u)?samplerBuffer\s+(\w+))");
++    for (std::sregex_iterator it(source.begin(), source.end(), decl), end; it != end; ++it) {
++        names.push_back((*it)[2].str());
+     }
++    source = std::regex_replace(source, std::regex(R"(\b(i|u)?samplerBuffer\b)"), "$1sampler2D");
++    if (names.empty()) return;
+ 
++    // texelFetch(<buffer sampler>, <index>) -> texelFetch(<sampler>, mg_bufferCoords(<index>), 0)
++    std::string out;
+     size_t pos = 0;
+-    while ((pos = source.find("isamplerBuffer", pos)) != std::string::npos) {
+-        source.replace(pos, 14, "isampler2D");
+-        pos += 11;
++    std::regex call(R"(\btexelFetch\s*\(\s*(\w+)\s*,)");
++    std::smatch m;
++    std::string rest = source;
++    while (std::regex_search(rest, m, call)) {
++        size_t call_start = pos + m.position(0);
++        size_t open = source.find('(', call_start);
++        size_t close = voxelium_matching_paren(source, open);
++        bool is_buffer = std::find(names.begin(), names.end(), m[1].str()) != names.end();
++        if (!is_buffer || close == std::string::npos) {
++            size_t next = pos + m.position(0) + m.length(0);
++            out += source.substr(pos, next - pos);
++            pos = next;
++        } else {
++            size_t index_start = pos + m.position(0) + m.length(0);
++            std::string index = source.substr(index_start, close - index_start);
++            out += source.substr(pos, call_start - pos);
++            out += "texelFetch(" + m[1].str() + ", mg_bufferCoords(int(" + index + ")), 0)";
++            pos = close + 1;
++        }
++        rest = source.substr(pos);
+     }
++    out += source.substr(pos);
++    source = out;
+ 
+-    std::regex pattern(R"(texelFetch\s*\(\s*(\w+)\s*,\s*([^)]+?)\s*\))");
+-    source = std::regex_replace(
+-        source,
+-        pattern,
+-        "texelFetch($1, ivec2(($2) % u_BufferTexWidth, ($2) / u_BufferTexWidth), 0)"
+-    );
+-
+-    const char* boundaryProtection = R"(
+-ivec2 bufferCoords(int index) {
+-    int width = u_BufferTexWidth;
++    const char* helper = R"(
++uniform int u_BufferTexWidth;
++uniform int u_BufferTexHeight;
++ivec2 mg_bufferCoords(int index) {
++    int width = max(u_BufferTexWidth, 1);
+     int x = index % width;
+     int y = index / width;
+     if (y >= u_BufferTexHeight) {
+@@ -604,30 +646,8 @@
+     return ivec2(x, y);
+ }
+ )";
+-
+-    source = std::regex_replace(
+-        source,
+-        std::regex("texelFetch\\((\\w+)\\s*,\\s*ivec2\\(([^)]+)\\)\\s*,\\s*0\\)"),
+-        "texelFetch($1, bufferCoords($2), 0)"
+-    );
+-
+-    size_t insertion_point = find_insertion_point(source);
+-    if (insertion_point != std::string::npos) {
+-        source.insert(insertion_point, boundaryProtection);
+-    }
+-
+-    const char* uniformDecl = R"(
+-uniform int u_BufferTexWidth;
+-uniform int u_BufferTexHeight;
+-)";
+-
+-    insertion_point = find_insertion_point(source);
+-    if (insertion_point != std::string::npos) {
+-        insertion_point = source.find('\n', insertion_point);
+-        if (insertion_point != std::string::npos) {
+-            source.insert(insertion_point + 1, uniformDecl);
+-        }
+-    }
++    size_t insertion_point = find_insertion_point(source);
++    if (insertion_point != std::string::npos) source.insert(insertion_point, helper);
+ }
+ 
+ static void inject_textureQueryLod(std::string& glsl) {
+@@ -812,6 +832,10 @@
+ 
+     if (!shader.parse(&TBuiltInResource_resources, glsl_version, true, EShMsgDefault)) {
+         LOG_D("GLSL Compiling ERROR: \n%s",shader.getInfoLog())
++#ifdef VOXELIUM_CHECK_GL_ERRORS
++        fprintf(stderr, "[MG-LINK] glslang could not compile a shader (MobileGlues passes it on untranslated): %.1500s\n",
++                shader.getInfoLog());
++#endif
+         errc = -1;
+         return {};
+     }
+@@ -822,6 +846,9 @@
+ 
+     if (!program.link(EShMsgDefault)) {
+         LOG_D("Shader Linking ERROR: %s", program.getInfoLog())
++#ifdef VOXELIUM_CHECK_GL_ERRORS
++        fprintf(stderr, "[MG-LINK] glslang could not link a shader: %.1500s\n", program.getInfoLog());
++#endif
+         errc = -1;
+         return {};
+     }

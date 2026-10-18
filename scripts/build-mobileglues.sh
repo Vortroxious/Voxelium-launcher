@@ -61,7 +61,7 @@ fetch https://github.com/KhronosGroup/glslang.git "refs/tags/$GLSLANG_TAG" "$SRC
 fetch https://github.com/KhronosGroup/SPIRV-Tools.git "$SPIRV_TOOLS_REV" "$SRC/glslang/External/spirv-tools"
 fetch https://github.com/KhronosGroup/SPIRV-Headers.git "$SPIRV_HEADERS_REV" "$SRC/glslang/External/spirv-tools/external/spirv-headers"
 fetch https://github.com/KhronosGroup/SPIRV-Cross.git "refs/tags/$SPIRV_CROSS_TAG" "$SRC/SPIRV-Cross"
-PATCHED="src/main/cpp/egl/loader.cpp src/main/cpp/egl/loader.h src/main/cpp/main.cpp src/main/cpp/includes.h src/main/cpp/init.cpp src/main/cpp/gl/getter.cpp src/main/cpp/gl/gl_stub.cpp src/main/cpp/gl/multidraw.cpp src/main/cpp/gl/gl_native.cpp src/main/cpp/gl/gl.cpp src/main/cpp/gles/loader.h src/main/cpp/gl/program.cpp src/main/cpp/gl/shader.cpp src/main/cpp/gles/loader.cpp src/main/cpp/gl/framebuffer.cpp src/main/cpp/gl/texture.cpp src/main/cpp/gl/drawing.cpp src/main/cpp/gl/buffer.cpp"
+PATCHED="src/main/cpp/egl/loader.cpp src/main/cpp/egl/loader.h src/main/cpp/main.cpp src/main/cpp/includes.h src/main/cpp/init.cpp src/main/cpp/gl/getter.cpp src/main/cpp/gl/gl_stub.cpp src/main/cpp/gl/multidraw.cpp src/main/cpp/gl/gl_native.cpp src/main/cpp/gl/gl.cpp src/main/cpp/gles/loader.h src/main/cpp/gl/program.cpp src/main/cpp/gl/shader.cpp src/main/cpp/gles/loader.cpp src/main/cpp/gl/framebuffer.cpp src/main/cpp/gl/texture.cpp src/main/cpp/gl/drawing.cpp src/main/cpp/gl/buffer.cpp src/main/cpp/gl/glsl/glsl_for_es.cpp"
 [ -d "$SRC/MobileGlues/.git" ] && git -C "$SRC/MobileGlues" checkout -q -- $PATCHED 2>/dev/null || true
 fetch https://github.com/MobileGL-Dev/MobileGlues.git "$MG_REV" "$SRC/MobileGlues"
 # Our patch (patches/mobileglues/): restore the host's EGL context after init on Apple.
@@ -91,6 +91,15 @@ git -C "$SRC/MobileGlues" apply "$ROOT/patches/mobileglues/0010-diagnostic-draw-
 # unsigned data into ivec inputs: Iris's hand, held and dropped items were not drawn),
 # and keep the texture-buffer emulation's last row inside the buffer.
 git -C "$SRC/MobileGlues" apply "$ROOT/patches/mobileglues/0011-es30-integer-attribute-signedness-and-tbo-rows.patch"
+# And: hand ANGLE the one converted shader string, not the game's string count
+# (Sodium 0.9 sends several strings; ANGLE read past the array).
+git -C "$SRC/MobileGlues" apply "$ROOT/patches/mobileglues/0012-shader-source-single-converted-string.patch"
+# And: rewrite texture-buffer texelFetch calls with nested parentheses correctly (Sodium 0.9
+# for 26.1: glslang failed and the untranslated shader reached ANGLE).
+git -C "$SRC/MobileGlues" apply "$ROOT/patches/mobileglues/0013-sampler-buffer-rewrite-nested-parentheses.patch"
+# And: point only real buffer samplers at the emulated buffer texture, and upload buffer
+# textures in their own format (Sodium 0.9: terrain was not drawn).
+git -C "$SRC/MobileGlues" apply "$ROOT/patches/mobileglues/0014-buffer-sampler-units-and-formats.patch"
 # Submodules at the commits MobileGlues pins (perfetto is only for PROFILING builds).
 MGC="$SRC/MobileGlues/src/main/cpp"
 fetch https://github.com/g-truc/glm.git 2d4c4b4dd31fde06cfffad7915c2b3006402322f "$MGC/3rdparty/glm"

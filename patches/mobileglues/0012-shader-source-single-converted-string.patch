@@ -1,0 +1,15 @@
+--- a/src/main/cpp/gl/shader.cpp
++++ b/src/main/cpp/gl/shader.cpp
+@@ -104,7 +104,11 @@
+         shaderInfo.id = shader;
+         shaderInfo.converted = essl_src;
+         const char* s[] = { essl_src.c_str() };
+-        GLES.glShaderSource(shader, count, s, nullptr);
++        // Voxelium: the game's `count` strings were joined and converted into this one
++        // string; passing `count` made ANGLE read past `s` when a game sends its source
++        // in several pieces (Sodium 0.9 for Minecraft 26.1: "'core' : invalid version
++        // directive", "2:1: 'layout' : syntax error", then a crash).
++        GLES.glShaderSource(shader, 1, s, nullptr);
+         if (hardware->emulate_texture_buffer)
+             shader_map_is_sampler_buffer_emulated[shader] = is_sampler_buffer_emulated;
+     }

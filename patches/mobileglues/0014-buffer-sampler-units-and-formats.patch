@@ -1,0 +1,126 @@
+--- a/src/main/cpp/gl/glsl/glsl_for_es.cpp
++++ b/src/main/cpp/gl/glsl/glsl_for_es.cpp
+@@ -12,6 +12,7 @@
+ #include <regex>
+ #include <strstream>
+ #include <algorithm>
++#include <set>
+ #include <sstream>
+ #include "cache.h"
+ #include "../../version.h"
+@@ -340,6 +341,7 @@
+ std::string GLSLtoGLSLES(const char* glsl_code, GLenum glsl_type, uint essl_version, uint glsl_version, int& return_code) {
+     std::string sha256_string(glsl_code);
+     sha256_string += "\n//" + std::to_string(MAJOR) + "." + std::to_string(MINOR) + "." + std::to_string(REVISION) + "|" + std::to_string(essl_version);
++    sha256_string += "|voxelium-0014"; // conversions changed by Voxelium patches 0013/0014
+     const char* cachedESSL = Cache::get_instance().get(sha256_string.c_str());
+     if (cachedESSL) {
+         LOG_D("GLSL Hit Cache:\n%s\n-->\n%s", glsl_code, cachedESSL)
+@@ -583,6 +585,27 @@
+ // texelFetch on every sampler, not just buffer ones. This version finds the buffer
+ // samplers by declaration and rewrites only their texelFetch calls, matching
+ // parentheses.
++// Names of uniforms declared as [iu]samplerBuffer in any shader so far. The draw-time
++// setup points only these at the emulated buffer texture (unit 15); upstream pointed
++// every sampler2D and isampler2D there, so Sodium 0.9's block and light textures were
++// redirected too and ANGLE refused its chunk draws ("Two textures of different types
++// use the same sampler location"): the world rendered without terrain.
++static std::set<std::string> voxelium_buffer_sampler_names;
++
++void voxelium_note_buffer_samplers(const std::string& glsl) {
++    if (glsl.find("samplerBuffer") == std::string::npos) return;
++    std::regex decl(R"(\b(i|u)?samplerBuffer\s+(\w+))");
++    for (std::sregex_iterator it(glsl.begin(), glsl.end(), decl), end; it != end; ++it)
++        voxelium_buffer_sampler_names.insert((*it)[2].str());
++}
++
++bool voxelium_is_buffer_sampler(const char* uniform_name) {
++    std::string name(uniform_name);
++    size_t bracket = name.find('[');
++    if (bracket != std::string::npos) name.resize(bracket);
++    return voxelium_buffer_sampler_names.count(name) > 0;
++}
++
+ static size_t voxelium_matching_paren(const std::string& s, size_t open) {
+     int depth = 0;
+     for (size_t i = open; i < s.size(); i++) {
+--- a/src/main/cpp/gl/drawing.cpp
++++ b/src/main/cpp/gl/drawing.cpp
+@@ -21,6 +21,8 @@
+ 
+ UnorderedMap<GLuint, SamplerInfo> g_samplerCacheForSamplerBuffer;
+ 
++bool voxelium_is_buffer_sampler(const char* uniform_name); // glsl_for_es.cpp (patch 0014)
++
+ void setupBufferTextureUniforms(GLuint program) {
+     LOG_D("setupBufferTextureUniforms, program: %d", program);
+ 
+@@ -51,7 +53,8 @@
+             GLenum type = 0;
+             GLES.glGetActiveUniform(program, i, bufSize, &length, &size, &type, name);
+ 
+-            if (type == GL_SAMPLER_2D || type == GL_INT_SAMPLER_2D) {
++            if ((type == GL_SAMPLER_2D || type == GL_INT_SAMPLER_2D || type == GL_UNSIGNED_INT_SAMPLER_2D) &&
++                voxelium_is_buffer_sampler(name)) {
+                 GLint locSampler = GLES.glGetUniformLocation(program, name);
+                 progSamplerInfo.samplers.push_back(locSampler);
+             }
+--- a/src/main/cpp/gl/buffer.cpp
++++ b/src/main/cpp/gl/buffer.cpp
+@@ -631,7 +631,27 @@
+         GLES.glPixelStorei(GL_UNPACK_SKIP_ROWS, 0);
+ 
+         // TODO: Optimize the glTexImage2D call
+-        GLES.glTexImage2D(GL_TEXTURE_2D, 0, internalformat, width, height, 0, GL_RED_INTEGER, GL_BYTE, nullptr);
++        // Voxelium: upload in the buffer's own format (upstream always used R8I's
++        // RED_INTEGER/BYTE; Sodium 0.9 uses R32I, which failed).
++        GLenum voxelium_format = GL_RED_INTEGER, voxelium_type = GL_BYTE;
++        switch (internalformat) {
++        case GL_R8I: voxelium_format = GL_RED_INTEGER; voxelium_type = GL_BYTE; break;
++        case GL_R8UI: voxelium_format = GL_RED_INTEGER; voxelium_type = GL_UNSIGNED_BYTE; break;
++        case GL_R16I: voxelium_format = GL_RED_INTEGER; voxelium_type = GL_SHORT; break;
++        case GL_R16UI: voxelium_format = GL_RED_INTEGER; voxelium_type = GL_UNSIGNED_SHORT; break;
++        case GL_R32I: voxelium_format = GL_RED_INTEGER; voxelium_type = GL_INT; break;
++        case GL_R32UI: voxelium_format = GL_RED_INTEGER; voxelium_type = GL_UNSIGNED_INT; break;
++        case GL_R32F: voxelium_format = GL_RED; voxelium_type = GL_FLOAT; break;
++        case GL_RG32I: voxelium_format = GL_RG_INTEGER; voxelium_type = GL_INT; break;
++        case GL_RG32UI: voxelium_format = GL_RG_INTEGER; voxelium_type = GL_UNSIGNED_INT; break;
++        case GL_RG32F: voxelium_format = GL_RG; voxelium_type = GL_FLOAT; break;
++        case GL_RGBA32I: voxelium_format = GL_RGBA_INTEGER; voxelium_type = GL_INT; break;
++        case GL_RGBA32UI: voxelium_format = GL_RGBA_INTEGER; voxelium_type = GL_UNSIGNED_INT; break;
++        case GL_RGBA32F: voxelium_format = GL_RGBA; voxelium_type = GL_FLOAT; break;
++        case GL_RGBA8: voxelium_format = GL_RGBA; voxelium_type = GL_UNSIGNED_BYTE; break;
++        default: break;
++        }
++        GLES.glTexImage2D(GL_TEXTURE_2D, 0, internalformat, width, height, 0, voxelium_format, voxelium_type, nullptr);
+ 
+         GLES.glBindBuffer(GL_PIXEL_UNPACK_BUFFER, real_buffer);
+ 
+@@ -644,7 +664,7 @@
+             void* offset = (void*)(uintptr_t)(row * width * pixelSize);
+             GLuint row_width = (row == height - 1) ? numElements - row * width : width;
+             if (row_width == 0) break;
+-            GLES.glTexSubImage2D(GL_TEXTURE_2D, 0, 0, row, row_width, 1, GL_RED_INTEGER, GL_BYTE, offset);
++            GLES.glTexSubImage2D(GL_TEXTURE_2D, 0, 0, row, row_width, 1, voxelium_format, voxelium_type, offset);
+         }
+ 
+         GLES.glPixelStorei(GL_UNPACK_ALIGNMENT, prev_alignment);
+--- a/src/main/cpp/gl/shader.cpp
++++ b/src/main/cpp/gl/shader.cpp
+@@ -45,6 +45,8 @@
+     return es3_ability;
+ }
+ 
++void voxelium_note_buffer_samplers(const std::string& glsl); // glsl_for_es.cpp (patch 0014)
++
+ bool check_if_sampler_buffer_used(std::string str) {
+     return str.find("samplerBuffer") != std::string::npos;
+ }
+@@ -73,6 +75,7 @@
+ 
+     bool is_sampler_buffer_emulated = 
+         hardware->emulate_texture_buffer && check_if_sampler_buffer_used(glsl_src);
++    if (is_sampler_buffer_emulated) voxelium_note_buffer_samplers(glsl_src); // Voxelium (patch 0014)
+ 
+     if(is_direct_shader(glsl_src.c_str())){
+         LOG_D("[INFO] [Shader] Direct shader source: ")
