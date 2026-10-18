@@ -25,9 +25,7 @@ Status as of 2026-10-18. ✅ done, ⏳ needs doing, 👤 needs the maintainer (a
 ## Publishing
 - ✅ README download link points to https://github.com/Vortroxious/Voxelium-launcher/releases/latest.
 - ✅ Repository created by the maintainer: https://github.com/Vortroxious/Voxelium-launcher (public, empty on 2026-10-18); added as `origin`, `v0.1.0` tagged locally.
-- 👤 Push `main` and the `v0.1.0` tag (needs the maintainer's go-ahead and GitHub credentials).
-- 👤 Create the GitHub release from the tag with:
-  - `Voxelium-0.1.0-unsigned.ipa`
-  - `THIRD_PARTY_NOTICES.txt`
-  - the notes in [RELEASE_NOTES_0.1.0.md](RELEASE_NOTES_0.1.0.md), with the IPA's SHA-256 filled in.
+- ✅ `main` and the `v0.1.0` tag pushed by the maintainer (2026-10-18), after all commits were rewritten to the author Vortroxious with a GitHub no-reply email.
+- ✅ GitHub Release **v0.1.0** published 2026-10-18 08:29 UTC: https://github.com/Vortroxious/Voxelium-launcher/releases/tag/v0.1.0 (not a draft or pre-release). Assets checked against GitHub's own digests: `Voxelium-0.1.0-unsigned.ipa` 184,714,117 bytes, SHA-256 `d7e189b2…8255` (the tested build); `THIRD_PARTY_NOTICES.txt` 256,369 bytes, SHA-256 `309c9c67…62bf`, identical to the repository's. The README's `releases/latest` link resolves to it.
+- ⏳ Release description is empty: paste [RELEASE_NOTES_0.1.0.md](RELEASE_NOTES_0.1.0.md) (without its first line) via **Edit** on the release.
 - 👤 Video and announcement. Say clearly: unofficial, not affiliated with Mojang or Microsoft, needs a Java Edition account, needs StikDebug for JIT, tested on one device.

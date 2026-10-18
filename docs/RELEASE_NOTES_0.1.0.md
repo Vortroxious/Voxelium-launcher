@@ -1,4 +1,4 @@
-# Voxelium 0.1.0 (draft)
+# Voxelium 0.1.0
 
 The first public release of Voxelium, a launcher that runs **Minecraft: Java Edition on iPhone**. It is unofficial and free software (GPL-3.0).
 

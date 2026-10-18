@@ -1124,3 +1124,8 @@ Changes:
   - The user made their GitHub email private. All 27 commits were rewritten (`git filter-branch --env-filter`) to author and committer **Vortroxious** <318707344+Vortroxious@users.noreply.github.com>, now also this repository's `user.name`/`user.email`. Their real name and Gmail appear in no tracked file (checked with `git grep`).
   - The final tree is identical before and after the rewrite. Only commit IDs changed, and the IDs in the docs were mapped to the new ones.
   - The 0.1.0 IPA (SHA-256 `d7e189b2…8255`) was built from the tree now at `a05b565`, so it still matches.
+- **Voxelium 0.1.0 published (2026-10-18 08:29 UTC).**
+  - `main` and `v0.1.0` were pushed by the user from the app's terminal panel with a fine-grained token (Contents: read/write, this repository only). Credentials were entered by the user, not by the assistant.
+  - The local pre-rewrite backup (old name and email) was deleted after `git ls-remote` showed GitHub's `main` and `v0.1.0` equal to the local refs.
+  - The GitHub Release was created by the user. GitHub's API confirms not a draft or pre-release, with assets `Voxelium-0.1.0-unsigned.ipa` (184,714,117 bytes, sha256 `d7e189b2…8255`, the tested build) and `THIRD_PARTY_NOTICES.txt` (sha256 `309c9c67…62bf`, identical to the repo).
+  - `releases/latest` redirects to the tag page; the IPA download returns 200 with the full length. The release description is still empty.
