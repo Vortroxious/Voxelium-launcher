@@ -62,7 +62,13 @@ final class MinecraftLauncher: ObservableObject {
         let fm = FileManager.default
 
         do {
-            let version = try VersionInfo.decode(Data(contentsOf: try paths.versionJSON(versionID)))
+            // Mod loader profiles (Fabric, Quilt) are merged with the version they build on.
+            let resolved = try VersionResolver(paths: paths).resolve(versionID)
+            let version = resolved.info
+            // Modded versions get their own game folder (mods, config, saves, options),
+            // as with ZalithLauncher2's version isolation; vanilla versions share one.
+            let gameDir = resolved.isModded ? try paths.instanceDir(versionID) : paths.gameDir
+            try fm.createDirectory(at: gameDir, withIntermediateDirectories: true)
 
             // Java: the smallest bundled runtime that satisfies the version (8, 17, 21, 25).
             let major = GameRuntime.javaMajor(for: version)
@@ -83,7 +89,7 @@ final class MinecraftLauncher: ObservableObject {
             guard fm.fileExists(atPath: lwjgl.appendingPathComponent("lwjgl.jar").path) else {
                 throw LaunchError.message("\(versionID) uses LWJGL \(wanted.map { "\($0)" } ?? "?"), which needs the app's LWJGL \(build.rawValue) build; it is not in this build yet.")
             }
-            let plan = try LaunchPlanner(paths: paths).plan(version: version, identity: identity)
+            let plan = try LaunchPlanner(paths: paths).plan(version: version, identity: identity, gameDirectory: gameDir)
             if !plan.missingFiles.isEmpty {
                 throw LaunchError.message("\(plan.missingFiles.count) game files are missing. Install or repair \(versionID) first.")
             }
@@ -150,7 +156,7 @@ final class MinecraftLauncher: ObservableObject {
                 "-Dorg.lwjgl.opengl.libname=\(glLibrary.path)",
                 "-Dorg.lwjgl.system.allocator=system",
                 // Minecraft resolves logs/, crash-reports/ etc. against the working directory.
-                "-Duser.dir=\(paths.gameDir.path)",
+                "-Duser.dir=\(gameDir.path)",
             ]
             // The iOS Java 8 build's C2 compiler asked for a 128 MB arena while emitting
             // safepoint polls (ConcurrentHashMap.putVal) and the JVM died with "Out of
@@ -170,7 +176,7 @@ final class MinecraftLauncher: ObservableObject {
             // the silent switch / Action button mutes. A game should play anyway.
             Self.activateAudioSession(log: log)
             // The process cwd is "/" on iOS; log4j's logs/latest.log is relative to it.
-            fm.changeCurrentDirectoryPath(paths.gameDir.path)
+            fm.changeCurrentDirectoryPath(gameDir.path)
             let mgDir = paths.logsDir.appendingPathComponent("mobileglues", isDirectory: true)
             try? fm.createDirectory(at: mgDir, withIntermediateDirectories: true)
             setenv("MG_DIR_PATH", mgDir.path, 1)
@@ -199,7 +205,7 @@ final class MinecraftLauncher: ObservableObject {
                 fm.createFile(atPath: logURL.path, contents: Data(header.utf8))
             }
 
-            log.info("launch", "Starting Minecraft \(versionID) as \(identity.playerName) (\(identity.userType)): Java \(javaMajor) (asks \(major)), LWJGL \(build.rawValue) for \(wanted.map { "\($0)" } ?? "?"), GL \(useGL4ES ? "gl4es" : "MobileGlues"), heap \(heap) MB, render scale \(Int(renderScale * 100))%, \(ours.count + plan.classpath.count) classpath entries, \(options.count) JVM options")
+            log.info("launch", "Starting Minecraft \(versionID)\(resolved.isModded ? " (on \(resolved.chain.dropFirst().joined(separator: " → ")), own game folder)" : "") as \(identity.playerName) (\(identity.userType)): Java \(javaMajor) (asks \(major)), LWJGL \(build.rawValue) for \(wanted.map { "\($0)" } ?? "?"), GL \(useGL4ES ? "gl4es" : "MobileGlues"), heap \(heap) MB, render scale \(Int(renderScale * 100))%, \(ours.count + plan.classpath.count) classpath entries, \(options.count) JVM options")
             Self.started = true
             if !useGL4ES { MobileGluesSession.used = true }
             // The app's GLFW resolves glfwGetProcAddress from this library.

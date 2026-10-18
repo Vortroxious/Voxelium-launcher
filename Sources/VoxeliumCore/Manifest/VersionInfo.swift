@@ -47,8 +47,11 @@ public struct VersionInfo: Codable, Sendable, Equatable {
     public let id: String
     public let type: VersionType?
     public let mainClass: String
-    /// Set by mod loader profiles; the parent must be merged in (not implemented yet).
+    /// Set by mod loader profiles: the vanilla (or other) version this one builds on.
+    /// `VersionResolver` merges the parent in (`merged(onto:)`) before planning.
     public let inheritsFrom: String?
+    /// Which version's client jar to run (`versions/<jar>/<jar>.jar`); set when merging.
+    public let jar: String?
     public let assets: String?
     public let assetIndex: AssetIndexRef?
     public let downloads: Downloads?
@@ -63,6 +66,33 @@ public struct VersionInfo: Codable, Sendable, Equatable {
 
     public static func decode(_ data: Data) throws -> VersionInfo {
         try MojangJSON.decoder().decode(VersionInfo.self, from: data)
+    }
+
+    /// The version whose client jar is launched: `jar`, else this version's own id.
+    public var clientJarID: String { jar ?? id }
+
+    /// This profile with its parent merged in, following the vanilla launcher's
+    /// inheritance rules: the child's id, main class and type win; the parent's
+    /// libraries come first and the child's after them, so the child's newer copy
+    /// wins the planner's later-entry de-duplication (e.g. Fabric's ASM); argument
+    /// lists are concatenated parent-first; everything else falls back to the parent,
+    /// including the client jar.
+    public func merged(onto parent: VersionInfo) -> VersionInfo {
+        var args: Arguments?
+        if arguments != nil || parent.arguments != nil {
+            func join(_ a: [Argument]?, _ b: [Argument]?) -> [Argument]? {
+                a == nil && b == nil ? nil : (a ?? []) + (b ?? [])
+            }
+            args = Arguments(game: join(parent.arguments?.game, arguments?.game),
+                             jvm: join(parent.arguments?.jvm, arguments?.jvm))
+        }
+        return VersionInfo(id: id, type: type ?? parent.type, mainClass: mainClass,
+                           inheritsFrom: parent.inheritsFrom, jar: jar ?? parent.clientJarID,
+                           assets: assets ?? parent.assets, assetIndex: assetIndex ?? parent.assetIndex,
+                           downloads: downloads ?? parent.downloads, libraries: parent.libraries + libraries,
+                           javaVersion: javaVersion ?? parent.javaVersion, arguments: args,
+                           minecraftArguments: minecraftArguments ?? parent.minecraftArguments,
+                           logging: logging ?? parent.logging, releaseTime: releaseTime ?? parent.releaseTime)
     }
 }
 
@@ -123,6 +153,9 @@ public struct Library: Codable, Sendable, Equatable {
     public let downloads: Downloads?
     /// Maven repository base used by mod loader libraries without `downloads`.
     public let url: URL?
+    /// Checksum and size that mod loader metadata (Fabric, Quilt) gives next to `url`.
+    public let sha1: String?
+    public let size: Int64?
     /// OS name → classifier (legacy natives format, may contain `${arch}`).
     public let natives: [String: String]?
     public let rules: [Rule]?
@@ -142,7 +175,7 @@ public struct Library: Codable, Sendable, Equatable {
         if let a = downloads?.artifact { return a }
         guard downloads == nil, let coord = coordinate else { return nil }
         let base = url ?? URL(string: "https://libraries.minecraft.net/")!
-        return RemoteFile(sha1: nil, size: nil, url: base.appendingPathComponent(coord.path), path: coord.path, id: nil)
+        return RemoteFile(sha1: sha1, size: size, url: base.appendingPathComponent(coord.path), path: coord.path, id: nil)
     }
 }
 

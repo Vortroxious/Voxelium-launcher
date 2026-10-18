@@ -39,7 +39,7 @@ public struct GameFilePlanner: Sendable {
     public func installItems(for version: VersionInfo) throws -> [DownloadItem] {
         var items: [DownloadItem] = []
         if let client = version.downloads?.client {
-            items.append(DownloadItem(url: client.url, destination: try paths.clientJar(version.id), sha1: client.sha1, size: client.size))
+            items.append(DownloadItem(url: client.url, destination: try paths.clientJar(version.clientJarID), sha1: client.sha1, size: client.size))
         }
         for lib in classpathLibraries(of: version) {
             guard let a = lib.artifact, let path = a.path ?? lib.coordinate?.path else { continue }

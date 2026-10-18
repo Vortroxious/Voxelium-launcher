@@ -4,6 +4,14 @@ import VoxeliumCore
 struct VersionsView: View {
     @EnvironmentObject var model: LauncherModel
     @EnvironmentObject var minecraft: MinecraftLauncher
+    @State private var installTarget: InstallTarget?
+
+    /// What the install sheet is for: a Minecraft version, preselecting a loader.
+    struct InstallTarget: Identifiable {
+        let entry: VersionManifest.Entry
+        let loader: ModLoader
+        var id: String { entry.id }
+    }
 
     var body: some View {
         NavigationStack {
@@ -26,18 +34,57 @@ struct VersionsView: View {
                         Button("Retry") { Task { await model.loadManifest() } }
                     }
                 }
+                let installed = model.installedVersions
+                if !installed.isEmpty {
+                    Section("Installed") {
+                        ForEach(installed) { v in InstalledRow(version: v) }
+                    }
+                }
                 Section {
                     Toggle("Show snapshots", isOn: $model.settings.showSnapshots)
                 }
                 Section("Versions") {
                     ForEach(model.visibleVersions) { entry in
-                        VersionRow(entry: entry)
+                        VersionRow(entry: entry) { loader in installTarget = InstallTarget(entry: entry, loader: loader) }
                     }
                 }
             }
             .overlay { if model.loadingManifest && model.manifest == nil { ProgressView("Loading versions…") } }
             .refreshable { await model.loadManifest() }
             .navigationTitle("Minecraft Versions")
+            .sheet(item: $installTarget) { target in
+                InstallVersionSheet(entry: target.entry, initialLoader: target.loader)
+            }
+        }
+    }
+}
+
+/// Starts Minecraft for an installed version (vanilla or modded).
+@MainActor
+func launchVersion(_ id: String, model: LauncherModel, minecraft: MinecraftLauncher, accounts: AccountModel) {
+    guard let paths = model.paths else { return }
+    Task { await minecraft.launch(versionID: id, paths: paths, settings: model.settings, accounts: accounts) }
+}
+
+struct InstalledRow: View {
+    @EnvironmentObject var model: LauncherModel
+    @EnvironmentObject var minecraft: MinecraftLauncher
+    @EnvironmentObject var accounts: AccountModel
+    let version: InstalledVersion
+
+    var body: some View {
+        HStack {
+            VStack(alignment: .leading, spacing: 2) {
+                Text(version.isModded ? "\(version.loader ?? "Modded") \(version.base)" : version.id).font(.headline)
+                Text(version.isModded ? version.id : "Vanilla").font(.caption).foregroundStyle(.secondary)
+            }
+            Spacer()
+            Menu {
+                Button("Launch Minecraft (needs JIT)") { launchVersion(version.id, model: model, minecraft: minecraft, accounts: accounts) }
+                Button("Prepare launch plan") { model.preparePlan(version.id) }
+            } label: {
+                Label("Play", systemImage: "play.circle.fill")
+            }
         }
     }
 }
@@ -47,6 +94,8 @@ struct VersionRow: View {
     @EnvironmentObject var minecraft: MinecraftLauncher
     @EnvironmentObject var accounts: AccountModel
     let entry: VersionManifest.Entry
+    /// Opens the install sheet with a loader preselected.
+    let onInstall: (ModLoader) -> Void
 
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
@@ -69,16 +118,13 @@ struct VersionRow: View {
         default:
             if model.installed.contains(entry.id) {
                 Menu {
-                    Button("Launch Minecraft (experimental, needs JIT)") {
-                        if let paths = model.paths {
-                            Task { await minecraft.launch(versionID: entry.id, paths: paths, settings: model.settings, accounts: accounts) }
-                        }
-                    }
+                    Button("Launch Minecraft (experimental, needs JIT)") { launchVersion(entry.id, model: model, minecraft: minecraft, accounts: accounts) }
+                    Button("Install with a mod loader…") { onInstall(.fabric) }
                     Button("Verify / repair files") { Task { await model.install(entry) } }
                     Button("Prepare launch plan") { model.preparePlan(entry.id) }
                 } label: { Label("Installed", systemImage: "checkmark.circle.fill") }
             } else {
-                Button("Install") { Task { await model.install(entry) } }.buttonStyle(.bordered)
+                Button("Install") { onInstall(.vanilla) }.buttonStyle(.bordered)
             }
         }
     }

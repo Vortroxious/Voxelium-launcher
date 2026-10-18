@@ -9,6 +9,9 @@ usage: voxelium-cli <command> [args]
   list-versions [--snapshots]        list versions from Mojang's manifest
   plan <id> [--root DIR]             fetch the version JSON and print the download + launch plan
   install <id> [--root DIR]          download client, libraries and assets (verified)
+  loaders <fabric|quilt> <mc>        list loader builds for a Minecraft version
+  install-loader <fabric|quilt> <mc> [build] [--root DIR]
+                                     install a Fabric/Quilt build (and its base version)
   check-macho <file>...              report Mach-O slices and iOS-device loadability
 """
 
@@ -73,6 +76,37 @@ do {
         print("launch plan: \(plan.classpath.count) classpath entries, \(plan.missingFiles.count) missing")
         print("jvm args: \(plan.jvmArguments.filter { !$0.contains(":") || $0.count < 120 }.joined(separator: " "))")
         print("game args: \(plan.gameArguments.joined(separator: " "))")
+
+    case "loaders":
+        let rest = Array(args.dropFirst())
+        guard rest.count >= 2, let loader = ModLoader(rawValue: rest[0]) else { print(usage); exit(2) }
+        let builds = try await ModLoaderMeta().versions(for: loader, minecraft: rest[1])
+        let rec = ModLoaderMeta.recommended(builds)?.version
+        for b in builds.prefix(15) { print("\(b.version)\t\(b.stable ? "stable" : "unstable")\(b.version == rec ? "\t(recommended)" : "")") }
+
+    case "install-loader":
+        let rest = Array(args.dropFirst()).filter { !$0.hasPrefix("--") && $0 != arg("--root") }
+        guard rest.count >= 2, let loader = ModLoader(rawValue: rest[0]) else { print(usage); exit(2) }
+        let mc = rest[1]
+        let build: String
+        if rest.count >= 3 { build = rest[2] } else {
+            guard let rec = ModLoaderMeta.recommended(try await ModLoaderMeta().versions(for: loader, minecraft: mc)) else { exit(1) }
+            build = rec.version
+        }
+        let p = paths()
+        try p.createLayout()
+        let installer = GameInstaller(paths: p)
+        let (id, report) = try await installer.installLoader(loader, minecraft: mc, version: build) { stage, prog in
+            if prog.completed % 500 == 0 || prog.completed == prog.total { print("  [\(stage)] \(prog.completed)/\(prog.total) failed=\(prog.failed)") }
+        }
+        let fresh = report.outcomes.values.filter { if case .downloaded = $0 { true } else { false } }.count
+        print("\(id): \(report.outcomes.count) ok (\(fresh) downloaded), \(report.failures.count) failed")
+        for (item, err) in report.failures.prefix(10) { print("  FAIL \(item.destination.lastPathComponent): \(err)") }
+        if !report.succeeded { exit(1) }
+        let resolved = try VersionResolver(paths: p).resolve(id)
+        let plan = try LaunchPlanner(paths: p).plan(version: resolved.info, identity: OfflineIdentity.identity(for: "Player"),
+                                                    gameDirectory: try p.instanceDir(id))
+        print("chain: \(resolved.chain.joined(separator: " -> ")), main \(plan.mainClass), \(plan.classpath.count) classpath entries, \(plan.missingFiles.count) missing")
 
     case "check-macho":
         for path in args.dropFirst() {

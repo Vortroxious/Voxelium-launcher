@@ -66,4 +66,24 @@ public struct GameInstaller: Sendable {
         }
         return report
     }
+
+    /// Installs a Fabric or Quilt build: the vanilla base version first (if it is
+    /// not installed yet), then the loader profile, then the merged version, whose
+    /// already-present files are verified and skipped. Returns the new version id;
+    /// the report is the base install's if that failed, else the loader's.
+    public func installLoader(
+        _ loader: ModLoader, minecraft: String, version: String,
+        meta: ModLoaderMeta = ModLoaderMeta(), concurrency: Int = 8,
+        progress: (@Sendable (Stage, DownloadProgress) -> Void)? = nil
+    ) async throws -> (id: String, report: DownloadReport) {
+        if !isInstalled(minecraft) {
+            let manifest = try await fetchManifest()
+            guard let entry = manifest.entry(id: minecraft) else { throw ModLoaderError.badProfile("unknown Minecraft version \(minecraft)") }
+            let base = try await install(try await fetchVersion(entry), concurrency: concurrency, progress: progress)
+            if !base.succeeded { return (minecraft, base) }
+        }
+        let profile = try await ModLoaderInstaller(paths: paths, meta: meta).installProfile(loader, minecraft: minecraft, version: version)
+        let resolved = try VersionResolver(paths: paths).resolve(profile.id)
+        return (profile.id, try await install(resolved.info, concurrency: concurrency, progress: progress))
+    }
 }

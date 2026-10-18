@@ -12,6 +12,13 @@ final class MockHTTP: HTTPClient, @unchecked Sendable {
         lock.withLock { queues[url, default: []].append((status, body)) }
     }
 
+    /// A raw (non-JSON) body, e.g. a Maven .sha1 file.
+    func onRaw(_ url: String, _ status: Int, _ body: Data) {
+        lock.withLock { queues[url, default: []].append((status, RawBody(data: body))) }
+    }
+
+    struct RawBody { let data: Data }
+
     func send(_ request: URLRequest) async throws -> JSONResponse {
         try lock.withLock {
             requests.append(request)
@@ -19,6 +26,7 @@ final class MockHTTP: HTTPClient, @unchecked Sendable {
             guard var q = queues[key], !q.isEmpty else { throw URLError(.badURL) }
             let (status, body) = q.count > 1 ? q.removeFirst() : q[0]
             queues[key] = q
+            if let raw = body as? RawBody { return JSONResponse(status: status, data: raw.data) }
             return JSONResponse(status: status, data: try JSONSerialization.data(withJSONObject: body))
         }
     }

@@ -47,6 +47,9 @@ public struct AppPaths: Sendable, Equatable {
     public var controlsDir: URL { root.appendingPathComponent("controls", isDirectory: true) }
 
     public func versionDir(_ id: String) throws -> URL { try resolve(id, in: versionsDir) }
+    /// A modded version's own game folder (mods, config, saves, options), as
+    /// ZalithLauncher2's version isolation does; vanilla versions share `gameDir`.
+    public func instanceDir(_ id: String) throws -> URL { try versionDir(id) }
     public func versionJSON(_ id: String) throws -> URL { try versionDir(id).appendingPathComponent("\(id).json") }
     public func clientJar(_ id: String) throws -> URL { try versionDir(id).appendingPathComponent("\(id).jar") }
     public func nativesDir(_ id: String) throws -> URL { try versionDir(id).appendingPathComponent("natives", isDirectory: true) }

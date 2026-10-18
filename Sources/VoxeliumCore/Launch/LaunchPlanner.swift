@@ -47,8 +47,10 @@ public struct LaunchPlanner: Sendable {
         identity: LaunchIdentity,
         resolution: (width: Int, height: Int)? = nil,
         extraJVMArguments: [String] = [],
+        gameDirectory: URL? = nil,
         fileManager: FileManager = .default
     ) throws -> LaunchPlan {
+        // Mod loader profiles must be merged with their parent first (VersionResolver).
         if version.inheritsFrom != nil {
             throw LaunchPlanError.inheritanceNotSupported(version.id)
         }
@@ -60,7 +62,7 @@ public struct LaunchPlanner: Sendable {
             guard let path = lib.artifact?.path ?? lib.coordinate?.path else { return nil }
             return try paths.library(path)
         }
-        classpath.append(try paths.clientJar(version.id))
+        classpath.append(try paths.clientJar(version.clientJarID))
 
         let separator = ":"
         var vars: [String: String] = [
@@ -74,7 +76,7 @@ public struct LaunchPlanner: Sendable {
             "user_properties": "{}",
             "version_name": version.id,
             "version_type": version.type?.rawValue ?? "release",
-            "game_directory": paths.gameDir.path,
+            "game_directory": (gameDirectory ?? paths.gameDir).path,
             "assets_root": paths.assetsDir.path,
             "game_assets": paths.assetsDir.path,
             "assets_index_name": version.assetIndex?.id ?? version.assets ?? "legacy",
@@ -140,6 +142,7 @@ public struct LaunchPlanner: Sendable {
 }
 
 public enum LaunchPlanError: Error, Equatable {
-    /// Mod loader profiles (`inheritsFrom`) need JSON merging, not implemented.
+    /// A mod loader profile (`inheritsFrom`) was passed unmerged; resolve it with
+    /// `VersionResolver` first.
     case inheritanceNotSupported(String)
 }

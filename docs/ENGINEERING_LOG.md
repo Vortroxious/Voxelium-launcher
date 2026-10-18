@@ -683,3 +683,38 @@ Changes:
   - Java test and compat jars rebuilt; gl4es, MobileGlues and the LWJGL 3.4.1 patch all still apply.
   - **Build `202610171333`** (SHA-256 `ad09b9941173b814fff2f32182f1d8825f3bdc46210cd4f83fd08269bab08b39`): the app shows as "Voxelium" and its binary contains no "zalith" strings.
 - **Device impact:** this is a **new app** to iOS (new bundle ID). It needs its own install, the StikDebug JIT script assigned again, the game files pushed again (the Mac copies' markers were renamed for this), and Microsoft sign-in again (new Keychain service). **Not yet run on device.**
+
+## 2026-10-17 — Mod loaders, phase 1: version merging, per-version folders, Fabric/Quilt, loader picker
+- **User request:**
+  - Plan a mod library (like ZalithLauncher2's), mods, a shader-pack library, and a mod-loader prompt when installing a version.
+  - Then: "Start phase 1: version JSON merging, per-version folders, Fabric/Quilt install and the mod-loader picker."
+- **Upstream reference (ZalithLauncher2 2.6.1):**
+  - Platforms: Modrinth (`api.modrinth.com/v2`), CurseForge (`api.curseforge.com/v1`, API key from a build secret).
+  - Loaders: Fabric (`meta.fabricmc.net`), Quilt, Forge/NeoForge, plus OptiFine and Cleanroom.
+  - Forge/NeoForge run their installer processors in a **separate JVM process**. On iOS there is one JVM per app launch, so those are deferred to phase 3.
+- **VoxeliumCore:**
+  - **Merging and resolution:**
+    - `VersionInfo.merged(onto:)` follows the vanilla launcher's inheritance rules: child id/main class/type; parent libraries then child's (the planner's later-wins dedup keeps the loader's newer ASM etc.); argument lists concatenated parent-first; everything else from the parent; `jar`/`clientJarID` runs the base version's client jar.
+    - `VersionResolver` loads a version and merges its `inheritsFrom` chain, with errors for a missing parent (with install advice), cycles and too-deep chains. Its `ResolvedVersion` reports `isModded`, `chain` and `baseVersionID`.
+  - **Planner:** `LaunchPlanner` uses `clientJarID` and takes a `gameDirectory`. It still refuses unmerged profiles.
+  - **Per-version folders:** `AppPaths.instanceDir(id)` gives modded versions their own folder (`versions/<id>`), like upstream's version isolation; vanilla keeps sharing `minecraft/`.
+  - **Libraries:** `Library` reads `sha1`/`size` from mod-loader metadata.
+  - **`ModLoaders.swift`:**
+    - `ModLoader` (vanilla/fabric/quilt/forge/neoforge; the last two marked unavailable).
+    - `ModLoaderMeta` fetches build lists and profiles from Fabric meta v2 and Quilt meta v3, sending a Voxelium User-Agent. `recommended` picks the first stable build, or the newest if all are betas. Stability is Fabric's flag; for Quilt, not beta/rc/pre/alpha.
+    - `ModLoaderInstaller.installProfile` writes `versions/<id>/<id>.json` after checking that the profile builds on the requested Minecraft version and that its id can't escape `versions/`.
+    - **Checksums:** Fabric's profiles lack SHA-1s for its own `intermediary` and `fabric-loader` jars, and Quilt's have none. The installer fills them in from the Maven repositories' `<jar>.sha1` files, so every loader file is verified.
+  - **Install:** `GameInstaller.installLoader` installs the vanilla base if missing, then the profile, then the merged version, with present files verified and skipped.
+  - **Tests:** 5 new, against real Fabric/Quilt responses saved as fixtures: merging onto 1.20.1, resolver errors, build lists and recommendations, installing a profile with base-version checks, and filling checksums from Maven. `swift test` passes 80/80.
+- **CLI:** `voxelium-cli loaders <fabric|quilt> <mc>` and `install-loader <fabric|quilt> <mc> [build]`.
+  - **On the Mac:** `install-loader fabric 1.21.11` installed **fabric-loader-0.19.5-1.21.11**: 4646 files ok, only 8 downloaded (the loader libraries, all with SHA-1s). It resolves to `fabric-loader-0.19.5-1.21.11 -> 1.21.11`, main class `KnotClient`, 53 classpath entries, 0 missing.
+- **App:**
+  - **Install sheet:** Install opens `InstallVersionSheet`, a mod-loader picker. Vanilla, Fabric and Quilt are selectable; Forge and NeoForge show "coming later". Fabric/Quilt load their build list with the recommended build preselected and betas labelled. Installed vanilla versions gain "Install with a mod loader…".
+  - **Versions tab:** a new **Installed** section lists every installed version, modded ones included (Mojang's list doesn't contain them), with a loader badge and Launch.
+  - **Launcher:** `MinecraftLauncher` launches through `VersionResolver`. Modded versions run in their own folder (`user.dir`, cwd, `--gameDir`), and the launch log names the chain and folder.
+- **Build `202610171357`** (SHA-256 `52402a0f975277216fdc0f2bb0fbec20e978f001aa89d4ca8ef9dfc4c2668142`): no compiler warnings in the new code. **Not yet run on device.** Fabric/Quilt on iOS are untested; next step is installing Fabric for 1.21.11 from the new sheet on the phone and launching it.
+- **Device result for build 202610171357 (user report plus launcher.log/jvm.log, 2026-10-17/18): Fabric works on the iPhone.**
+  - Fabric 0.19.5 was installed from the new picker for 1.21.11 (`fabric-loader-0.19.5-1.21.11`, 4646 files, 0 failed) and for 26.1 (4804 files, 0 failed).
+  - Both launched "on <base>, own game folder": 1.21.11 on Java 21 / LWJGL 3.3.3, 26.1 on Java 25 / LWJGL 3.4.1, both on MobileGlues.
+  - jvm.log shows "Loading Minecraft 1.21.11 with Fabric Loader 0.19.5" (3 runs) and "… 26.1 …" (1 run), "Loading 4 mods" (Fabric's built-ins; no user mods yet), "Sound engine started", and clean "Stopping!".
+  - Quilt is not yet tried on device.

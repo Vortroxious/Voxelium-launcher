@@ -111,15 +111,64 @@ final class LauncherModel: ObservableObject {
         }
     }
 
+    /// Installs `minecraft` with a mod loader build (installing the vanilla base first
+    /// if needed). Progress is shown on the Minecraft version's row.
+    func installLoader(_ loader: ModLoader, build: String, minecraft: String) async {
+        guard let installer else { return }
+        installState[minecraft] = .preparing
+        do {
+            let (id, report) = try await installer.installLoader(loader, minecraft: minecraft, version: build,
+                                                                 concurrency: settings.downloadConcurrency) { stage, p in
+                Task { @MainActor in
+                    self.installState[minecraft] = .downloading(stage: stage == .assets ? "Assets" : "Game files", completed: p.completed, total: p.total, failed: p.failed)
+                }
+            }
+            installState[minecraft] = .finished(ok: report.outcomes.count, failed: report.failures.count)
+            for (item, err) in report.failures.prefix(20) { log.error("install", "\(item.destination.lastPathComponent): \(err)") }
+            log.info("install", "Installed \(loader.displayName) \(build) for \(minecraft) as \(id): \(report.outcomes.count) files, \(report.failures.count) failed")
+            refreshInstalled()
+        } catch {
+            log.error("install", "\(loader.displayName) \(build) for \(minecraft) failed: \(error)")
+            installState[minecraft] = .failed(String(describing: error))
+        }
+    }
+
+    /// Loader builds offered for a Minecraft version (Fabric, Quilt).
+    func loaderBuilds(_ loader: ModLoader, minecraft: String) async throws -> [LoaderVersion] {
+        try await ModLoaderMeta().versions(for: loader, minecraft: minecraft)
+    }
+
+    /// Everything installed, newest first: vanilla versions and mod loader versions
+    /// (which Mojang's version list does not contain).
+    var installedVersions: [InstalledVersion] {
+        guard let paths else { return [] }
+        let resolver = VersionResolver(paths: paths)
+        return installed.compactMap { id -> InstalledVersion? in
+            guard let r = try? resolver.resolve(id) else { return nil }
+            return InstalledVersion(id: id, base: r.baseVersionID, isModded: r.isModded,
+                                    loader: Self.loaderName(of: r), releaseTime: r.info.releaseTime)
+        }
+        .sorted { ($0.releaseTime ?? .distantPast, $0.id) > ($1.releaseTime ?? .distantPast, $1.id) }
+    }
+
+    static func loaderName(of r: ResolvedVersion) -> String? {
+        guard r.isModded else { return nil }
+        let main = r.info.mainClass
+        if main.hasPrefix("net.fabricmc") { return "Fabric" }
+        if main.hasPrefix("org.quiltmc") { return "Quilt" }
+        return "Modded"
+    }
+
     /// Builds the JVM command line for inspection (Account tab). It does not start
     /// Java; MinecraftLauncher does that.
     func preparePlan(_ id: String) {
         guard let paths else { return }
         do {
-            let data = try Data(contentsOf: try paths.versionJSON(id))
-            let version = try VersionInfo.decode(data)
+            let resolved = try VersionResolver(paths: paths).resolve(id)
             let identity = OfflineIdentity.identity(for: settings.playerName)
-            lastPlan = try LaunchPlanner(paths: paths).plan(version: version, identity: identity, extraJVMArguments: ["-Xmx\(settings.maxMemoryMB)M"])
+            lastPlan = try LaunchPlanner(paths: paths).plan(version: resolved.info, identity: identity,
+                                                            extraJVMArguments: ["-Xmx\(settings.maxMemoryMB)M"],
+                                                            gameDirectory: resolved.isModded ? try paths.instanceDir(id) : nil)
             log.info("launch", "Prepared launch plan for \(id); missing files: \(lastPlan?.missingFiles.count ?? -1)")
         } catch {
             log.error("launch", "Could not prepare launch plan for \(id): \(error)")
@@ -130,4 +179,15 @@ final class LauncherModel: ObservableObject {
         guard let paths else { return [] }
         return RuntimeCatalog(directory: paths.runtimesDir).discover()
     }
+}
+
+/// A row in the Installed section.
+struct InstalledVersion: Identifiable, Equatable {
+    let id: String
+    /// The Minecraft version it runs (itself for vanilla).
+    let base: String
+    let isModded: Bool
+    /// "Fabric", "Quilt", … for modded versions.
+    let loader: String?
+    let releaseTime: Date?
 }
