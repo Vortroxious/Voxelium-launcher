@@ -326,6 +326,9 @@ struct DiagnosticsView: View {
                     }
                     LabeledContent("Debugger attached (JIT prerequisite)", value: DeviceInfo.isDebuggerAttached ? "Yes" : "No")
                 }
+                Section {
+                    NavigationLink { AboutView() } label: { Label("About Voxelium & licences", systemImage: "info.circle") }
+                }
                 JavaTestSection(test: javaTest, paths: model.paths)
                 GraphicsTestSection(test: graphicsTest, paths: model.paths)
                 Section("Downloaded Java runtimes") {

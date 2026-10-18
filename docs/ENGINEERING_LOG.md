@@ -1065,3 +1065,19 @@ Changes:
   - Gauge and notice are on-screen only and unverified from logs.
 - **Build `202610180713`** (SHA-256 `b09426f49c0e50311f25a2565e80f496081e6ddb0aa6bdd59f262d1dd272aa47`): logs the dialog (shown / played anyway / cancelled / lowered) and the in-game low-memory notice.
 - **User confirmation (build 202610180704):** the in-game memory gauge changed colour as memory rose, and the low-memory notice appeared.
+
+## 2026-10-18 — Release prep for 0.1.0
+- Committed first: `07ca62f` (render-distance warning, memory gauge).
+- **Licences:**
+  - New `scripts/collect-licenses.sh` builds `THIRD_PARTY_NOTICES.txt` (4874 lines, 256 KB) from the exact sources in build/deps, failing if a licence file is missing.
+  - It covers OpenJDK, ANGLE and what is linked into it, MobileGlues and what is compiled in, SPIRV-Cross, gl4es, LWJGL (libffi, stb, tinyfiledialogs), FreeType (FTL), OpenAL Soft (LGPL) and the Amethyst JIT scripts.
+  - ANGLE's statically linked third-party code was identified from `nm` on the built libraries: libGLESv2 has abseil, Perfetto, zlib, Chromium libc++ and xxHash; libEGL has libc++. Not protobuf, re2 or spvtools.
+  - The file ships in the app (verified in the IPA) and is shown by a new **About Voxelium & licences** screen (Diagnostics), with version, licence, credits and the non-affiliation note.
+  - `NOTICE.md` updated: the name question was resolved by the Voxelium rename, FastSTL was removed, and there's a component table.
+- **Secrets scan:** `git grep` for tokens, keys and client secrets finds only fake test values. The IPA has no JWT-like strings, provisioning profiles or certificates. 165 tracked files, no build output.
+- **Docs:**
+  - `docs/INSTALL.md`: player guide (sideload, Developer Mode, StikDebug with `universal.js`, sign-in, mods, shaders, memory, limits, reporting problems). The README install section now points to it.
+  - `docs/RELEASE_CHECKLIST.md`: done items and the maintainer's items (repository, tag, release, Microsoft client ID risk, video).
+  - `docs/RELEASE_NOTES_0.1.0.md`: draft.
+- **Build `202610180717`:** includes the About screen and the notices. **Not yet run on device.**
+- **No git remote is configured:** publishing needs the maintainer's GitHub repository and go-ahead.

@@ -53,22 +53,13 @@ Unsigned device IPA (output in `build/ipa/`, with a `.sha256` and an `.info` fil
 scripts/build-ipa.sh
 ```
 
-## Installing on your iPhone (free Apple ID)
-1. Open `App/Voxelium.xcodeproj` in Xcode and go to Settings → Accounts → add your Apple ID.
-2. On the Voxelium target, open Signing & Capabilities, pick your Personal Team, and change the bundle ID to something unique (e.g. `com.<you>.voxelium`).
-3. Connect the iPhone, enable Developer Mode (Settings → Privacy & Security), then Run.
-4. On the phone, trust the developer profile (Settings → General → VPN & Device Management).
+## Installing on your iPhone
+Player guide (sideloading, StikDebug JIT, sign-in, mods, shaders, memory): **[docs/INSTALL.md](docs/INSTALL.md)**.
 
-Alternatively, sign the unsigned IPA with SideStore or AltStore.
-
-**JIT (needed for the Java test):** these steps were verified on an iPhone 15 Pro Max running iOS 27.0 with StikDebug 3.1.14. Older StikDebug versions fail on iOS 27.
-1. Before building, run `scripts/fetch-runtime.sh` to bundle the iOS Java runtime.
-2. In StikDebug, open the Home tab, long-press **Voxelium** → **Assign Script** → `universal.js`.
-3. Close Voxelium, then tap it in StikDebug to launch it with JIT. Leave StikDebug's script log sheet open.
-4. In Voxelium, go to Diagnostics → **Run Java test**. Success shows `VOXELIUM_JAVA_OK`. The test can run once per app launch.
+Developers building from source: open `App/Voxelium.xcodeproj` in Xcode, choose your Personal Team and a unique bundle ID on the Voxelium target, and Run on a phone with Developer Mode on. Then start the app from StikDebug for JIT. `scripts/build-ipa.sh` builds the unsigned IPA. The native dependencies come from the `scripts/build-*.sh` and `scripts/fetch-runtime.sh` scripts, run before the first build; `scripts/collect-licenses.sh` refreshes the notices.
 
 ## Licence
-GPL-3.0. See [LICENSE](LICENSE) and [NOTICE.md](NOTICE.md). The project is not affiliated with ZalithLauncher, Mojang or Microsoft.
+GPL-3.0. See [LICENSE](LICENSE), [NOTICE.md](NOTICE.md) and [THIRD_PARTY_NOTICES.txt](THIRD_PARTY_NOTICES.txt) (the licences of everything the app bundles; also in the app under Diagnostics → About). The project is not affiliated with ZalithLauncher, Mojang or Microsoft.
 
 ## Roadmap
 Design notes: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md). Progress and evidence: [docs/ENGINEERING_LOG.md](docs/ENGINEERING_LOG.md).
