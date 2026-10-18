@@ -22,6 +22,7 @@ An experimental iOS launcher for Minecraft: Java Edition, inspired by [ZalithLau
 | Mod manager (mods, resource packs, shader packs) | ✅ On device: Fabric API + Essential imported from Files and loaded on Fabric 1.21.11 (50 mods, 2026-10-18) | Add from Files, switch on/off (`.disabled`), remove; reads Fabric/Quilt/Forge/NeoForge metadata |
 | Modrinth browse and install (with dependencies) | ✅ On device (2026-10-18): Sodium, Iris (bringing Sodium as its dependency), Photon, BSL and MakeUp installed from the in-app browser into Fabric 1.21.11 | Search filtered to the version's Minecraft version and loader; required dependencies resolved; SHA-1 verified; replaces older copies. No API key |
 | Modrinth modpacks (`.mrpack`, Fabric and Quilt) | ✅ On device (2026-10-18): Fabulously Optimized 13.6.0 (Minecraft 26.1.2, Sodium 0.9 + Iris) installed from the browser, launched and played after MobileGlues patches 0012–0014 | Versions → Modpacks: browse Modrinth or import a .mrpack from Files. Each pack becomes its own version with its own game folder; NeoForge/Forge packs are refused for now |
+| Mod update checks | ✅ On device (2026-10-18): Essential 1.4.1.1 → 1.5.1 found and updated in place | Checked by file hash when a mods / packs tab opens; releases are never offered a beta; old file removed only after the new one is verified |
 | Shader packs (Iris) | ✅ On device (2026-10-18): BSL and MakeUp Ultra Fast render correctly (water, hand, items, entities) after MobileGlues patches 0009 and 0011; stable at render distance 8 (2.2 GB of the 3.4 GB iOS limit). Packs needing compute shaders (Photon, Noble, Mellow, Visual Vibrance) cannot run on OpenGL ES 3.0 | iPhone has OpenGL ES 3.0 only. The Shader packs tab has a "Shaders in game" switch (Iris `enableShaders`) to recover |
 | Microsoft account sign-in | ✅ Works on device (2026-10-17) | login.live.com web sign-in as Amethyst does (or your own approved Azure ID): [docs/MICROSOFT_SIGN_IN.md](docs/MICROSOFT_SIGN_IN.md). Tokens only in the Keychain |
 | Java 8 / 17 / 21 / 25 runtimes, LWJGL 2 (lwjglx), FreeType, LWJGL 3.4.1 | ✅ On device: 1.16.5 (Java 8 + gl4es), 1.20.1 (Java 17), 1.21.11 (Java 21), 26.1 (Java 25 + LWJGL 3.4.1) run | Supported: 1.13 – 26.1.2. 26.2 is refused (black screen: shader link failure, paused); 26.3+ (SDL + Vulkan) refused; ≤1.12.2 not pursued | Covers 1.0 – 26.2 on paper; 26.3+ (SDL + Vulkan) is refused |
@@ -77,7 +78,7 @@ Design notes: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md). Progress and evidenc
 | Milestones 1–7 | Core, downloads, JVM on iOS with JIT, OpenGL on Metal, input, launching Minecraft | ✅ Done (1.13 – 26.1 on device) |
 | Phase 1 | Fabric and Quilt | ✅ Done (Quilt not yet tried on device) |
 | Phase 2 | Mod manager, Modrinth browser, shader packs, memory work | ✅ Done |
-| Phase 2, Part C | Modrinth modpacks (in progress), mod update checks, shader comfort (render-distance warning, memory gauge) | ⏳ Now |
+| Phase 2, Part C | Modrinth modpacks ✅, mod update checks ✅, shader comfort (render-distance warning, memory gauge) | ⏳ Now |
 | Release 0.1 | Licences and credits, install guide, GitHub release | Next |
 | Phase 3 | Forge / NeoForge | After the first release |
 | Later | CurseForge (with your own API key), Minecraft 26.2 and newer, game controllers and hardware keyboards, launcher update checks | Ideas |

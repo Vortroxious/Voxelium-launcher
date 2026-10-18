@@ -1027,3 +1027,20 @@ Changes:
   - Footprint 1.35–1.69 GB (GPU about 0.3 GB), about 1.7 GB left before the iOS limit.
   - So the 26.1.x + Sodium 0.9 path works after MobileGlues patches 0012–0014, and the modpack path is verified end to end on device: browse, version pick, install, launch, play.
 - **Build `202610180648`:** normal MobileGlues (0001–0014, no diagnostics). `build/ipa/Voxelium-unsigned.ipa`, SHA-256 `cf9c97ec4b04e2743bc02b0328049490a405e42dc0afa5ee685db88bccccce53`; the diagnostic IPA was removed.
+
+## 2026-10-18 — Mod update checks (Part C of phase 2)
+- Committed first, as the user asked: `93a572a` (MobileGlues 0012–0014), `ba23185` (offline message, skeleton loading), `3e19279` (modpacks, picker fix, Sodium 0.5 flag, docs).
+- **Modrinth:** `POST /version_files/update` with `{hashes, algorithm: sha1, loaders, game_versions}` returns the newest version of each file's project, betas included. For the Sodium 0.8.14 jar's SHA-1 and Fabric 1.21.11 it answered `mc1.21.11-0.8.15-beta.1` (saved as `Fixtures/modrinth/update-sodium-1.21.11.json`, 2026-10-18).
+- **VoxeliumCore:**
+  - `ModrinthAPI.latestVersions(forSHA1:loaders:gameVersion:)`.
+  - `ModrinthInstaller.checkUpdates(_:kind:gameVersion:gameLoader:)`: hashes the switched-on files of a kind, looks up the current versions (`/version_files`) and the newest (`/version_files/update`), and returns `ModUpdate {projectID, name, file, current, latest}` where they differ.
+  - **An installed release is only offered a newer release:** when the newest is a beta, the project's version list is checked for a release newer than the installed one.
+- **Tests:** 1 new (96 pass): a release user isn't offered the real beta answer; a newer release is offered; switched-off files are skipped; the request body carries the hash, game version and loader.
+- **App (mod manager):**
+  - Each tab checks for updates quietly when opened (skipped offline). Rows with a newer version get "Update to <version>"; with more than one there's a summary with "Update all".
+  - An update goes through the normal plan/install path: new required dependencies are installed, downloads are SHA-1 verified, and the old file is removed only after success. The result is shown, the list rechecks, and everything is logged.
+- **Build `202610180657`** (normal MobileGlues): SHA-256 `e47e9f258a460faaa5309443b1cf1d09f7f4353fb833cbefe2b5cb52fa7a270b`. **Not yet run on device.**
+- **Device result for build 202610180657 (launcher.log and the mods folder via devicectl, 2026-10-18 07:01Z): update checks work.**
+  - Opening Fabric 1.21.11's mods tab logged "Updates for fabric-loader-0.19.5-1.21.11: essential-container 1.4.1.1 → 1.5.1"; the user tapped it, and 7 s later "Updated … 1.4.1.1 → 1.5.1".
+  - The `mods/` folder holds `Essential_1-5-1_fabric_1-21-11.jar` (50.4 MB) and no 1.4.1.1 jar.
+  - Sodium 0.8.14 (newest release; 0.8.15 only in beta) was not offered, as intended. The switched-off `pointblank-…jar.disabled` was untouched.

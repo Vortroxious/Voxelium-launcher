@@ -112,4 +112,42 @@ import Testing
             .install(badPlan, kind: .mods, into: cm, replacing: ["MOD": [keep]])
         #expect(!failed.succeeded && FileManager.default.fileExists(atPath: keep.path))
     }
+
+    @Test func offersUpdatesButNotBetasToReleaseUsers() async throws {
+        let tmp = try TempDir()
+        let cm = ContentManager(gameDirectory: tmp.paths.root)
+        let jar = try #require(Bundle.module.url(forResource: "fabric-example-1.2.3", withExtension: "jar", subdirectory: "Fixtures/content"))
+        let installed = try cm.add(jar, as: .mods)
+        let sha1 = try FileHash.sha1(of: installed.url)
+        // Treat the installed jar as Sodium 0.8.14 (release). Modrinth's update answer for
+        // 1.21.11 is 0.8.15-beta.1 (real response, 2026-10-18).
+        let versions = try #require(try json("dep-sodium-versions") as? [[String: Any]])
+        let release = try #require(versions.first { $0["id"] as? String == "rkdTcxoT" })
+        let beta = try #require((try json("update-sodium-1.21.11") as? [String: Any])?.values.first)
+        let http = MockHTTP()
+        http.on("\(Self.api)/version_files", 200, [sha1: release])
+        http.on("\(Self.api)/version_files/update", 200, [sha1: beta])
+        http.on("\(Self.api)/project/AANobbMI/version", 200, versions)
+        let installer = ModrinthInstaller(api: ModrinthAPI(http: http))
+        // Only a beta is newer, so a release user is offered nothing.
+        #expect(try await installer.checkUpdates(cm, kind: .mods, gameVersion: "1.21.11", gameLoader: "fabric").isEmpty)
+        let update = try #require(http.requests.first { $0.url?.path.hasSuffix("/version_files/update") == true })
+        let body = String(decoding: update.httpBody ?? Data(), as: UTF8.self)
+        #expect(body.contains(sha1) && body.contains("\"1.21.11\"") && body.contains("\"fabric\""))
+
+        // A newer release is offered. (MockHTTP queues per URL, so use a fresh one.)
+        var newer = try #require(beta as? [String: Any])
+        newer["id"] = "NEWREL"; newer["version_type"] = "release"; newer["version_number"] = "mc1.21.11-0.8.16-fabric"
+        let http2 = MockHTTP()
+        http2.on("\(Self.api)/version_files", 200, [sha1: release])
+        http2.on("\(Self.api)/version_files/update", 200, [sha1: newer])
+        let updates = try await ModrinthInstaller(api: ModrinthAPI(http: http2))
+            .checkUpdates(cm, kind: .mods, gameVersion: "1.21.11", gameLoader: "fabric")
+        #expect(updates.map(\.latest.id) == ["NEWREL"] && updates.first?.current.id == "rkdTcxoT")
+        #expect(updates.first?.projectID == "AANobbMI" && updates.first?.file == installed.url && updates.first?.name == "Example Mod")
+
+        // Switched-off files are not checked.
+        try cm.setEnabled(installed, false)
+        #expect(try await installer.checkUpdates(cm, kind: .mods, gameVersion: "1.21.11", gameLoader: "fabric").isEmpty)
+    }
 }

@@ -158,6 +158,20 @@ public struct ModrinthAPI: Sendable {
         return try Self.decoder().decode([String: Version].self, from: r.data)
     }
 
+    /// The newest version of each file's project for these loaders and game version
+    /// (POST /version_files/update), by SHA-1. Unknown hashes are absent. Modrinth
+    /// answers with the newest of any type, betas included.
+    public func latestVersions(forSHA1 hashes: [String], loaders: [String], gameVersion: String) async throws -> [String: Version] {
+        guard !hashes.isEmpty else { return [:] }
+        var body: [String: Any] = ["hashes": hashes, "algorithm": "sha1", "game_versions": [gameVersion]]
+        if !loaders.isEmpty { body["loaders"] = loaders }
+        let r = try await http.json(URL(string: "\(Self.base)/version_files/update")!, body: body)
+        guard r.status == 200 else { throw ModrinthError.http("Modrinth update check", r.status) }
+        do { return try Self.decoder().decode([String: Version].self, from: r.data) } catch {
+            throw ModrinthError.badResponse("Modrinth update check")
+        }
+    }
+
     func getDecoded<T: Decodable>(_ url: URL, _ what: String) async throws -> T {
         let r = try await http.get(url)
         guard r.status == 200 else { throw ModrinthError.http(what, r.status) }
@@ -267,6 +281,36 @@ public struct ModrinthInstaller: Sendable {
         return plan
     }
 
+    /// Installed files of `kind` that have a newer Modrinth version for this game
+    /// version and loader. Files are matched by SHA-1, so only files that came from
+    /// Modrinth (any launcher) are checked; switched-off files are skipped. An installed
+    /// release is only offered a newer release, never a beta.
+    public func checkUpdates(_ manager: ContentManager, kind: ContentKind, gameVersion: String,
+                             gameLoader: String?) async throws -> [ModUpdate] {
+        let items = manager.list(kind).filter { !$0.isFolder && $0.isEnabled }
+        var byHash: [String: ContentItem] = [:]
+        for item in items { if let h = try? FileHash.sha1(of: item.url) { byHash[h] = item } }
+        guard !byHash.isEmpty else { return [] }
+        let hashes = Array(byHash.keys)
+        let loaders = ModrinthAPI.loaders(for: kind, gameLoader: gameLoader)
+        let current = try await api.versions(forSHA1: hashes)
+        let latest = try await api.latestVersions(forSHA1: hashes, loaders: loaders, gameVersion: gameVersion)
+        var updates: [ModUpdate] = []
+        for (hash, item) in byHash {
+            guard let now = current[hash], var newest = latest[hash], newest.id != now.id else { continue }
+            if now.versionType == "release" && newest.versionType != "release" {
+                let list = (try? await api.versions(project: now.projectId, loaders: loaders, gameVersion: gameVersion)) ?? []
+                guard let release = list.first(where: { $0.versionType == "release" }), release.id != now.id,
+                      let releaseIndex = list.firstIndex(where: { $0.id == release.id }),
+                      list.firstIndex(where: { $0.id == now.id }).map({ releaseIndex < $0 }) ?? true
+                else { continue }
+                newest = release
+            }
+            updates.append(ModUpdate(projectID: now.projectId, name: item.name, file: item.url, current: now, latest: newest))
+        }
+        return updates.sorted { $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending }
+    }
+
     func projectTitle(_ projectID: String) async -> String {
         (try? await api.project(id: projectID))?.title ?? projectID
     }
@@ -292,4 +336,16 @@ public struct ModrinthInstaller: Sendable {
         if report.succeeded { for old in replaced { try? FileManager.default.removeItem(at: old) } }
         return report
     }
+}
+
+/// A newer Modrinth version of an installed file.
+public struct ModUpdate: Sendable, Equatable, Identifiable {
+    public let projectID: String
+    /// The installed item's name (from its metadata).
+    public let name: String
+    /// The installed file, removed once the update is in place.
+    public let file: URL
+    public let current: ModrinthAPI.Version
+    public let latest: ModrinthAPI.Version
+    public var id: String { projectID }
 }

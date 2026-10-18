@@ -17,6 +17,10 @@ struct ContentLibraryView: View {
     @State private var pendingDelete: ContentItem?
     @State private var browsing = false
     @State private var iris: IrisSettings?
+    /// Newer Modrinth versions of installed files, by file path.
+    @State private var updates: [String: ModUpdate] = [:]
+    @State private var checkingUpdates = false
+    @State private var updating: Set<String> = []
 
     private var kinds: [ContentKind] { version.isModded ? ContentKind.allCases : [.resourcePacks] }
     private var manager: ContentManager? { model.gameDirectory(for: version.id).map(ContentManager.init(gameDirectory:)) }
@@ -46,6 +50,19 @@ struct ContentLibraryView: View {
                         }
                     } footer: {
                         Text("If a shader pack leaves the screen black, switch this off and start again. Choose packs in Minecraft's Options → Video Settings → Shader Packs.")
+                    }
+                }
+                if !updates.isEmpty || checkingUpdates {
+                    Section {
+                        if checkingUpdates && updates.isEmpty {
+                            HStack(spacing: 8) { ProgressView(); Text("Checking Modrinth for updates…").font(.callout) }
+                        } else {
+                            Label("\(updates.count) update\(updates.count == 1 ? "" : "s") available", systemImage: "arrow.down.circle")
+                            if updates.count > 1 {
+                                Button("Update all") { Task { await installUpdates(Array(updates.values)) } }
+                                    .disabled(!updating.isEmpty)
+                            }
+                        }
                     }
                 }
                 Section {
@@ -87,10 +104,13 @@ struct ContentLibraryView: View {
             .onAppear {
                 if !kinds.contains(kind) { kind = kinds[0] }
                 reload()
+                Task { await checkUpdates() }
             }
             .onChange(of: kind) { _ in
                 message = nil
+                updates = [:]
                 reload()
+                Task { await checkUpdates() }
             }
         }
     }
@@ -104,6 +124,19 @@ struct ContentLibraryView: View {
                     .font(.caption).foregroundStyle(.secondary)
                 if let d = item.description, !d.isEmpty {
                     Text(d).font(.caption).foregroundStyle(.secondary).lineLimit(2)
+                }
+                if let update = updates[item.url.path] {
+                    if updating.contains(update.projectID) {
+                        HStack(spacing: 6) { ProgressView().controlSize(.small); Text("Updating…").font(.caption) }
+                    } else {
+                        Button {
+                            Task { await installUpdates([update]) }
+                        } label: {
+                            Label("Update to \(update.latest.versionNumber)", systemImage: "arrow.down.circle.fill").font(.caption)
+                        }
+                        .buttonStyle(.borderless)
+                        .disabled(!updating.isEmpty)
+                    }
                 }
                 if let w = ContentManager.compatibilityWarning(item, loader: loaderID) {
                     Label(w, systemImage: "exclamationmark.triangle").font(.caption).foregroundStyle(.orange)
@@ -128,6 +161,59 @@ struct ContentLibraryView: View {
         case .shaderPacks:
             "Shader packs need the Iris mod (Fabric or Quilt). Packs that use compute shaders (such as Photon) cannot run on the iPhone's OpenGL ES 3.0. With shaders, keep the render distance at 8–10: more runs out of memory."
         }
+    }
+
+    /// Asks Modrinth which installed files have newer versions (quietly: no message when
+    /// offline or when nothing came from Modrinth).
+    private func checkUpdates() async {
+        guard let manager, !model.isOffline, !checkingUpdates else { return }
+        let checkedKind = kind
+        checkingUpdates = true
+        defer { checkingUpdates = false }
+        do {
+            let found = try await ModrinthInstaller().checkUpdates(manager, kind: checkedKind, gameVersion: version.base, gameLoader: loaderID)
+            guard checkedKind == kind else { return }
+            updates = Dictionary(found.map { ($0.file.path, $0) }, uniquingKeysWith: { a, _ in a })
+            if !found.isEmpty { model.log.info("content", "Updates for \(version.id): \(found.map { "\($0.name) \($0.current.versionNumber) → \($0.latest.versionNumber)" }.joined(separator: ", "))") }
+        } catch {
+            model.log.warning("content", "Update check for \(version.id) failed: \(error)")
+        }
+    }
+
+    /// Installs the newer versions (with any new required mods), replacing the old files
+    /// once every download is verified.
+    private func installUpdates(_ list: [ModUpdate]) async {
+        guard let manager, !list.isEmpty else { return }
+        let installer = ModrinthInstaller()
+        updating = Set(list.map(\.projectID))
+        defer { updating = [] }
+        let installedMods = Set(((try? await installer.installedProjects(manager, kind: .mods)) ?? [:]).keys)
+        var done: [String] = [], failed: [String] = []
+        for update in list {
+            do {
+                let plan = try await installer.plan(update.latest, title: update.name, kind: kind, gameVersion: version.base,
+                                                    gameLoader: loaderID, installed: installedMods.subtracting([update.projectID]))
+                let report = try await installer.install(plan, kind: kind, into: manager, replacing: [update.projectID: [update.file]])
+                if report.succeeded {
+                    done.append(update.name)
+                    model.log.info("content", "Updated \(update.name) \(update.current.versionNumber) → \(update.latest.versionNumber) in \(version.id)")
+                } else {
+                    failed.append(update.name)
+                    for (item, err) in report.failures { model.log.error("content", "Update download \(item.url.lastPathComponent): \(err)") }
+                }
+            } catch {
+                failed.append(update.name)
+                model.log.error("content", "Update of \(update.name) failed: \(error)")
+            }
+        }
+        if failed.isEmpty {
+            message = ("Updated \(done.joined(separator: ", ")). Changes apply the next time you start this version.", false)
+        } else {
+            message = ((done.isEmpty ? "" : "Updated \(done.joined(separator: ", ")). ") + "Could not update \(failed.joined(separator: ", ")); the old version was kept.", true)
+        }
+        reload()
+        updates = [:]
+        await checkUpdates()
     }
 
     private func reload() {
