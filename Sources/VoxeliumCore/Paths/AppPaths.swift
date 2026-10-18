@@ -14,11 +14,13 @@ public enum PathError: Error, Equatable, CustomStringConvertible {
 }
 
 /// The launcher's on-disk layout. Everything lives below `root`, which on iOS
-/// is the app's Application Support directory and in tests a temp directory.
+/// is the app's Documents directory (shown in Files → On My iPhone → Voxelium)
+/// and in tests a temp directory.
 ///
 /// Layout follows the vanilla `.minecraft` structure so version JSONs and
 /// library paths from Mojang can be used unchanged:
-///   root/minecraft/{versions,libraries,assets/{indexes,objects}}
+///   root/minecraft/{versions,libraries,assets/{indexes,objects},saves,resourcepacks,…}
+///   root/minecraft/versions/<id>/   (also the game folder of a modded version or modpack)
 ///   root/runtimes/<name>/   (Java runtimes)
 ///   root/logs/, root/config/, root/controls/
 public struct AppPaths: Sendable, Equatable {
@@ -28,10 +30,17 @@ public struct AppPaths: Sendable, Equatable {
         self.root = root.standardizedFileURL
     }
 
-    /// Default location for the running app (Application Support/Voxelium).
+    /// Default location for the running app: its Documents directory, so the
+    /// Files app can reach worlds, mods, packs and logs.
     public static func applicationDefault(fileManager: FileManager = .default) throws -> AppPaths {
-        let base = try fileManager.url(for: .applicationSupportDirectory, in: .userDomainMask, appropriateFor: nil, create: true)
-        return AppPaths(root: base.appendingPathComponent("Voxelium", isDirectory: true))
+        AppPaths(root: try fileManager.url(for: .documentDirectory, in: .userDomainMask, appropriateFor: nil, create: true))
+    }
+
+    /// Where 0.1.0 kept its data (Application Support/Voxelium, hidden from Files);
+    /// `migrateIfNeeded(from:to:)` moves it to `applicationDefault`.
+    public static func legacyRoot(fileManager: FileManager = .default) -> URL? {
+        fileManager.urls(for: .applicationSupportDirectory, in: .userDomainMask).first?
+            .appendingPathComponent("Voxelium", isDirectory: true)
     }
 
     public var gameDir: URL { root.appendingPathComponent("minecraft", isDirectory: true) }

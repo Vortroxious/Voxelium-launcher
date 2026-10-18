@@ -73,8 +73,20 @@ final class LauncherModel: ObservableObject {
         guard paths == nil else { return }
         do {
             let p = try AppPaths.applicationDefault()
+            // 0.1.0 kept everything in Application Support, where Files can't see it.
+            var migration = DataMigrationReport(), migrationError: Error?
+            if let legacy = AppPaths.legacyRoot() {
+                do { migration = try AppPaths.migrateIfNeeded(from: legacy, to: p.root) } catch { migrationError = error }
+            }
             try p.createLayout()
             try log.attachFile(p.logsDir.appendingPathComponent("launcher.log"))
+            if migration.didAnything {
+                log.info("app", "Moved data to Documents (visible in Files): \(migration.moved.joined(separator: ", "))\(migration.removedOldRoot ? "; old folder removed" : "")")
+            }
+            if !migration.kept.isEmpty {
+                log.warning("app", "Left in the old data folder because Documents already has them: \(migration.kept.joined(separator: ", "))")
+            }
+            if let migrationError { log.error("app", "Moving data to Documents stopped (retried next start): \(migrationError)") }
             paths = p
             settingsStore = SettingsStore(paths: p)
             settings = settingsStore!.load()

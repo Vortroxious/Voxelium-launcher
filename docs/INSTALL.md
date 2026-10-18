@@ -19,6 +19,26 @@ You also need a Minecraft: Java Edition account (Microsoft account), and about 2
 - Shader packs need **Iris** (offered when missing). BSL and MakeUp Ultra Fast work. Packs that need compute shaders, such as Photon, cannot run on iOS's OpenGL ES 3.0.
 - **Memory:** keep the render distance at **8–10** with shaders. Higher values can use more memory than iOS allows, and the game closes. The gauge under **More** in game turns orange, then red, as memory fills.
 
+## Bringing your worlds
+Voxelium's data folder is in the Files app: **Files → On My iPhone → Voxelium**.
+
+| Folder | What's in it |
+|---|---|
+| `minecraft/` | Vanilla versions' game folder: `saves/`, `resourcepacks/`, `shaderpacks/`, `options.txt` |
+| `minecraft/versions/<name>/` | Each Fabric/Quilt version or modpack has its own: `saves/`, `mods/`, `config/`, `options.txt` … |
+| `logs/` | `launcher.log` and `jvm.log`, for bug reports |
+| `config/`, `controls/` | Launcher settings and on-screen control layouts |
+
+Two ways to add a world (a Java Edition world folder holds a `level.dat`):
+- **In Voxelium:** Installed version → **Play → Worlds…** → **+**, then pick a world folder or a `.zip`. A world inside a subfolder of the zip is found too. If the name is taken, the copy becomes "World (2)". Swipe left on a world to **Share** it as a `.zip` (to save it in Files or AirDrop it) or to **Delete** it.
+- **In Files:** copy the world folder into `minecraft/saves`, or into `minecraft/versions/<name>/saves` for a modded version or modpack.
+
+Close Minecraft before copying worlds in Files: a world copied while the game is running can be damaged. Bedrock worlds (`.mcworld`) can't be opened by Java Edition.
+
+Your Microsoft sign-in is kept in the iOS Keychain, not in this folder.
+
+Updating from 0.1.0: the first start moves everything from the old hidden folder into this one. Nothing is overwritten; the launcher log lists what moved.
+
 ## Known limits
 - Minecraft 26.2 and newer are not supported yet (26.2 renders black; 26.3+ needs Vulkan). Versions 1.12.2 and older are not supported.
 - Forge and NeoForge are not supported yet; they are planned for the first update.
@@ -26,5 +46,5 @@ You also need a Minecraft: Java Edition account (Microsoft account), and about 2
 - If StikDebug stops (for example after a long download), close Voxelium and start it from StikDebug again.
 
 ## When something goes wrong
-- **Logs tab:** the launcher log. `Library/Application Support/Voxelium/logs/jvm.log` holds the game's output.
+- **Logs tab:** the launcher log. `logs/jvm.log` (Files → On My iPhone → Voxelium → logs) holds the game's output.
 - Report problems with your device, iOS version, Voxelium version (Diagnostics → About) and both logs.

@@ -39,7 +39,7 @@ LaunchPlanner.plan → LaunchPlan (classpath, JVM args, game args, Java major)
 - Natives are never taken from Mojang. They must be bundled and signed in the IPA.
 
 ## Data directory
-`Application Support/Voxelium/` contains `minecraft/{versions,libraries,assets}`, `runtimes/`, `logs/` and `config/`. All metadata-derived paths go through `AppPaths.resolve`, which rejects absolute paths and `..` traversal.
+The app's `Documents/` folder (visible in Files → On My iPhone → Voxelium; since after 0.1.0, which used the hidden `Application Support/Voxelium/`) contains `minecraft/{versions,libraries,assets,saves,…}`, `runtimes/`, `logs/`, `config/` and `controls/`. `AppPaths.migrateIfNeeded(from:to:)` moves the old folder on first start without overwriting anything. All metadata-derived paths go through `AppPaths.resolve`, which rejects absolute paths and `..` traversal.
 
 ## Alternatives considered
 - **Porting the Android app with a compatibility layer**: rejected; there is no Android runtime on iOS.

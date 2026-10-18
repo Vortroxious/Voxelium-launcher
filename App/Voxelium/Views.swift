@@ -96,6 +96,7 @@ struct InstalledRow: View {
     @EnvironmentObject var accounts: AccountModel
     let version: InstalledVersion
     @State private var showContent = false
+    @State private var showWorlds = false
     @State private var advice: ShaderLaunchAdvice?
 
     /// Loader installs are named like "fabric-loader-0.19.5-1.21.11"; anything else
@@ -116,12 +117,14 @@ struct InstalledRow: View {
             Menu {
                 Button("Launch Minecraft (needs JIT)") { launch() }
                 Button(version.isModded ? "Mods & packs…" : "Resource packs…") { showContent = true }
+                Button("Worlds…") { showWorlds = true }
                 Button("Prepare launch plan") { model.preparePlan(version.id) }
             } label: {
                 Label("Play", systemImage: "play.circle.fill")
             }
         }
         .sheet(isPresented: $showContent) { ContentLibraryView(version: version) }
+        .sheet(isPresented: $showWorlds) { WorldsView(version: version) }
         .confirmationDialog("Render distance \(advice?.renderDistance ?? 0) with shaders", isPresented: Binding(
             get: { advice != nil }, set: { if !$0 { advice = nil } }), titleVisibility: .visible) {
             Button("Lower to \(ShaderLaunchAdvice.suggestedRenderDistance) and play") {

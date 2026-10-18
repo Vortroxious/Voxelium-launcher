@@ -12,7 +12,7 @@ ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 SRC="$ROOT/build/gamedata/minecraft"
 DEVICE="${1:-$(xcrun devicectl list devices 2>/dev/null | awk '/connected/ && /physical/ {for (i=1;i<=NF;i++) if ($i ~ /^[0-9A-F]{8}-[0-9A-F]{16}$/) print $i}' | head -1)}"
 BUNDLE="${2:-$(xcrun devicectl device info apps --device "$DEVICE" 2>/dev/null | awk '/io\.github\.voxelium\.launcher/ {for (i=1;i<=NF;i++) if ($i ~ /^io\.github\.voxelium\.launcher/) print $i}' | head -1)}"
-DEST="Library/Application Support/Voxelium/minecraft"
+DEST="Documents/minecraft"
 
 [ -d "$SRC/versions" ] || { echo "no game install in $SRC (run voxelium-cli install first)" >&2; exit 1; }
 [ -n "$DEVICE" ] || { echo "no connected iPhone found" >&2; exit 1; }
