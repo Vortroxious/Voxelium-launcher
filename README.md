@@ -54,9 +54,70 @@ scripts/build-ipa.sh
 ```
 
 ## Installing on your iPhone
-Player guide (sideloading, StikDebug JIT, sign-in, mods, shaders, memory): **[docs/INSTALL.md](docs/INSTALL.md)**.
 
-Developers building from source: open `App/Voxelium.xcodeproj` in Xcode, choose your Personal Team and a unique bundle ID on the Voxelium target, and Run on a phone with Developer Mode on. Then start the app from StikDebug for JIT. `scripts/build-ipa.sh` builds the unsigned IPA. The native dependencies come from the `scripts/build-*.sh` and `scripts/fetch-runtime.sh` scripts, run before the first build; `scripts/collect-licenses.sh` refreshes the notices.
+This takes about 15 minutes the first time. You need a Mac for steps 1–3; after that, everything happens on the iPhone.
+
+### What you need
+
+**On your Mac**
+
+| What | Where to get it |
+|---|---|
+| **Sideloadly**: installs apps on your iPhone with your Apple ID | [sideloadly.io](https://sideloadly.io/index.html) |
+| **idevice_pair**: makes the pairing file StikDebug needs | [github.com/jkcoxson/idevice_pair/releases](https://github.com/jkcoxson/idevice_pair/releases) |
+| **StikDebug** (`.ipa`): turns on JIT, which Java needs | [github.com/StikDebug/StikDebug/releases/latest](https://github.com/StikDebug/StikDebug/releases/latest) |
+| **Voxelium** (`Voxelium-0.1.0-unsigned.ipa`) | [Voxelium releases](VOXELIUM_RELEASES_URL) <!-- replace with the GitHub releases link --> |
+| *Optional:* **GetMoreRam** (`.ipa`): only if the game keeps closing from low memory (see [Troubleshooting](#troubleshooting)) | [github.com/hugeBlack/GetMoreRam/releases](https://github.com/hugeBlack/GetMoreRam/releases) |
+
+Also: a USB cable for your iPhone, and an Apple ID (a free one works).
+
+**On your iPhone**
+
+- **LocalDevVPN** from the App Store: [apps.apple.com/app/localdevvpn/id6755608044](https://apps.apple.com/us/app/localdevvpn/id6755608044)
+- **Developer Mode** turned on (step 2 shows where)
+- A Minecraft: Java Edition account (Microsoft account)
+
+### Step 1: Install StikDebug and Voxelium with Sideloadly
+1. Connect your iPhone to the Mac with the cable. If the phone asks **Trust This Computer?**, tap **Trust**.
+2. Open **Sideloadly**, sign in with your Apple ID, drag the **StikDebug** `.ipa` into it, and click **Start**. Wait until it says it's done.
+3. Do the same with the **Voxelium** `.ipa`.
+
+> With a free Apple ID, sideloaded apps stop opening after 7 days. Sideload them again with Sideloadly to refresh them.
+
+### Step 2: Allow the apps on your iPhone
+1. Turn on **Developer Mode**: **Settings → Privacy & Security → Developer Mode**. The iPhone restarts; after the restart, confirm with **Turn On**. (The option only appears once you've sideloaded an app.)
+2. Trust your Apple ID: **Settings → General → VPN & Device Management**, tap your Apple ID under *Developer App*, then **Trust**.
+
+### Step 3: Give StikDebug a pairing file
+1. Keep the iPhone connected and unlocked. On the Mac, open **idevice_pair** and select your iPhone.
+2. Create the pairing file and send it to StikDebug. idevice_pair can place it in StikDebug directly; if you save it as a `.plist` file instead, AirDrop it to your iPhone or put it in the Files app.
+3. On the iPhone, open **StikDebug → Settings → Import Pairing File** and choose the `.plist`. (Skip this if idevice_pair already placed it in StikDebug.)
+
+### Step 4: Assign the JIT script to Voxelium (once)
+In **StikDebug**, open **Apps**, touch and hold **Voxelium**, choose **Assign Script**, then pick **universal.js**.
+
+### Step 5: Start Voxelium (every time)
+1. Open **LocalDevVPN** and turn the VPN **on**.
+2. Check your connection:
+   - **On Wi-Fi:** continue to step 3 as normal.
+   - **On mobile data:** turn **Airplane Mode on** first. StikDebug's connection needs it.
+3. Open **StikDebug** and launch **Voxelium** from it. Opened from the Home Screen instead, Voxelium can browse and install, but can't start Minecraft.
+4. **If you turned on Airplane Mode,** turn it **off** again right after Voxelium opens. Otherwise Voxelium has no internet, and the list of versions you haven't installed yet won't load. Once you're back online, pull down on the Versions page or tap **Refresh**.
+
+### Step 6: Play
+1. **Account** tab: **Sign in with Microsoft**, copy the code and finish signing in on the page that opens.
+2. **Versions** tab: install a version (1.13 – 26.1.2). For mods, choose Fabric or Quilt when installing, or tap **Modpacks**.
+3. Under **Installed**, tap **Play → Launch Minecraft**.
+
+### Troubleshooting
+- **"StikDebug is not attached" / Minecraft won't start:** close Voxelium completely, make sure LocalDevVPN is on, and start Voxelium from StikDebug again (step 5).
+- **The game closes after a while (low memory):** lower the render distance to 8–10, especially with shaders. The gauge under **More** in game shows how full memory is. If it still happens, **GetMoreRam** can add Apple's *Increased Memory Limit* to Voxelium: install GetMoreRam with Sideloadly, sign in there with the same Apple ID, open **App IDs**, refresh, select Voxelium and add *Increased Memory Limit*, then install Voxelium again with the same Apple ID. GetMoreRam's own guide uses SideStore or AltStore for that reinstall; doing it with Sideloadly has not been tested.
+- **The versions list doesn't load:** check your internet connection (and Airplane Mode, see step 5), then tap **Refresh**.
+
+More about mods, shaders and memory: [docs/INSTALL.md](docs/INSTALL.md).
+
+### Building from source
+Open `App/Voxelium.xcodeproj` in Xcode, choose your Personal Team and a unique bundle ID on the Voxelium target, and Run on a phone with Developer Mode on; then start the app from StikDebug for JIT. `scripts/build-ipa.sh` builds the unsigned IPA. The native dependencies come from the `scripts/build-*.sh` and `scripts/fetch-runtime.sh` scripts, run before the first build; `scripts/collect-licenses.sh` refreshes the notices.
 
 ## Licence
 GPL-3.0. See [LICENSE](LICENSE), [NOTICE.md](NOTICE.md) and [THIRD_PARTY_NOTICES.txt](THIRD_PARTY_NOTICES.txt) (the licences of everything the app bundles; also in the app under Diagnostics → About). The project is not affiliated with ZalithLauncher, Mojang or Microsoft.

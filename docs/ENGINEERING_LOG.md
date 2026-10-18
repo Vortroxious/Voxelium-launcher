@@ -1081,3 +1081,19 @@ Changes:
   - `docs/RELEASE_NOTES_0.1.0.md`: draft.
 - **Build `202610180717`:** includes the About screen and the notices. **Not yet run on device.**
 - **No git remote is configured:** publishing needs the maintainer's GitHub repository and go-ahead.
+- **Final 0.1.0 IPA (2026-10-18):**
+  - The first build from `2310ddf` printed an outdated note claiming Microsoft sign-in would be unavailable without `.oauth_client_id.txt`. In fact the app falls back to the built-in launcher client ID (`MicrosoftAuth.live()`). Corrected in `8e592a6`.
+  - Rebuilt from that clean commit: `Voxelium-0.1.0-unsigned.ipa`, build 202610180725, 183,355,846 bytes, SHA-256 `ab230812414aad8376e809332dde1ba0f76e5db991365dcdb53359e94f975280`.
+  - Verified: no MobileGlues diagnostics, patch 0014 linked, notices identical to the repo, jre8/17/21/25 present, no signing or client-ID files; Info.plist reports 0.1.0, io.github.voxelium.launcher, iOS 16.0.
+  - **Not yet run on device.**
+- **Step-by-step install guide in the README** (user request: Sideloadly, idevice_pair, StikDebug IPA, Voxelium IPA, optional GetMoreRam; LocalDevVPN and Developer Mode on the iPhone; and the user's own order of steps):
+  - Links checked on 2026-10-18 against their official pages:
+    - Sideloadly: sideloadly.io.
+    - idevice_pair: github.com/jkcoxson/idevice_pair/releases, v1.1.0.
+    - StikDebug: github.com/StikDebug/StikDebug/releases/latest. Its README says it's no longer on the App Store and lists this link and an AltSource.
+    - LocalDevVPN: App Store id6755608044, as linked from StikDebug's README.
+    - GetMoreRam: github.com/hugeBlack/GetMoreRam/releases, nightly.
+  - Voxelium's link is the placeholder `VOXELIUM_RELEASES_URL` until the repository exists.
+  - Includes the user's Airplane Mode rule: Airplane Mode on when launching from StikDebug over mobile data, off right after so the versions list can load. Not needed on Wi-Fi.
+  - The GetMoreRam route is described from its README; reinstalling with Sideloadly instead of SideStore/AltStore is marked untested.
+  - `docs/INSTALL.md` now points to the README for installation, and the release notes point there too.
