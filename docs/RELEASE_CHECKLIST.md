@@ -20,11 +20,12 @@ Status as of 2026-10-18. ✅ done, ⏳ needs doing, 👤 needs the maintainer (a
 ## Accounts and risks
 - 👤 **Microsoft sign-in** uses the client ID Amethyst uses (`00000000402b5328`, Microsoft's Minecraft launcher ID), chosen by the maintainer. It works today; Microsoft could restrict it at any time. `docs/MICROSOFT_SIGN_IN.md` explains how to switch to your own approved Azure app ID instead.
 - ✅ Tokens are stored only in the iOS Keychain; no passwords are handled.
-- 👤 Modrinth asks API clients for an identifying User-Agent (sent: `Voxelium/0.1.0 (iOS Minecraft launcher)`). Consider adding a contact URL once the repository exists.
+- 👤 Modrinth asks API clients for an identifying User-Agent (sent: `Voxelium/0.1.0 (iOS Minecraft launcher)`). Consider adding the repository URL to it in the next version (it is compiled into the app).
 
 ## Publishing
-- 👤 Replace `VOXELIUM_RELEASES_URL` in the README's install table with the release page link.
-- 👤 Create the GitHub repository (owner and name are the maintainer's choice), add it as `origin`, push `main`, and push the `v0.1.0` tag.
+- ✅ README download link points to https://github.com/Vortroxious/Voxelium-launcher/releases/latest.
+- ✅ Repository created by the maintainer: https://github.com/Vortroxious/Voxelium-launcher (public, empty on 2026-10-18); added as `origin`, `v0.1.0` tagged locally.
+- 👤 Push `main` and the `v0.1.0` tag (needs the maintainer's go-ahead and GitHub credentials).
 - 👤 Create the GitHub release from the tag with:
   - `Voxelium-0.1.0-unsigned.ipa`
   - `THIRD_PARTY_NOTICES.txt`

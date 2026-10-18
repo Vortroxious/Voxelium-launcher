@@ -1119,3 +1119,4 @@ Changes:
   - **1.16.5 (08:00:22):** Java 8 + gl4es, joined at view distance 15, 1.77 GB, "Stopping!".
   - **No modpack launch on this build,** although the user listed one. Fabulously Optimized last ran on 202610180648 (same MobileGlues 0001–0014).
 - **Modpack on the 0.1.0 IPA (build 202610180753, 2026-10-18 08:03Z):** Fabulously Optimized 13.6.0 on 26.1.2 (Java 25, LWJGL 3.4.1), 149 mods, joined at view distance 8, footprint 1.85 GB (GPU 0.44 GB, 1.5 GB left), "Stopping!". **The device pass for the release IPA is complete:** vanilla, Fabric + BSL, a modpack and 1.16.5 (gl4es).
+- **Repository:** the user created https://github.com/Vortroxious/Voxelium-launcher; `git ls-remote` shows it reachable and empty. The README download link now points to its latest release. Added as `origin`; `v0.1.0` tagged locally. Not pushed yet: waiting for the user's go-ahead.
