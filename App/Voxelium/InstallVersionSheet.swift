@@ -2,8 +2,7 @@ import SwiftUI
 import VoxeliumCore
 
 /// Asked when installing a Minecraft version: which mod loader to install it with
-/// (as ZalithLauncher2's version installer does). Vanilla, Fabric and Quilt work;
-/// Forge and NeoForge are shown as coming later.
+/// (as ZalithLauncher2's version installer does): Vanilla, Fabric, Quilt, Forge or NeoForge.
 struct InstallVersionSheet: View {
     @EnvironmentObject var model: LauncherModel
     @Environment(\.dismiss) private var dismiss
@@ -17,7 +16,7 @@ struct InstallVersionSheet: View {
     @State private var error: String?
     @State private var showAllBuilds = false
 
-    private var needsBuild: Bool { loader == .fabric || loader == .quilt }
+    private var needsBuild: Bool { loader != .vanilla }
     private var canInstall: Bool { loader.isAvailable && (!needsBuild || !build.isEmpty) }
     private var shownBuilds: [LoaderVersion] { showAllBuilds ? builds : Array(builds.prefix(12)) }
 
@@ -45,7 +44,8 @@ struct InstallVersionSheet: View {
                 } footer: {
                     Text(loader == .vanilla
                          ? "Plain Minecraft, sharing one game folder with the other vanilla versions."
-                         : "Modded versions get their own game folder (mods, config, saves), so they don't mix with vanilla.")
+                         : "Modded versions get their own game folder (mods, config, saves), so they don't mix with vanilla."
+                           + (loader.usesForgeInstaller ? " The first launch also finishes setting up \(loader.displayName), which takes a minute or two." : ""))
                 }
 
                 if needsBuild {
@@ -116,7 +116,8 @@ struct InstallVersionSheet: View {
         case .vanilla: "No mods"
         case .fabric: "Lightweight mod loader; most performance mods (Sodium, Lithium…)"
         case .quilt: "Fabric-compatible loader; runs most Fabric mods"
-        case .forge, .neoforge: "Coming later: its installer needs its own Java run on iOS"
+        case .forge: "The classic mod loader; most big modpacks for 1.20.1 and older"
+        case .neoforge: "Forge's successor for 1.20.2 and newer (Create, many tech mods)"
         }
     }
 }

@@ -8,6 +8,47 @@ public struct RemoteFile: Codable, Sendable, Equatable {
     public let url: URL
     public let path: String?
     public let id: String?
+
+    /// Forge and NeoForge list files their installer creates (e.g. the patched
+    /// `forge:…:client` jar) with an empty `url`; they decode to this URL.
+    public static let producedByInstaller = URL(string: "voxelium-installer:")!
+    /// True for those files: nothing to download; the loader's processors create them.
+    public var isProducedByInstaller: Bool { url == Self.producedByInstaller }
+
+    public init(sha1: String?, size: Int64?, url: URL, path: String?, id: String?) {
+        self.sha1 = sha1
+        self.size = size
+        self.url = url
+        self.path = path
+        self.id = id
+    }
+
+    private enum Keys: String, CodingKey { case sha1, size, url, path, id }
+
+    public init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: Keys.self)
+        sha1 = try c.decodeIfPresent(String.self, forKey: .sha1)
+        size = try c.decodeIfPresent(Int64.self, forKey: .size)
+        path = try c.decodeIfPresent(String.self, forKey: .path)
+        id = try c.decodeIfPresent(String.self, forKey: .id)
+        let raw = try c.decode(String.self, forKey: .url)
+        if raw.isEmpty {
+            url = Self.producedByInstaller
+        } else if let u = URL(string: raw) {
+            url = u
+        } else {
+            throw DecodingError.dataCorruptedError(forKey: .url, in: c, debugDescription: "Invalid URL \(raw)")
+        }
+    }
+
+    public func encode(to encoder: Encoder) throws {
+        var c = encoder.container(keyedBy: Keys.self)
+        try c.encodeIfPresent(sha1, forKey: .sha1)
+        try c.encodeIfPresent(size, forKey: .size)
+        try c.encode(isProducedByInstaller ? "" : url.absoluteString, forKey: .url)
+        try c.encodeIfPresent(path, forKey: .path)
+        try c.encodeIfPresent(id, forKey: .id)
+    }
 }
 
 /// A version JSON such as `1.20.1.json`.

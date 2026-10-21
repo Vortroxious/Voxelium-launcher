@@ -16,9 +16,12 @@ public enum ModLoader: String, CaseIterable, Codable, Sendable, Identifiable {
         }
     }
 
-    /// Forge and NeoForge need their installer's Java processors run first; on iOS
-    /// that takes the one JVM per app launch, so they come in a later phase.
-    public var isAvailable: Bool { self == .vanilla || self == .fabric || self == .quilt }
+    /// All of them. Forge and NeoForge's installer processors run in the game's JVM
+    /// on the first launch (ForgeInstaller, JavaRuntime/voxelium-boot).
+    public var isAvailable: Bool { true }
+
+    /// Forge and NeoForge (installer + processors) rather than a plain profile.
+    public var usesForgeInstaller: Bool { self == .forge || self == .neoforge }
 }
 
 /// A loader build offered for one Minecraft version.
@@ -26,11 +29,14 @@ public struct LoaderVersion: Sendable, Equatable, Identifiable {
     public let version: String
     /// Fabric marks builds stable; Quilt has no flag, so non-beta/rc/pre builds count.
     public let stable: Bool
+    /// Forge's promoted "recommended" build.
+    public let recommended: Bool
     public var id: String { version }
 
-    public init(version: String, stable: Bool) {
+    public init(version: String, stable: Bool, recommended: Bool = false) {
         self.version = version
         self.stable = stable
+        self.recommended = recommended
     }
 }
 
@@ -73,6 +79,7 @@ public struct ModLoaderMeta: Sendable {
 
     /// Loader builds for `minecraft`, newest first as the meta server lists them.
     public func versions(for loader: ModLoader, minecraft: String) async throws -> [LoaderVersion] {
+        if loader.usesForgeInstaller { return try await ForgeMeta(http: http).versions(for: loader, minecraft: minecraft) }
         let url = URL(string: "\(try Self.base(loader))/\(Self.escape(minecraft))")!
         let r = try await http.get(url)
         guard r.status == 200 else { throw ModLoaderError.http("\(loader.displayName) versions", r.status) }
@@ -88,9 +95,10 @@ public struct ModLoaderMeta: Sendable {
         return builds
     }
 
-    /// The default build to offer: the first stable one, else the newest.
+    /// The default build to offer: the recommended one (Forge), else the first
+    /// stable one, else the newest.
     public static func recommended(_ builds: [LoaderVersion]) -> LoaderVersion? {
-        builds.first(where: \.stable) ?? builds.first
+        builds.first(where: \.recommended) ?? builds.first(where: \.stable) ?? builds.first
     }
 
     /// The raw profile JSON for one build.

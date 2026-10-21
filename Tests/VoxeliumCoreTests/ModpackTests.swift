@@ -94,10 +94,19 @@ import Testing
         await #expect(throws: ModpackError.alreadyInstalled(id)) { try await installer.install(try fixture("test-vanilla.mrpack")) }
     }
 
-    @Test func refusesPacksForLoadersItCannotRun() async throws {
-        let tmp = try TempDir()
-        let installer = ModpackInstaller(game: GameInstaller(paths: tmp.paths))
-        await #expect(throws: ModpackError.loaderNotSupported("NeoForge")) { try await installer.install(try fixture("test-neoforge.mrpack")) }
+    @Test func readsForgeAndNeoForgePacksAndRefusesOtherZips() async throws {
+        let neo = try ModpackInstaller.read(try fixture("test-neoforge.mrpack")).index
+        #expect(neo.loader?.loader == .neoforge)
+        #expect(neo.loader?.version == "21.1.77")
+        // Forge packs write the bare build or "<minecraft>-<build>".
+        for raw in ["47.4.10", "1.20.1-47.4.10"] {
+            let index = try ModpackIndex.decode(Data("""
+                {"formatVersion":1,"game":"minecraft","versionId":"1","name":"F","files":[],
+                 "dependencies":{"minecraft":"1.20.1","forge":"\(raw)"}}
+                """.utf8))
+            #expect(index.loader?.loader == .forge)
+            #expect(index.loader?.version == "47.4.10")
+        }
         #expect(throws: ModpackError.notAModpack) {
             try ModpackInstaller.read(try #require(Bundle.module.url(forResource: "gold-pack", withExtension: "zip", subdirectory: "Fixtures/content")))
         }

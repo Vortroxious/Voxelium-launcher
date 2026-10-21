@@ -99,10 +99,11 @@ struct InstalledRow: View {
     @State private var showWorlds = false
     @State private var advice: ShaderLaunchAdvice?
 
-    /// Loader installs are named like "fabric-loader-0.19.5-1.21.11"; anything else
-    /// modded is a modpack named after itself.
+    /// Loader installs are named like "fabric-loader-0.19.5-1.21.11", "neoforge-21.1.264"
+    /// or "1.20.1-forge-47.4.10"; anything else modded is a modpack named after itself.
     private var isModpack: Bool {
         version.isModded && !version.id.hasPrefix("fabric-loader-") && !version.id.hasPrefix("quilt-loader-")
+            && !version.id.hasPrefix("neoforge-") && !version.id.contains("-forge-")
     }
     private var loaderLine: String { "\(version.loader ?? "Modded") \(version.base)" }
 

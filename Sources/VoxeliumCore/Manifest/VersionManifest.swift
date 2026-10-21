@@ -73,6 +73,13 @@ enum MojangJSON {
             if let date = f.date(from: s) { return date }
             f.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
             if let date = f.date(from: s) { return date }
+            // NeoForge writes `2026-10-15T01:40:32.034268352` (nanoseconds, no zone): read
+            // it to the second, as UTC.
+            let plain = DateFormatter()
+            plain.locale = Locale(identifier: "en_US_POSIX")
+            plain.timeZone = TimeZone(identifier: "UTC")
+            plain.dateFormat = "yyyy-MM-dd'T'HH:mm:ss"
+            if s.count >= 19, let date = plain.date(from: String(s.prefix(19))) { return date }
             throw DecodingError.dataCorrupted(.init(codingPath: decoder.codingPath, debugDescription: "Bad date \(s)"))
         }
         return d

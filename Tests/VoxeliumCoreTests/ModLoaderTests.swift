@@ -90,7 +90,6 @@ import Testing
 
         let ua = http.requests.first?.value(forHTTPHeaderField: "User-Agent") ?? ""
         #expect(ua.hasPrefix("Voxelium/"))
-        await #expect(throws: ModLoaderError.unsupported(.forge)) { try await meta.versions(for: .forge, minecraft: "1.21.11") }
     }
 
     @Test func fillsInMissingChecksumsFromMaven() async throws {

@@ -2,7 +2,7 @@ import SwiftUI
 import UniformTypeIdentifiers
 import VoxeliumCore
 
-/// Modrinth modpacks that run on Fabric or Quilt, plus "Import .mrpack" from Files.
+/// Modrinth modpacks that run on Fabric, Quilt, Forge or NeoForge, plus "Import .mrpack" from Files.
 /// A pack installs as its own version with its own game folder.
 struct ModpackBrowseView: View {
     @EnvironmentObject var model: LauncherModel
@@ -51,7 +51,7 @@ struct ModpackBrowseView: View {
                         ForEach(0..<8, id: \.self) { ModrinthHitSkeleton(index: $0) }
                     }
                 } header: {
-                    Text(total > 0 ? "\(total) Fabric and Quilt modpacks on Modrinth" : "Modrinth modpacks")
+                    Text(total > 0 ? "\(total) modpacks on Modrinth" : "Modrinth modpacks")
                 }
             }
             .navigationTitle("Modpacks")
@@ -160,7 +160,7 @@ private struct ModpackInstallSection: View {
     }
 }
 
-/// One Modrinth modpack: pick a version (Fabric or Quilt), install it.
+/// One Modrinth modpack: pick a version, install it.
 struct ModpackDetailView: View {
     @EnvironmentObject var model: LauncherModel
     @Environment(\.dismiss) private var dismiss
@@ -187,7 +187,7 @@ struct ModpackDetailView: View {
                 } else if let error {
                     Text(error).foregroundStyle(.red)
                 } else if versions.isEmpty {
-                    Text("No Fabric or Quilt version of this modpack.").foregroundStyle(.secondary)
+                    Text("No version of this modpack for a loader Voxelium runs.").foregroundStyle(.secondary)
                 } else {
                     Picker("Version", selection: $chosenID) {
                         ForEach(versions.prefix(40)) { v in

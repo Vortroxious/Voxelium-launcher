@@ -42,7 +42,8 @@ public struct GameFilePlanner: Sendable {
             items.append(DownloadItem(url: client.url, destination: try paths.clientJar(version.clientJarID), sha1: client.sha1, size: client.size))
         }
         for lib in classpathLibraries(of: version) {
-            guard let a = lib.artifact, let path = a.path ?? lib.coordinate?.path else { continue }
+            // Forge/NeoForge files their installer's processors create on first launch.
+            guard let a = lib.artifact, !a.isProducedByInstaller, let path = a.path ?? lib.coordinate?.path else { continue }
             items.append(DownloadItem(url: a.url, destination: try paths.library(path), sha1: a.sha1, size: a.size))
         }
         if let idx = version.assetIndex {

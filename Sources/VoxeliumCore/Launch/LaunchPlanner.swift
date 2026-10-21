@@ -48,6 +48,7 @@ public struct LaunchPlanner: Sendable {
         resolution: (width: Int, height: Int)? = nil,
         extraJVMArguments: [String] = [],
         gameDirectory: URL? = nil,
+        includeClientJar: Bool = true,
         fileManager: FileManager = .default
     ) throws -> LaunchPlan {
         // Mod loader profiles must be merged with their parent first (VersionResolver).
@@ -58,11 +59,20 @@ public struct LaunchPlanner: Sendable {
         if resolution != nil { platform.features["has_custom_resolution"] = true }
 
         let files = GameFilePlanner(paths: paths, platform: platform)
-        var classpath = try files.classpathLibraries(of: version).compactMap { lib -> URL? in
+        let libraries = files.classpathLibraries(of: version)
+        var classpath = try libraries.compactMap { lib -> URL? in
             guard let path = lib.artifact?.path ?? lib.coordinate?.path else { return nil }
             return try paths.library(path)
         }
-        classpath.append(try paths.clientJar(version.clientJarID))
+        // Created by the Forge/NeoForge processors on the first launch (ForgeInstaller), so
+        // not "missing" before it.
+        let produced = Set(try libraries.compactMap { lib -> URL? in
+            guard let a = lib.artifact, a.isProducedByInstaller, let path = a.path ?? lib.coordinate?.path else { return nil }
+            return try paths.library(path)
+        })
+        // Forge and NeoForge run a patched copy made by their processors; the vanilla jar
+        // on the classpath is a second Minecraft that Forge 1.21's bootstrap trips over.
+        if includeClientJar { classpath.append(try paths.clientJar(version.clientJarID)) }
 
         let separator = ":"
         var vars: [String: String] = [
@@ -110,7 +120,7 @@ public struct LaunchPlanner: Sendable {
             jvm.append(log.argument.replacingOccurrences(of: "${path}", with: cfg.path))
         }
 
-        let missing = classpath.filter { !fileManager.fileExists(atPath: $0.path) }
+        let missing = classpath.filter { !produced.contains($0) && !fileManager.fileExists(atPath: $0.path) }
         return LaunchPlan(
             mainClass: version.mainClass,
             classpath: classpath,

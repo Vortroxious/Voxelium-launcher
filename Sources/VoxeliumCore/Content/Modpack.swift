@@ -44,7 +44,11 @@ public struct ModpackIndex: Codable, Sendable, Equatable {
         if let v = dependencies["fabric-loader"] { return (.fabric, v) }
         if let v = dependencies["quilt-loader"] { return (.quilt, v) }
         if let v = dependencies["neoforge"] { return (.neoforge, v) }
-        if let v = dependencies["forge"] { return (.forge, v) }
+        // Usually the Forge build ("47.4.10"); some packs write "1.20.1-47.4.10".
+        if let v = dependencies["forge"] {
+            if let mc = minecraft, v.hasPrefix(mc + "-") { return (.forge, String(v.dropFirst(mc.count + 1))) }
+            return (.forge, v)
+        }
         return nil
     }
 
@@ -61,7 +65,6 @@ public enum ModpackError: Error, Equatable, CustomStringConvertible {
     case unsupportedFormat(Int)
     case notMinecraft(String)
     case noMinecraftVersion
-    case loaderNotSupported(String)
     case unsafePath(String)
     case untrustedDownload(String)
     case noDownload(String)
@@ -74,7 +77,6 @@ public enum ModpackError: Error, Equatable, CustomStringConvertible {
         case .unsupportedFormat(let v): "Modpack format \(v) is not supported (only format 1)."
         case .notMinecraft(let game): "This modpack is for \(game), not Minecraft."
         case .noMinecraftVersion: "The modpack does not say which Minecraft version it needs."
-        case .loaderNotSupported(let name): "This modpack needs \(name), which Voxelium cannot run yet (Fabric and Quilt packs work)."
         case .unsafePath(let p): "The modpack tries to write outside its folder (\(p)), so it was not installed."
         case .untrustedDownload(let host): "The modpack downloads from \(host), which Modrinth does not allow, so it was not installed."
         case .noDownload(let p): "The modpack lists \(p) without a download address."
@@ -182,9 +184,6 @@ public struct ModpackInstaller: Sendable {
         // 1. Minecraft and the loader.
         let parentID: String
         if let loader = index.loader {
-            guard loader.loader == .fabric || loader.loader == .quilt else {
-                throw ModpackError.loaderNotSupported(loader.loader.displayName)
-            }
             let (loaderID, report) = try await game.installLoader(loader.loader, minecraft: minecraft, version: loader.version,
                                                                  meta: meta, progress: { _, p in progress?(.loader, p) })
             if !report.succeeded { return (versionID, report) }
@@ -238,11 +237,11 @@ public struct ModpackInstaller: Sendable {
 }
 
 extension ModrinthAPI {
-    /// Modrinth modpacks for a loader Voxelium can run (Fabric or Quilt), optionally
+    /// Modrinth modpacks for a loader Voxelium can run (Fabric, Quilt, Forge, NeoForge), optionally
     /// for one Minecraft version.
     public func searchModpacks(_ query: String, gameVersion: String? = nil, sort: Sort = .relevance,
                                offset: Int = 0, limit: Int = 20) async throws -> SearchPage {
-        var facets: [[String]] = [["project_type:modpack"], ["categories:fabric", "categories:quilt"]]
+        var facets: [[String]] = [["project_type:modpack"], ["categories:fabric", "categories:quilt", "categories:forge", "categories:neoforge"]]
         if let gameVersion { facets.append(["versions:\(gameVersion)"]) }
         var c = URLComponents(string: "\(Self.base)/search")!
         c.queryItems = [
@@ -255,10 +254,10 @@ extension ModrinthAPI {
         return try await getDecoded(c.url!, "Modrinth search")
     }
 
-    /// A modpack's versions that use Fabric or Quilt, newest first.
+    /// A modpack's versions for a loader Voxelium can run, newest first.
     public func modpackVersions(project: String) async throws -> [Version] {
         var c = URLComponents(string: "\(Self.base)/project/\(project)/version")!
-        c.queryItems = [.init(name: "loaders", value: try Self.jsonArray(["fabric", "quilt"]))]
+        c.queryItems = [.init(name: "loaders", value: try Self.jsonArray(["fabric", "quilt", "forge", "neoforge"]))]
         return try await getDecoded(c.url!, "Modrinth versions")
     }
 }

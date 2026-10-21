@@ -256,7 +256,7 @@ final class LauncherModel: ObservableObject {
 
     func resetModpackState() { modpackState = .idle }
 
-    /// Loader builds offered for a Minecraft version (Fabric, Quilt).
+    /// Loader builds offered for a Minecraft version (Fabric, Quilt, Forge, NeoForge).
     func loaderBuilds(_ loader: ModLoader, minecraft: String) async throws -> [LoaderVersion] {
         try await ModLoaderMeta().versions(for: loader, minecraft: minecraft)
     }
@@ -286,6 +286,10 @@ final class LauncherModel: ObservableObject {
         let main = r.info.mainClass
         if main.hasPrefix("net.fabricmc") { return "Fabric" }
         if main.hasPrefix("org.quiltmc") { return "Quilt" }
+        // Forge and NeoForge share main classes (BootstrapLauncher) across versions;
+        // their installers name versions "neoforge-21.1.264" and "1.20.1-forge-47.4.10".
+        if r.chain.contains(where: { $0.hasPrefix("neoforge-") }) { return "NeoForge" }
+        if r.chain.contains(where: { $0.contains("-forge-") }) { return "Forge" }
         return "Modded"
     }
 

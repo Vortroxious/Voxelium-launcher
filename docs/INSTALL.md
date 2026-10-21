@@ -11,7 +11,7 @@ You also need a Minecraft: Java Edition account (Microsoft account), and about 2
 
 ## Sign in and play
 1. **Account tab:** Sign in with Microsoft. Copy the code and open the sign-in page. Tokens are kept in the iOS Keychain; passwords never reach Voxelium.
-2. **Versions tab:** Install a version (1.13 – 26.1.2). For mods, pick Fabric or Quilt in the install sheet, or tap **Modpacks** to install a whole pack.
+2. **Versions tab:** Install a version (1.13 – 26.1.2). For mods, pick Fabric, Quilt, Forge or NeoForge in the install sheet, or tap **Modpacks** to install a whole pack.
 3. Under **Installed**, tap **Play → Launch Minecraft**.
 
 ## Mods, packs and shaders
@@ -25,7 +25,7 @@ Voxelium's data folder is in the Files app: **Files → On My iPhone → Voxeliu
 | Folder | What's in it |
 |---|---|
 | `minecraft/` | Vanilla versions' game folder: `saves/`, `resourcepacks/`, `shaderpacks/`, `options.txt` |
-| `minecraft/versions/<name>/` | Each Fabric/Quilt version or modpack has its own: `saves/`, `mods/`, `config/`, `options.txt` … |
+| `minecraft/versions/<name>/` | Each modded version (Fabric, Quilt, Forge, NeoForge) or modpack has its own: `saves/`, `mods/`, `config/`, `options.txt` … |
 | `logs/` | `launcher.log` and `jvm.log`, for bug reports |
 | `config/`, `controls/` | Launcher settings and on-screen control layouts |
 
@@ -41,7 +41,7 @@ Updating from 0.1.0: the first start moves everything from the old hidden folder
 
 ## Known limits
 - Minecraft 26.2 and newer are not supported yet (26.2 renders black; 26.3+ needs Vulkan). Versions 1.12.2 and older are not supported.
-- Forge and NeoForge are not supported yet; they are planned for the first update.
+- Forge and NeoForge are new: NeoForge for 1.21.1 and Forge for 1.20.1 are tested on an iPhone; other versions not yet. Their first launch takes a minute or two longer, because Voxelium finishes setting them up then (it patches Minecraft once). Forge for Minecraft 1.12.2 and older is not supported.
 - Very large modpacks (hundreds of mods) do not fit in iPhone memory.
 - If StikDebug stops (for example after a long download), close Voxelium and start it from StikDebug again.
 

@@ -69,6 +69,9 @@ final class MinecraftLauncher: ObservableObject {
             // as with ZalithLauncher2's version isolation; vanilla versions share one.
             let gameDir = resolved.isModded ? try paths.instanceDir(versionID) : paths.gameDir
             try fm.createDirectory(at: gameDir, withIntermediateDirectories: true)
+            // Forge and NeoForge start through voxelium-boot.jar, which runs their installer
+            // processors in this JVM on the first launch (ForgeInstaller, ForgeLaunch).
+            let forgePlan = ForgeLaunch.processorPlan(for: resolved, paths: paths)
 
             // Java: the smallest bundled runtime that satisfies the version (8, 17, 21, 25).
             let major = GameRuntime.javaMajor(for: version)
@@ -89,7 +92,8 @@ final class MinecraftLauncher: ObservableObject {
             guard fm.fileExists(atPath: lwjgl.appendingPathComponent("lwjgl.jar").path) else {
                 throw LaunchError.message("\(versionID) uses LWJGL \(wanted.map { "\($0)" } ?? "?"), which needs the app's LWJGL \(build.rawValue) build; it is not in this build yet.")
             }
-            let plan = try LaunchPlanner(paths: paths).plan(version: version, identity: identity, gameDirectory: gameDir)
+            let plan = try LaunchPlanner(paths: paths).plan(version: version, identity: identity, gameDirectory: gameDir,
+                                                            includeClientJar: forgePlan == nil)
             if !plan.missingFiles.isEmpty {
                 throw LaunchError.message("\(plan.missingFiles.count) game files are missing. Install or repair \(versionID) first.")
             }
@@ -111,7 +115,8 @@ final class MinecraftLauncher: ObservableObject {
             }
             let extras = Self.optionalLWJGLModules.filter(requested.contains)
             let modules = Self.lwjglModules + extras + (lwjgl2 ? ["lwjgl-lwjglx"] : [])  // bridge last, as upstream
-            let ours = modules.map { lwjgl.appendingPathComponent("\($0).jar") }
+            let ours = (forgePlan == nil ? [] : [java.appendingPathComponent(ForgeLaunch.bootJarName)])
+                + modules.map { lwjgl.appendingPathComponent("\($0).jar") }
                 + [java.appendingPathComponent("voxelium-ios-compat.jar")]
             for url in ours where !fm.fileExists(atPath: url.path) {
                 throw LaunchError.message("Bundled file missing: \(url.lastPathComponent)")
@@ -129,6 +134,8 @@ final class MinecraftLauncher: ObservableObject {
                 if arg.hasPrefix("-Dlog4j.configurationFile=") { continue }
                 jvmArgs.append(arg)
             }
+            // Forge/NeoForge module options in the form JNI_CreateJavaVM accepts.
+            jvmArgs = ForgeLaunch.jniOptions(ForgeLaunch.extendIgnoreList(jvmArgs, with: [ForgeLaunch.bootJarName]))
 
             // Desktop GL layer: Minecraft 1.13 - 1.16.5 (Java 8) render with fixed-function
             // GL (glFog, matrix stacks), which MobileGlues does not implement (glFogfv was
@@ -184,6 +191,12 @@ final class MinecraftLauncher: ObservableObject {
                 options += ["-Dorg.lwjgl.util.Debug=true", "-Dorg.lwjgl.util.DebugFunctions=true", "-Dorg.lwjgl.util.DebugLoader=true"]
                 log.info("launch", "LWJGL debug output on (logs/lwjgl-debug)")
             }
+            if let forgePlan {
+                options += ["-Dvoxelium.processors=\(forgePlan.path)", "-Dvoxelium.mainClass=\(plan.mainClass)",
+                            // Forge 1.13 - 1.16's early progress window (same reason as fml.toml below).
+                            "-Dfml.earlyprogresswindow=false"]
+                try ForgeLaunch.disableEarlyWindow(gameDirectory: gameDir)
+            }
             options += jvmArgs
 
             // iOS gives an app the "solo ambient" audio category by default, which
@@ -229,9 +242,13 @@ final class MinecraftLauncher: ObservableObject {
                 setenv("LIBGL_GLES", frameworks.appendingPathComponent("libGLESv2.framework/libGLESv2").path, 1)
                 setenv("LIBGL_ES", "2", 1)
             }
-            state = .running("Minecraft \(versionID) is running. Its log goes to logs/jvm.log.")
+            if let forgePlan, !ForgeInstaller.processorsDone(forgePlan) {
+                state = .running("Setting up \(LauncherModel.loaderName(of: resolved) ?? "the mod loader") for its first launch. This takes a minute or two, then Minecraft starts. Its log goes to logs/jvm.log.")
+            } else {
+                state = .running("Minecraft \(versionID) is running. Its log goes to logs/jvm.log.")
+            }
 
-            let mainClass = plan.mainClass
+            let mainClass = forgePlan == nil ? plan.mainClass : ForgeLaunch.bootMainClass
             let gameArgs = plan.gameArguments
             Task.detached(priority: .userInitiated) {
                 let result = VXJVMBridge.run(javaHome: home.path, classpath: classpath, mainClass: mainClass,

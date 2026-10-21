@@ -67,7 +67,7 @@ public struct GameInstaller: Sendable {
         return report
     }
 
-    /// Installs a Fabric or Quilt build: the vanilla base version first (if it is
+    /// Installs a Fabric, Quilt, Forge or NeoForge build: the vanilla base version first (if it is
     /// not installed yet), then the loader profile, then the merged version, whose
     /// already-present files are verified and skipped. Returns the new version id;
     /// the report is the base install's if that failed, else the loader's.
@@ -82,8 +82,16 @@ public struct GameInstaller: Sendable {
             let base = try await install(try await fetchVersion(entry), concurrency: concurrency, progress: progress)
             if !base.succeeded { return (minecraft, base) }
         }
-        let profile = try await ModLoaderInstaller(paths: paths, meta: meta).installProfile(loader, minecraft: minecraft, version: version)
-        let resolved = try VersionResolver(paths: paths).resolve(profile.id)
-        return (profile.id, try await install(resolved.info, concurrency: concurrency, progress: progress))
+        let id: String
+        if loader.usesForgeInstaller {
+            let forge = try await ForgeInstaller(paths: paths, downloader: downloader, http: meta.http)
+                .installProfile(loader, minecraft: minecraft, build: version, concurrency: concurrency) { progress?(.gameFiles, $0) }
+            if !forge.report.succeeded { return (forge.id, forge.report) }
+            id = forge.id
+        } else {
+            id = try await ModLoaderInstaller(paths: paths, meta: meta).installProfile(loader, minecraft: minecraft, version: version).id
+        }
+        let resolved = try VersionResolver(paths: paths).resolve(id)
+        return (id, try await install(resolved.info, concurrency: concurrency, progress: progress))
     }
 }

@@ -16,6 +16,9 @@ mkdir -p "$IPA_DIR" "$OUT/logs"
 # `xcrun devicectl device info apps`, so the installed build can be identified.
 BUILD_NUMBER="${BUILD_NUMBER:-$(date -u +%Y%m%d%H%M)}"
 
+# The Forge/NeoForge entry point is small and quick to build, so always rebuild it.
+echo "==> voxelium-boot.jar"
+"$ROOT/scripts/build-boot.sh" > /dev/null
 echo "==> xcodebuild ($CONFIG, generic iOS device, signing disabled)"
 xcodebuild \
   -project App/Voxelium.xcodeproj \
@@ -33,6 +36,7 @@ grep -E "error:|warning: .*Voxelium|BUILD (SUCCEEDED|FAILED)" "$OUT/logs/xcodebu
 
 APP="$DERIVED/Build/Products/$CONFIG-iphoneos/Voxelium.app"
 [ -d "$APP" ] || { echo "missing $APP"; exit 1; }
+[ -f "$APP/java/voxelium-boot.jar" ] || { echo "missing java/voxelium-boot.jar in the app (Forge/NeoForge)"; exit 1; }
 
 echo "==> packaging"
 STAGE="$(mktemp -d)"

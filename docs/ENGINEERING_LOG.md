@@ -1154,3 +1154,75 @@ Changes:
   - Compared with the 0.1.0 IPA: all 955 bundled files other than the `Voxelium` binary and `Info.plist` are byte-identical (MobileGlues without diagnostics, Java runtimes, notices, app icon).
   - The device pass was on build 202610181331 (same code, version string 0.1.0). The 0.1.1 IPA itself has not been run on a device.
 - Release notes: [RELEASE_NOTES_0.1.1.md](RELEASE_NOTES_0.1.1.md). The 0.1.0 IPA (`d7e189b2…8255`) is kept unchanged next to it.
+
+## 2026-10-21 — Phase 3: Forge and NeoForge
+- **Goal (user):** Forge and NeoForge support.
+- **The problem:** their installers run Java "processors" (Mojang mappings download, jar splitting, remapping, binary patching) before the first launch. iOS allows one JVM per app launch, so a separate installer JVM would cost a restart.
+- **Approach: processors run in the game's own JVM, then the game starts in the same JVM.**
+  - `ForgeInstaller` (`Sources/VoxeliumCore/Launch/ForgeInstaller.swift`) does the installer's "client" work in Swift:
+    - downloads the installer jar, checked against the Maven `.sha1`;
+    - reads `install_profile.json` and `version.json` with `ZipReader`;
+    - downloads the processors' libraries;
+    - extracts `maven/…` files and `/data/…` entries (to `versions/<id>/installer-data/`);
+    - resolves `[artifact]`, `'literal'` and `{TOKEN}` values;
+    - writes `versions/<id>/voxelium-processors.txt` and the version JSON.
+  - The legacy installer format (1.12.2 and older) is refused.
+  - `JavaRuntime/voxelium-boot/…/Boot.java` (Java 8 bytecode, built by `scripts/build-boot.sh`, bundled as `java/voxelium-boot.jar`):
+    - is the main class for Forge/NeoForge;
+    - runs each processor's `Main-Class` in its own `URLClassLoader` (parent: platform/ext loader), checking listed outputs' SHA-1;
+    - writes `<plan>.done`, calls `System.gc()`, then calls the real main class.
+  - Scanned every processor jar used by NeoForge 21.11/26.1/21.1 and Forge 1.20.1/1.21.11: `System.exit` appears only on bad arguments or `--help`. All are class file version 52.
+- **Launch (`ForgeLaunch`, `MinecraftLauncher`):**
+  - The vanilla client jar is left off the classpath: Forge 1.21.11's `ForgeBootstrap` failed with "Could not find net/minecraft/client/Minecraft.class" while it was there, and the others don't need it.
+  - Module options are converted to HotSpot's `--add-opens=` / `--module-path=` forms (`JNI_CreateJavaVM` doesn't take the launcher's space-separated forms).
+  - `voxelium-boot.jar` is added to BootstrapLauncher's `-DignoreList`.
+  - `config/fml.toml` gets `earlyWindowControl = false`: FML's early window opens its own GLFW window and GL context on another thread. `-Dfml.earlyprogresswindow=false` is set for Forge 1.13–1.16.
+- **Model changes:**
+  - Library artifacts with an empty `url` decode as `RemoteFile.producedByInstaller`. They are not downloaded and not counted as missing before the first launch.
+  - Dates like `2026-10-15T01:40:32.034268352` (NeoForge, no zone) are now read.
+- **Builds:**
+  - NeoForge from `maven.neoforged.net/api/maven/versions/…`, mapping MC 1.21.1 → `21.1.`, 26.1.2 → `26.1.2.`; nothing before 1.20.2.
+  - Forge from `maven-metadata.xml`, with the recommended build from `promotions_slim.json`.
+- **App:**
+  - Forge and NeoForge are enabled in the install sheet.
+  - "NeoForge"/"Forge" names come from the version chain, so the Modrinth browser and update checks use the right loader.
+  - Forge/NeoForge `.mrpack` files install; the Modrinth modpack search includes them.
+  - The first launch shows "Setting up … for its first launch".
+- **Verified on macOS (JDK 26 unless noted; `voxelium-cli install-loader`, then Boot with Mojang's macOS LWJGL, vanilla jar left off):**
+  - NeoForge 21.11.48 (1.21.11): processors 8 s; title screen, sound engine started, atlases created.
+  - NeoForge 21.1.264 (1.21.1, BootstrapLauncher): 6 processors; title screen.
+  - Forge 47.4.10 (1.20.1, JDK 17): 6 processors in 21 s; title screen. On JDK 26 it stops at "Unsupported class file major version 70", as expected for 1.20.1.
+  - Forge 61.2.0 (1.21.11, ForgeBootstrap): 3 processors in 30 s; title screen.
+  - Forge 36.2.34 (1.16.5, Zulu JDK 8): 4 processors in 17 s; ModLauncher started, then the harness failed to load LWJGL's macOS natives. The test script doesn't unpack legacy native jars, so this one is not checked past loader start.
+- **Tests:** `swift test` 113/113. New `ForgeTests`:
+  - build lists;
+  - empty-URL libraries;
+  - JNI option conversion;
+  - `fml.toml`;
+  - a full install from a generated installer jar (plan text, extraction, launch plan);
+  - legacy installer refused.
+  - Modpack test updated, since NeoForge packs are no longer refused.
+- **IPA:** build 202610211526, from the working tree on `5a5043b` (uncommitted), 184,829,745 bytes, SHA-256 `2553f567bec6ff8b45a51648f44c0b1b592bb7e78251b7feb304767c51e1de0a`, with `java/voxelium-boot.jar`. **Not yet run on a device.**
+- At the user's request, `build/ipa/Voxelium-0.1.1-unsigned.ipa` now holds this Forge/NeoForge test build (202610211526, `2553f567…de0a`). The 0.1.1 release build (202610181352, `e93a716e…f0e1`) was moved, unchanged, to `build/ipa/old/Voxelium-0.1.1-release-202610181352-unsigned.ipa`. That release build is the one for the v0.1.1 GitHub Release.
+- **Device pass: NeoForge 21.1.264 on Minecraft 1.21.1** (iPhone 15 Pro Max, iOS 27.0; build 202610211526 confirmed installed with `devicectl device info apps`; logs read 2026-10-21 15:42–15:44Z):
+  - The user installed NeoForge 21.1.264 from the install sheet: "3967 files, 0 failed".
+  - First launch (15:40:55Z): `jvm.log` has only the bridge header, with no JIT26 probe line, and the app started again at 15:41:32Z. Cause unknown: the log has nothing after `[JVMBridge] flags=…`.
+  - Second launch (15:41:35Z):
+    - the six processors ran in the game JVM in **17.7 s**: MCP_DATA 0.1 s, DOWNLOAD_MOJMAPS 1.5 s, MERGE_MAPPING 1.0 s, jarsplitter 8.6 s, AutoRenamingTool 3.6 s, binarypatcher 2.9 s;
+    - `System.gc()` took 325M → 22M;
+    - BootstrapLauncher started on `--module-path=` / `--add-opens=` JNI options with "ImmediateWindowProvider not loading because splash screen is disabled";
+    - it went through "NeoForge mod loading, version 21.1.264", the sound engine and atlases (MobileGlues, GLES 3.0), then joined a new world at 15:42:33Z;
+    - footprint 1.43 GB with 1.9 GB left;
+    - the user quit at 15:42:58Z and the world saved ("All dimensions are saved", "Stopping!").
+  - FML warned that the generated `fml.toml` lacked keys and filled them in, as intended.
+  - The JNA (`jna…tmp: dlopen`) and `AngelAuraAmethyst` link errors also appear in Fabric runs, so they come from the existing setup and aren't new.
+  - Not yet tried on device: Forge (any version), NeoForge 1.21.9+ (FML 10), Forge/NeoForge modpacks, mods on NeoForge.
+- **Device pass: Forge 47.4.10 (recommended) on Minecraft 1.20.1** (same device, build 202610211526 confirmed installed; logs read 2026-10-21 15:48Z):
+  - Installed from the install sheet: "3644 files, 0 failed".
+  - First launch (15:46:42Z, Java 17, MobileGlues):
+    - the six processors ran in the game JVM in **19.5 s** (jarsplitter 8.3 s, ForgeAutoRenamingTool 6.5 s, binarypatcher 2.4 s);
+    - `System.gc()` took 386M → 20M;
+    - BootstrapLauncher / ModLauncher 10.0.9 reached "Forge mod loading, version 47.4.10", then the sound engine and atlases;
+    - joined a world at 15:47:53Z;
+    - footprint peaked at 1.94 GB (1.43 GB left); the user quit at 15:48:16Z with all dimensions saved ("Stopping!").
+  - Not yet tried on device: Forge 1.21.x (ForgeBootstrap), Forge 1.16.5 and older (Java 8 + gl4es), NeoForge 1.21.9+ (FML 10), mods on Forge/NeoForge, Forge/NeoForge modpacks.
