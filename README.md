@@ -18,7 +18,7 @@ An experimental iOS launcher for Minecraft: Java Edition, inspired by [ZalithLau
 | OpenGL ES on Metal (ANGLE, built from source) | ✅ Native and Java (LWJGL 3.3.3) tests passed on iPhone 15 Pro Max / iOS 27 | `docs/evidence/2026-10-16-angle-gl-test.log`, `…-lwjgl-gles-test.log` |
 | Desktop OpenGL (GL 4.0 via MobileGlues on ANGLE) | ✅ Native and Java (LWJGL `GL33`) tests passed on iPhone | `docs/evidence/2026-10-16-*desktopgl*.log`; one MobileGlues context per launch |
 | GLFW window/input bridge (app's own GLFW 3.4 API) | ✅ Passed on iPhone: window, context, touch→mouse, landscape, close | `docs/evidence/2026-10-16-glfw-*.log`; hardware keyboard untested; on-screen game controls reported working (2026-10-17); custom layouts (Controls tab) working on device (2026-10-17) |
-| Mod loaders (Fabric, Quilt, Forge, NeoForge) | ✅ Fabric 1.21.11 and 26.1 on device (2026-10-18). ✅ NeoForge 21.1.264 (1.21.1) and Forge 47.4.10 (1.20.1) set up on first launch and joined a world on device (2026-10-21). 🧪 NeoForge 1.21.11 and Forge 1.21.11 reach the title screen on macOS through the same path; not yet run on device. Quilt built, not yet tried on device | Picker on install; modded versions get their own game folder. Forge/NeoForge finish setting up inside the game's Java on the first launch (a minute or two) |
+| Mod loaders (Fabric, Quilt, Forge, NeoForge) | ✅ Fabric 1.21.11 and 26.1 on device (2026-10-18). ✅ NeoForge 21.1.264 (1.21.1) and Forge 47.4.10 (1.20.1) set up on first launch and joined a world on device (2026-10-21). 🧪 NeoForge 1.21.11 and Forge 1.21.11 reach the title screen on macOS through the same path; not yet run on device. Quilt built, not yet tried on device | Picker on install; modded versions get their own game folder. Forge (Minecraft 1.17+) and NeoForge (1.20.2+) finish setting up inside the game's Java on the first launch (a minute or two) |
 | Mod manager (mods, resource packs, shader packs) | ✅ On device: Fabric API + Essential imported from Files and loaded on Fabric 1.21.11 (50 mods, 2026-10-18) | Add from Files, switch on/off (`.disabled`), remove; reads Fabric/Quilt/Forge/NeoForge metadata |
 | Modrinth browse and install (with dependencies) | ✅ On device (2026-10-18): Sodium, Iris (bringing Sodium as its dependency), Photon, BSL and MakeUp installed from the in-app browser into Fabric 1.21.11 | Search filtered to the version's Minecraft version and loader; required dependencies resolved; SHA-1 verified; replaces older copies. No API key |
 | Modrinth modpacks (`.mrpack`) | ✅ On device (2026-10-18): Fabulously Optimized 13.6.0 (Minecraft 26.1.2, Sodium 0.9 + Iris) installed from the browser, launched and played after MobileGlues patches 0012–0014 | Versions → Modpacks: browse Modrinth or import a .mrpack from Files. Each pack becomes its own version with its own game folder. Forge/NeoForge packs install too (not yet tried on device) |
@@ -67,7 +67,7 @@ This takes about 15 minutes the first time. You need a Mac for steps 1–3; afte
 | **Sideloadly**: installs apps on your iPhone with your Apple ID | [sideloadly.io](https://sideloadly.io/index.html) |
 | **idevice_pair**: makes the pairing file StikDebug needs | [github.com/jkcoxson/idevice_pair/releases](https://github.com/jkcoxson/idevice_pair/releases) |
 | **StikDebug** (`.ipa`): turns on JIT, which Java needs | [github.com/StikDebug/StikDebug/releases/latest](https://github.com/StikDebug/StikDebug/releases/latest) |
-| **Voxelium** (`Voxelium-0.1.1-unsigned.ipa`) | [github.com/Vortroxious/Voxelium-launcher/releases/latest](https://github.com/Vortroxious/Voxelium-launcher/releases/latest) |
+| **Voxelium** (`Voxelium-1.0-unsigned.ipa`) | [github.com/Vortroxious/Voxelium-launcher/releases/latest](https://github.com/Vortroxious/Voxelium-launcher/releases/latest) |
 | *Optional:* **GetMoreRam** (`.ipa`): only if the game keeps closing from low memory (see [Troubleshooting](#troubleshooting)) | [github.com/hugeBlack/GetMoreRam/releases](https://github.com/hugeBlack/GetMoreRam/releases) |
 
 Also: a USB cable for your iPhone, and an Apple ID (a free one works).
@@ -134,6 +134,7 @@ Design notes: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md). Progress and evidenc
 | Phase 2 | Mod manager, Modrinth browser, shader packs, memory work | ✅ Done |
 | Phase 2, Part C | Modrinth modpacks, mod update checks, shader comfort (render-distance warning, memory gauge) | ✅ Done |
 | Release 0.1 | Licences and credits, install guide, GitHub release | ✅ [Published](https://github.com/Vortroxious/Voxelium-launcher/releases/tag/v0.1.0) 2026-10-18 |
-| Release 0.1.1 | Data folder in the Files app, Worlds screen (import, share, delete) | ✅ Built 2026-10-18 ([release notes](docs/RELEASE_NOTES_0.1.1.md)) |
-| Phase 3 | Forge / NeoForge | ✅ NeoForge 1.21.1 and Forge 1.20.1 work on device; mods, modpacks and more versions to test |
+| Release 0.1.1 | Data folder in the Files app, Worlds screen (import, share, delete) | ✅ [Published](https://github.com/Vortroxious/Voxelium-launcher/releases/tag/v0.1.1) 2026-10-18 |
+| Phase 3 | Forge / NeoForge | ✅ NeoForge 1.21.1 and Forge 1.20.1 (with Oculus shaders) work on device; modpacks and more versions to test |
+| Release 1.0 | Forge and NeoForge | ⏳ Being prepared ([release notes](docs/RELEASE_NOTES_1.0.md)) |
 | Later | CurseForge (with your own API key), Minecraft 26.2 and newer, game controllers and hardware keyboards, launcher update checks | Ideas |

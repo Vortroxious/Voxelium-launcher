@@ -98,6 +98,16 @@ struct InstalledRow: View {
     @State private var showContent = false
     @State private var showWorlds = false
     @State private var advice: ShaderLaunchAdvice?
+    @State private var confirmDelete = false
+    @State private var deleteError: String?
+
+    /// One JVM per app launch: the running (or finished) game keeps its files open.
+    private var gameActive: Bool {
+        switch minecraft.state {
+        case .starting, .running: true
+        default: false
+        }
+    }
 
     /// Loader installs are named like "fabric-loader-0.19.5-1.21.11", "neoforge-21.1.264"
     /// or "1.20.1-forge-47.4.10"; anything else modded is a modpack named after itself.
@@ -120,9 +130,30 @@ struct InstalledRow: View {
                 Button(version.isModded ? "Mods & packs…" : "Resource packs…") { showContent = true }
                 Button("Worlds…") { showWorlds = true }
                 Button("Prepare launch plan") { model.preparePlan(version.id) }
+                Divider()
+                Button("Delete version…", role: .destructive) {
+                    let blockers = model.versionsBuilding(on: version.id)
+                    if blockers.isEmpty { confirmDelete = true }
+                    else { deleteError = VersionDeleteError.neededBy(version.id, blockers).description }
+                }
+                .disabled(gameActive)
             } label: {
                 Label("Play", systemImage: "play.circle.fill")
             }
+        }
+        .confirmationDialog("Delete \(isModpack ? version.id : version.isModded ? loaderLine : version.id)?",
+                            isPresented: $confirmDelete, titleVisibility: .visible) {
+            Button("Delete", role: .destructive) {
+                Task { deleteError = await model.deleteVersion(version.id) }
+            }
+            Button("Cancel", role: .cancel) {}
+        } message: {
+            Text(deleteMessage)
+        }
+        .alert("Not deleted", isPresented: Binding(get: { deleteError != nil }, set: { if !$0 { deleteError = nil } })) {
+            Button("OK", role: .cancel) {}
+        } message: {
+            Text(deleteError ?? "")
         }
         .sheet(isPresented: $showContent) { ContentLibraryView(version: version) }
         .sheet(isPresented: $showWorlds) { WorldsView(version: version) }
@@ -147,6 +178,15 @@ struct InstalledRow: View {
         } message: {
             Text("With the shader pack \(advice?.shaderPack ?? "") on, render distances above \(ShaderLaunchAdvice.comfortableRenderDistance) can use more memory than iOS allows, and the game closes. \(ShaderLaunchAdvice.suggestedRenderDistance)–\(ShaderLaunchAdvice.comfortableRenderDistance) works well on iPhone.")
         }
+    }
+
+    private var deleteMessage: String {
+        guard version.isModded else {
+            return "Removes Minecraft \(version.id). Worlds, resource packs and settings of vanilla versions are shared and stay."
+        }
+        let worlds = model.paths.map { VersionDeleter(paths: $0).worldCount(of: version.id) } ?? 0
+        let worldText = worlds == 0 ? "its worlds" : "its \(worlds) world\(worlds == 1 ? "" : "s")"
+        return "This also deletes \(worldText), mods, shader packs and settings in its game folder. To keep a world, share it from Worlds… first. This can't be undone."
     }
 
     /// Checks for a shader pack with a high render distance first (memory).

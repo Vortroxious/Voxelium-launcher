@@ -16,9 +16,26 @@ public enum ModLoader: String, CaseIterable, Codable, Sendable, Identifiable {
         }
     }
 
-    /// All of them. Forge and NeoForge's installer processors run in the game's JVM
-    /// on the first launch (ForgeInstaller, JavaRuntime/voxelium-boot).
-    public var isAvailable: Bool { true }
+    /// Whether Voxelium offers this loader for a Minecraft version. Forge and NeoForge's
+    /// installer processors run in the game's JVM on the first launch (ForgeInstaller,
+    /// JavaRuntime/voxelium-boot); Forge is offered from 1.17 (older Forge is rarely
+    /// played and is not tested), NeoForge from 1.20.2, its first own builds.
+    public func isAvailable(minecraft: String) -> Bool {
+        switch self {
+        case .vanilla, .fabric, .quilt: true
+        case .forge: ForgeMeta.offersForge(minecraft: minecraft)
+        case .neoforge: ForgeMeta.neoForgePrefix(minecraft: minecraft) != nil
+        }
+    }
+
+    /// Shown when `isAvailable(minecraft:)` is false.
+    public var oldestMinecraft: String? {
+        switch self {
+        case .forge: "1.17"
+        case .neoforge: "1.20.2"
+        default: nil
+        }
+    }
 
     /// Forge and NeoForge (installer + processors) rather than a plain profile.
     public var usesForgeInstaller: Bool { self == .forge || self == .neoforge }
@@ -42,6 +59,7 @@ public struct LoaderVersion: Sendable, Equatable, Identifiable {
 
 public enum ModLoaderError: Error, Equatable, CustomStringConvertible {
     case unsupported(ModLoader)
+    case notOffered(ModLoader, String)
     case noBuilds(ModLoader, String)
     case http(String, Int)
     case badProfile(String)
@@ -49,6 +67,7 @@ public enum ModLoaderError: Error, Equatable, CustomStringConvertible {
     public var description: String {
         switch self {
         case .unsupported(let l): "\(l.displayName) is not supported yet."
+        case .notOffered(let l, let mc): "Voxelium offers \(l.displayName) for Minecraft \(l.oldestMinecraft ?? "?") and newer, not \(mc)."
         case .noBuilds(let l, let mc): "\(l.displayName) has no builds for Minecraft \(mc)."
         case .http(let what, let status): "\(what) failed (HTTP \(status))."
         case .badProfile(let m): "The loader profile is not usable: \(m)"
@@ -171,7 +190,7 @@ extension HTTPClient {
     func get(_ url: URL) async throws -> JSONResponse {
         var r = URLRequest(url: url)
         r.setValue("application/json", forHTTPHeaderField: "Accept")
-        r.setValue("Voxelium/0.1.1 (iOS Minecraft launcher)", forHTTPHeaderField: "User-Agent")
+        r.setValue("Voxelium/1.0 (iOS Minecraft launcher; github.com/Vortroxious/Voxelium-launcher)", forHTTPHeaderField: "User-Agent")
         return try await send(r)
     }
 }

@@ -1226,3 +1226,52 @@ Changes:
     - joined a world at 15:47:53Z;
     - footprint peaked at 1.94 GB (1.43 GB left); the user quit at 15:48:16Z with all dimensions saved ("Stopping!").
   - Not yet tried on device: Forge 1.21.x (ForgeBootstrap), Forge 1.16.5 and older (Java 8 + gl4es), NeoForge 1.21.9+ (FML 10), mods on Forge/NeoForge, Forge/NeoForge modpacks.
+- **Forge limited to Minecraft 1.17 and newer** (user: nobody plays Forge 1.16.5 or older any more):
+  - `ModLoader.isAvailable(minecraft:)` replaces the always-true `isAvailable`. Forge needs 1.17+, NeoForge 1.20.2+ (its own builds start there).
+  - The install sheet greys the loader out with "For Minecraft 1.17 and newer".
+  - `ForgeMeta.versions` and `ForgeInstaller.installProfile` throw `ModLoaderError.notOffered` before any request, so `.mrpack` packs for older Forge are refused the same way.
+  - Removed `-Dfml.earlyprogresswindow=false` (Forge 1.13–1.16 only) and the legacy-installer error.
+  - The Mac-only Forge 1.16.5 check above stays in the log as history.
+- **Mods only for the version's loader** (user: on NeoForge show only Forge/NeoForge mods, on Fabric/Quilt no Forge/NeoForge mods):
+  - **Modrinth search was already strict.** It filters on the version's loader (Quilt: quilt + fabric). A live check on 2026-10-21 found that every hit had a build for that loader and game version: 40 hits each for NeoForge 1.21.1 (relevance and newest), Forge 1.20.1 and Fabric 1.21.11. Version pickers, dependency resolution and update checks use the same loader filter.
+  - **Import from Files** now refuses a mod whose metadata names only other loaders (`ContentManager.add(_:as:loader:)` → `ContentError.wrongLoader`), with a hint to use Browse. Mods without loader metadata are still let through.
+  - **Shaders:** Forge versions are offered Oculus (`GchcoXML`, needs Embeddium), and NeoForge gets Iris without the "with Sodium" text. These follow the dependencies Modrinth lists.
+  - `swift test` 114/114.
+- **Test IPA:** build 202610211604, from `abfb9d4` plus the uncommitted changes above (Forge 1.17+ only, the import loader check, Oculus). 184,831,441 bytes, SHA-256 `37016febe8010a2629be8ea1f69cbe7ed8b04843d687f7befa854fd44c06b91f`. It is also copied to `build/ipa/Voxelium-0.1.1-unsigned.ipa`, replacing the earlier test build. The 0.1.1 release build is still in `build/ipa/old/`. Not yet run on a device.
+- **Device check of build 202610211604** (installed build confirmed with `devicectl`; logs read 2026-10-21 16:14Z):
+  - **Forge 1.20.1 with shaders:** "Get Oculus (with Embeddium)" installed Embeddium 0.3.31 and Oculus 1.20.1-1.8.0, then BSL 10.1.8 from the browser.
+    - The game started (16:12:18Z) and Oculus logged "Using shaderpack: BSL_v10.1.8.zip"; the user joined a world at 16:12:50Z and quit at 16:13:49Z.
+    - At render distance 12, the footprint peaked at **2.59 GB, 782 MB from the limit**.
+    - The earlier attempt at 16:11:31Z was refused only because StikDebug was no longer attached.
+  - **NeoForge 1.21.1:** the `mods/` folder holds only `embeddium-1.0.15+mc1.21.1.jar` (its NeoForge build), so no Fabric mod got in.
+    - Refused imports were not logged in this build, so the import check has no log evidence. The install sheet greying is UI-only and was reported only through the user's test.
+  - **Found:** the render-distance warning did not show for Forge + BSL, because `IrisSettings` only read `config/iris.properties` and Oculus writes `config/oculus.properties` (same format). The "Shaders in game" switch was missing on Forge for the same reason.
+  - **Fixed (not yet on device):** `IrisSettings` falls back to `oculus.properties`, and refused imports are logged ("Did not add …"). `swift test` 115/115.
+- **Test IPA:** build 202610211617, from `abfb9d4` plus the uncommitted changes (adds the Oculus settings fallback and the refused-import log line). 184,832,349 bytes, SHA-256 `2739f07b21cb8a6dbbf030621e2b8e8bfb29a54206f72249a4e193186550894d`. Copied to `build/ipa/Voxelium-0.1.1-unsigned.ipa`; the 0.1.1 release build is still in `build/ipa/old/`. Not yet run on a device.
+
+## 2026-10-21 — Version 1.0
+- **User:** name the Forge/NeoForge release 1.0. Set in `MARKETING_VERSION`, `LaunchPlanner.launcherVersion` and the Modrinth User-Agent, which now also carries the repository URL (`Voxelium/1.0 (iOS Minecraft launcher; github.com/Vortroxious/Voxelium-launcher)`).
+- **v0.1.1 was published by the user** (GitHub API, checked 2026-10-21): tag `v0.1.1` → `5a5043b`, published 2026-10-18 14:03Z, with a description and assets `Voxelium-0.1.1-unsigned.ipa` (184,786,307 bytes, sha256 `e93a716e…f0e1`, the 0.1.1 release build, not one of the later Forge test builds that used the same local file name) and `THIRD_PARTY_NOTICES.txt` (`309c9c67…62bf`). The v0.1.0 release now has a description too.
+- [RELEASE_NOTES_1.0.md](RELEASE_NOTES_1.0.md) covers what's new since 0.1.1; a 1.0 section was added to the release checklist.
+- **1.0 IPA (release candidate):** build 202610211622, version 1.0, 184,832,302 bytes, SHA-256 `1e68877b22bbf2c91498e113c07aca5f5c25bcba0b2cc959fa525b325a5d7426`, `build/ipa/Voxelium-1.0-unsigned.ipa`. Built from `abfb9d4` plus uncommitted changes; `swift test` 115/115. Not yet run on a device.
+- **Delete version** (user request):
+  - `VersionDeleter` (`Sources/VoxeliumCore/Launch/VersionDeleter.swift`) removes `versions/<id>/`, deleting the install marker first.
+  - It refuses while another version builds on the one being deleted (a loader on its Minecraft version, a modpack on its loader), naming them.
+  - A modded version's folder is its game folder, so its worlds, mods and config go with it; the confirmation says so and counts the worlds. Vanilla worlds (`minecraft/saves`), libraries and assets stay.
+  - App: Play → **Delete version…**, disabled while a game is starting or running. Deletion runs off the main thread and is logged ("Deleted version …").
+  - `VersionDeleterTests`; `swift test` 116/116.
+- **1.0 IPA rebuilt with delete:** build 202610211631, 184,845,978 bytes, SHA-256 `ee9564c2ecc0ffea9eab5f12724adf428bde800183bf41b1830f2a8b104c416f`, at `build/ipa/Voxelium-1.0-unsigned.ipa`. It replaces 202610211622, which is installed on the phone but had no game runs logged when its logs were read at 16:28Z. Not yet run on a device.
+- **Device check of build 202610211631** (installed build confirmed with `devicectl`; logs read 2026-10-21 16:37Z):
+  - **Delete works:** "Deleted version Fabulously Optimized 13.6.0 with its game folder (2 worlds)" at 16:36:46Z, and `versions/Fabulously Optimized 13.6.0/` is gone from the device. The other 21 version folders are still there.
+  - **No game was launched on this build** (or on 202610211622): the last "Starting Minecraft" is 16:12:18Z (build 202610211604), and `jvm.log` was last written then. So the 1.0 game runs (NeoForge, Forge + Oculus warning, Fabric) are still to do.
+- **1.0 device pass, build 202610211631** (installed build confirmed with `devicectl`; logs read 2026-10-21 16:40Z). Each game joined a world, saved ("All dimensions are saved") and stopped; there were no exceptions on the game thread, no hs_err file and no FATAL.
+
+  | Version | Started | Joined | Stopped | Peak footprint | Notes |
+  |---|---|---|---|---|---|
+  | Fabric 0.19.5 / 1.21.11 | 16:37:26Z | 16:37:50 | 16:38:07 | 2,648 MB | Iris "Using shaderpack: BSL_v10.1.8.zip" |
+  | NeoForge 21.1.264 / 1.21.1 | 16:38:30Z | 16:38:54 | 16:39:25 | 1,648 MB | processors already done (no setup step) |
+  | Forge 47.4.10 / 1.20.1 | 16:39:38Z | 16:40:08 | 16:40:38 | 2,456 MB | Oculus with BSL |
+
+  - For Forge, the **shader warning was shown** ("BSL_v10.1.8.zip at render distance 12", 16:39:33Z) and the user chose "Play anyway". That confirms the Oculus settings fallback.
+  - A second delete: "Deleted version Landscapes Reimagined Genesis 3.2 3.2" (16:38:21Z).
+  - The `jna…tmp: dlopen` UnsatisfiedLinkError lines are Minecraft's hardware-info warnings, the same as in every Fabric run.

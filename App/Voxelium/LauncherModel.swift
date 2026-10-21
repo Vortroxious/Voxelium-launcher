@@ -151,6 +151,30 @@ final class LauncherModel: ObservableObject {
         installed = Set(ids.filter(installer.isInstalled))
     }
 
+    /// Deletes an installed version (see VersionDeleter); returns an error message, or
+    /// nil when it was deleted. Large game folders are removed off the main thread.
+    func deleteVersion(_ id: String) async -> String? {
+        guard let paths else { return "The data folder is not ready." }
+        let deleter = VersionDeleter(paths: paths)
+        let worlds = deleter.worldCount(of: id)
+        do {
+            try await Task.detached(priority: .userInitiated) { try deleter.delete(id) }.value
+            log.info("install", "Deleted version \(id)\(worlds > 0 ? " with its game folder (\(worlds) world\(worlds == 1 ? "" : "s"))" : "")")
+            installState[id] = nil
+            refreshInstalled()
+            return nil
+        } catch {
+            log.error("install", "Could not delete \(id): \(error)")
+            refreshInstalled()
+            return String(describing: error)
+        }
+    }
+
+    /// Versions that build on `id` and block deleting it.
+    func versionsBuilding(on id: String) -> [String] {
+        paths.map { VersionDeleter(paths: $0).dependents(of: id) } ?? []
+    }
+
     func install(_ entry: VersionManifest.Entry) async {
         guard let installer else { return }
         installState[entry.id] = .preparing

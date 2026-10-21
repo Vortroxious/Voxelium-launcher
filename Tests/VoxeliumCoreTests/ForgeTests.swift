@@ -94,7 +94,7 @@ import Testing
         try Data(text.utf8).write(to: url)
     }
 
-    @Test func installsNeoForgeAndWritesTheProcessorPlan() async throws {
+    @Test func installsFromAnInstallerAndWritesTheProcessorPlan() async throws {
         let tmp = try TempDir()
         let paths = tmp.paths
         let tool = Data("tool jar".utf8)
@@ -139,7 +139,9 @@ import Testing
         try zip(src, to: jar)
         let jarData = try Data(contentsOf: jar)
 
-        let installerURL = "https://maven.neoforged.net/releases/net/neoforged/neoforge/20.4.1/neoforge-20.4.1-installer.jar"
+        // NeoForge-shaped files from Forge's Maven: NeoForge is not offered for 1.20.1, and
+        // the installer format is the same.
+        let installerURL = "https://maven.minecraftforge.net/net/minecraftforge/forge/1.20.1-20.4.1/forge-1.20.1-20.4.1-installer.jar"
         let http = MockHTTP()
         http.onRaw(installerURL + ".sha1", 200, Data((FileHash.sha1(of: jarData) + "\n").utf8))
         let transport = MockTransport()
@@ -147,7 +149,7 @@ import Testing
         transport.enqueue(URL(string: "https://maven.neoforged.net/releases/net/neoforged/installertools/installertools/1.0/installertools-1.0-fatjar.jar")!, .ok(tool))
         let installer = ForgeInstaller(paths: paths, downloader: DownloadManager(transport: transport), http: http)
 
-        let (id, report) = try await installer.installProfile(.neoforge, minecraft: "1.20.1", build: "20.4.1")
+        let (id, report) = try await installer.installProfile(.forge, minecraft: "1.20.1", build: "20.4.1")
         #expect(id == "neoforge-20.4.1" && report.succeeded)
         let lib = paths.librariesDir
         #expect(try String(contentsOf: lib.appendingPathComponent("net/neoforged/neoforge/20.4.1/neoforge-20.4.1-universal.jar"), encoding: .utf8) == universal)
@@ -201,21 +203,28 @@ import Testing
         #expect(!(try GameFilePlanner(paths: paths).installItems(for: resolved.info)).contains { $0.destination.path == patched })
     }
 
-    @Test func refusesTheOldInstallerFormat() async throws {
+    @Test func forgeOnlyFrom117() async throws {
+        #expect(ModLoader.forge.isAvailable(minecraft: "1.17.1"))
+        #expect(ModLoader.forge.isAvailable(minecraft: "1.20.1"))
+        #expect(ModLoader.forge.isAvailable(minecraft: "26.1.2"))
+        #expect(!ModLoader.forge.isAvailable(minecraft: "1.16.5"))
+        #expect(!ModLoader.forge.isAvailable(minecraft: "1.12.2"))
+        #expect(!ModLoader.neoforge.isAvailable(minecraft: "1.20.1"))
+        #expect(ModLoader.fabric.isAvailable(minecraft: "1.16.5"))
+
+        // Nothing is fetched or downloaded for a version Forge is not offered for
+        // (this is also the path modpacks take).
         let tmp = try TempDir()
-        let src = tmp.url.appendingPathComponent("src")
-        try write(#"{"install":{"profileName":"Forge"},"versionInfo":{}}"#, "install_profile.json", in: src)
-        let jar = tmp.url.appendingPathComponent("old.jar")
-        try zip(src, to: jar)
-        let data = try Data(contentsOf: jar)
-        let url = "https://maven.minecraftforge.net/net/minecraftforge/forge/1.12.2-14.23.5.2860/forge-1.12.2-14.23.5.2860-installer.jar"
         let http = MockHTTP()
-        http.onRaw(url + ".sha1", 200, Data(FileHash.sha1(of: data).utf8))
         let transport = MockTransport()
-        transport.enqueue(URL(string: url)!, .ok(data))
         let installer = ForgeInstaller(paths: tmp.paths, downloader: DownloadManager(transport: transport), http: http)
-        await #expect(throws: ForgeInstallError.legacyInstaller("Forge 14.23.5.2860")) {
-            try await installer.installProfile(.forge, minecraft: "1.12.2", build: "14.23.5.2860")
+        await #expect(throws: ModLoaderError.notOffered(.forge, "1.16.5")) {
+            try await installer.installProfile(.forge, minecraft: "1.16.5", build: "36.2.34")
         }
+        await #expect(throws: ModLoaderError.notOffered(.forge, "1.16.5")) {
+            try await ModLoaderMeta(http: http).versions(for: .forge, minecraft: "1.16.5")
+        }
+        #expect(http.requests.isEmpty && transport.requests.isEmpty)
+        #expect(ModLoaderError.notOffered(.forge, "1.16.5").description == "Voxelium offers Forge for Minecraft 1.17 and newer, not 1.16.5.")
     }
 }

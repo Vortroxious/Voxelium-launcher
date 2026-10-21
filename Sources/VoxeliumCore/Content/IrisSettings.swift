@@ -1,8 +1,9 @@
 import Foundation
 
-/// Iris's `config/iris.properties` in a game folder: which shader pack is active
-/// and whether shaders are on. Lets the launcher switch shaders off when a pack
-/// leaves the game unusable (e.g. a black screen), without opening the game.
+/// Iris's `config/iris.properties` in a game folder (or `config/oculus.properties`,
+/// Oculus's copy of the same format on Forge): which shader pack is active and whether
+/// shaders are on. Lets the launcher switch shaders off when a pack leaves the game
+/// unusable (e.g. a black screen), without opening the game.
 public struct IrisSettings: Sendable, Equatable {
     public let file: URL
     /// `enableShaders`; Iris defaults to on when the file says nothing.
@@ -11,7 +12,10 @@ public struct IrisSettings: Sendable, Equatable {
     public var shaderPack: String?
 
     public init(gameDirectory: URL) {
-        file = gameDirectory.appendingPathComponent("config/iris.properties")
+        let iris = gameDirectory.appendingPathComponent("config/iris.properties")
+        let oculus = gameDirectory.appendingPathComponent("config/oculus.properties")
+        let fm = FileManager.default
+        file = !fm.fileExists(atPath: iris.path) && fm.fileExists(atPath: oculus.path) ? oculus : iris
         let values = Self.parse((try? String(contentsOf: file, encoding: .utf8)) ?? "")
         shadersEnabled = values["enableShaders"].map { $0.lowercased() == "true" } ?? true
         shaderPack = values["shaderPack"].flatMap { $0.isEmpty ? nil : $0 }

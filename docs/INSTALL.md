@@ -33,6 +33,8 @@ Two ways to add a world (a Java Edition world folder holds a `level.dat`):
 - **In Voxelium:** Installed version → **Play → Worlds…** → **+**, then pick a world folder or a `.zip`. A world inside a subfolder of the zip is found too. If the name is taken, the copy becomes "World (2)". Swipe left on a world to **Share** it as a `.zip` (to save it in Files or AirDrop it) or to **Delete** it.
 - **In Files:** copy the world folder into `minecraft/saves`, or into `minecraft/versions/<name>/saves` for a modded version or modpack.
 
+**Deleting a version** (Play → Delete version…) removes a modded version's worlds and mods with it; share worlds you want to keep first. Vanilla worlds in `minecraft/saves` are not touched.
+
 Close Minecraft before copying worlds in Files: a world copied while the game is running can be damaged. Bedrock worlds (`.mcworld`) can't be opened by Java Edition.
 
 Your Microsoft sign-in is kept in the iOS Keychain, not in this folder.
@@ -41,7 +43,7 @@ Updating from 0.1.0: the first start moves everything from the old hidden folder
 
 ## Known limits
 - Minecraft 26.2 and newer are not supported yet (26.2 renders black; 26.3+ needs Vulkan). Versions 1.12.2 and older are not supported.
-- Forge and NeoForge are new: NeoForge for 1.21.1 and Forge for 1.20.1 are tested on an iPhone; other versions not yet. Their first launch takes a minute or two longer, because Voxelium finishes setting them up then (it patches Minecraft once). Forge for Minecraft 1.12.2 and older is not supported.
+- Forge and NeoForge are new: NeoForge for 1.21.1 and Forge for 1.20.1 are tested on an iPhone; other versions not yet. Their first launch takes a minute or two longer, because Voxelium finishes setting them up then (it patches Minecraft once). Forge is offered for Minecraft 1.17 and newer, NeoForge for 1.20.2 and newer.
 - Very large modpacks (hundreds of mods) do not fit in iPhone memory.
 - If StikDebug stops (for example after a long download), close Voxelium and start it from StikDebug again.
 

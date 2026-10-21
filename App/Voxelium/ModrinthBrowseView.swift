@@ -18,20 +18,34 @@ struct ModrinthBrowseView: View {
     @State private var error: String?
     @State private var installed: Set<String> = []
     @State private var selected: ModrinthAPI.SearchHit?
-    @State private var irisInstalled = true
+    @State private var shaderLoaderInstalled = true
 
     static let irisProjectID = "YL57xq9U"
+    /// Iris for Forge (up to 1.20.1); Iris itself has Fabric, Quilt and NeoForge builds.
+    static let oculusProjectID = "GchcoXML"
+    private var shaderLoaderButton: String {
+        switch gameLoader {
+        case "forge": "Get Oculus (with Embeddium)"
+        case "neoforge": "Get Iris"
+        default: "Get Iris (with Sodium)"
+        }
+    }
+    private var shaderLoader: (id: String, slug: String, title: String) {
+        gameLoader == "forge" ? (Self.oculusProjectID, "oculus", "Oculus") : (Self.irisProjectID, "iris", "Iris Shaders")
+    }
     private var api: ModrinthAPI { ModrinthAPI() }
     private var gameLoader: String? { version.loader?.lowercased() }
     private var manager: ContentManager? { model.gameDirectory(for: version.id).map(ContentManager.init(gameDirectory:)) }
 
     var body: some View {
         List {
-            if kind == .shaderPacks && version.isModded && !irisInstalled {
+            if kind == .shaderPacks && version.isModded && !shaderLoaderInstalled {
                 Section {
-                    Label("Shader packs need the Iris mod.", systemImage: "info.circle")
-                    Button("Get Iris (with Sodium)") {
-                        selected = ModrinthAPI.SearchHit(projectId: Self.irisProjectID, slug: "iris", title: "Iris Shaders",
+                    Label("Shader packs need the \(shaderLoader.title) mod.", systemImage: "info.circle")
+                    // Modrinth lists Embeddium as Oculus's required dependency and Sodium as Iris's
+                    // on Fabric/Quilt; Iris for NeoForge lists none (2026-10-21).
+                    Button(shaderLoaderButton) {
+                        selected = ModrinthAPI.SearchHit(projectId: shaderLoader.id, slug: shaderLoader.slug, title: shaderLoader.title,
                                                           description: "Shader pack loader", author: nil, downloads: 0,
                                                           iconUrl: nil, projectType: "mod", categories: nil)
                     }
@@ -76,7 +90,7 @@ struct ModrinthBrowseView: View {
         }
         .sheet(item: $selected) { hit in
             NavigationStack {
-                ModrinthProjectView(version: version, kind: hit.projectId == Self.irisProjectID ? .mods : kind,
+                ModrinthProjectView(version: version, kind: hit.projectId == shaderLoader.id ? .mods : kind,
                                     hit: hit, installed: installed) {
                     Task { await refreshInstalled() }
                     onInstalled()
@@ -108,7 +122,7 @@ struct ModrinthBrowseView: View {
         var ids = Set((try? await installer.installedProjects(manager, kind: kind))?.keys.map { $0 } ?? [])
         if kind == .shaderPacks {
             let mods = (try? await installer.installedProjects(manager, kind: .mods))?.keys.map { $0 } ?? []
-            irisInstalled = mods.contains(Self.irisProjectID)
+            shaderLoaderInstalled = mods.contains(shaderLoader.id)
             ids.formUnion(mods)
         }
         installed = ids

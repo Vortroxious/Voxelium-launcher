@@ -17,7 +17,7 @@ struct InstallVersionSheet: View {
     @State private var showAllBuilds = false
 
     private var needsBuild: Bool { loader != .vanilla }
-    private var canInstall: Bool { loader.isAvailable && (!needsBuild || !build.isEmpty) }
+    private var canInstall: Bool { loader.isAvailable(minecraft: entry.id) && (!needsBuild || !build.isEmpty) }
     private var shownBuilds: [LoaderVersion] { showAllBuilds ? builds : Array(builds.prefix(12)) }
 
     var body: some View {
@@ -26,18 +26,19 @@ struct InstallVersionSheet: View {
                 Section {
                     ForEach(ModLoader.allCases) { l in
                         Button {
-                            if l.isAvailable { loader = l }
+                            if l.isAvailable(minecraft: entry.id) { loader = l }
                         } label: {
                             HStack {
                                 VStack(alignment: .leading, spacing: 2) {
-                                    Text(l.displayName).foregroundStyle(l.isAvailable ? Color.primary : Color.secondary)
-                                    Text(Self.blurb(l)).font(.caption).foregroundStyle(.secondary)
+                                    Text(l.displayName).foregroundStyle(l.isAvailable(minecraft: entry.id) ? Color.primary : Color.secondary)
+                                    Text(l.isAvailable(minecraft: entry.id) ? Self.blurb(l) : "For Minecraft \(l.oldestMinecraft ?? "?") and newer")
+                                        .font(.caption).foregroundStyle(.secondary)
                                 }
                                 Spacer()
                                 if loader == l { Image(systemName: "checkmark").foregroundStyle(Color.accentColor) }
                             }
                         }
-                        .disabled(!l.isAvailable)
+                        .disabled(!l.isAvailable(minecraft: entry.id))
                     }
                 } header: {
                     Text("Mod loader")
@@ -91,7 +92,7 @@ struct InstallVersionSheet: View {
             .navigationBarTitleDisplayMode(.inline)
             .toolbar { ToolbarItem(placement: .cancellationAction) { Button("Cancel") { dismiss() } } }
             .task(id: loader) { await loadBuilds() }
-            .onAppear { loader = initialLoader.isAvailable ? initialLoader : .vanilla }
+            .onAppear { loader = initialLoader.isAvailable(minecraft: entry.id) ? initialLoader : .vanilla }
         }
     }
 
@@ -116,7 +117,7 @@ struct InstallVersionSheet: View {
         case .vanilla: "No mods"
         case .fabric: "Lightweight mod loader; most performance mods (Sodium, Lithium…)"
         case .quilt: "Fabric-compatible loader; runs most Fabric mods"
-        case .forge: "The classic mod loader; most big modpacks for 1.20.1 and older"
+        case .forge: "The classic mod loader; most big modpacks for 1.20.1"
         case .neoforge: "Forge's successor for 1.20.2 and newer (Create, many tech mods)"
         }
     }

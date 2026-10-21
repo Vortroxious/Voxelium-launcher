@@ -104,9 +104,44 @@ import Testing
         #expect(ContentManager.compatibilityWarning(forge, loader: "fabric") == "Made for Forge, so Fabric won't load it.")
         #expect(ContentManager.compatibilityWarning(forge, loader: nil) == nil)
     }
+
+    @Test func refusesModsForAnotherLoader() throws {
+        let tmp = try TempDir()
+        let cm = ContentManager(gameDirectory: tmp.url.appendingPathComponent("game"))
+        // A Fabric mod on NeoForge and a Forge mod on Fabric are not copied in.
+        #expect(throws: ContentError.wrongLoader("fabric-example-1.2.3.jar: Made for Fabric, so NeoForge won't load it. Look for its NeoForge version under Browse.")) {
+            try cm.add(try fixture("fabric-example-1.2.3.jar"), as: .mods, loader: "neoforge")
+        }
+        #expect(throws: ContentError.self) { try cm.add(try fixture("forge-example-2.0.1.jar"), as: .mods, loader: "fabric") }
+        #expect(cm.list(.mods).isEmpty)
+        // Matching loaders (and Fabric mods on Quilt) are added.
+        _ = try cm.add(try fixture("forge-example-2.0.1.jar"), as: .mods, loader: "forge")
+        _ = try cm.add(try fixture("fabric-example-1.2.3.jar"), as: .mods, loader: "quilt")
+        #expect(cm.list(.mods).count == 2)
+    }
 }
 
 @Suite struct IrisSettingsTests {
+    @Test func readsOculusOnForge() throws {
+        let tmp = try TempDir()
+        let game = tmp.url.appendingPathComponent("forge")
+        try FileManager.default.createDirectory(at: game.appendingPathComponent("config"), withIntermediateDirectories: true)
+        // As Oculus 1.8.0 wrote it on the iPhone (Forge 1.20.1, 2026-10-21).
+        try """
+            #This file stores configuration options for Iris, such as the currently active shaderpack
+            colorSpace=SRGB
+            shaderPack=BSL_v10.1.8.zip
+            enableShaders=true
+
+            """.write(to: game.appendingPathComponent("config/oculus.properties"), atomically: true, encoding: .utf8)
+        try "renderDistance:12\n".write(to: game.appendingPathComponent("options.txt"), atomically: true, encoding: .utf8)
+        var oculus = IrisSettings(gameDirectory: game)
+        #expect(oculus.exists && oculus.file.lastPathComponent == "oculus.properties" && oculus.shaderPack == "BSL_v10.1.8.zip")
+        #expect(ShaderLaunchAdvice.check(gameDirectory: game) == ShaderLaunchAdvice(shaderPack: "BSL_v10.1.8.zip", renderDistance: 12))
+        try oculus.setShadersEnabled(false)
+        #expect(!IrisSettings(gameDirectory: game).shadersEnabled)
+    }
+
     @Test func readsAndSwitchesShadersOff() throws {
         let tmp = try TempDir()
         let game = tmp.paths.root.appendingPathComponent("instance")

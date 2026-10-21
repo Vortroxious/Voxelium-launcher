@@ -27,5 +27,15 @@ Status as of 2026-10-18. ✅ done, ⏳ needs doing, 👤 needs the maintainer (a
 - ✅ Repository created by the maintainer: https://github.com/Vortroxious/Voxelium-launcher (public, empty on 2026-10-18); added as `origin`, `v0.1.0` tagged locally.
 - ✅ `main` and the `v0.1.0` tag pushed by the maintainer (2026-10-18), after all commits were rewritten to the author Vortroxious with a GitHub no-reply email.
 - ✅ GitHub Release **v0.1.0** published 2026-10-18 08:29 UTC: https://github.com/Vortroxious/Voxelium-launcher/releases/tag/v0.1.0 (not a draft or pre-release). Assets checked against GitHub's own digests: `Voxelium-0.1.0-unsigned.ipa` 184,714,117 bytes, SHA-256 `d7e189b2…8255` (the tested build); `THIRD_PARTY_NOTICES.txt` 256,369 bytes, SHA-256 `309c9c67…62bf`, identical to the repository's. The README's `releases/latest` link resolves to it.
-- ⏳ Release description is empty: paste [RELEASE_NOTES_0.1.0.md](RELEASE_NOTES_0.1.0.md) (without its first line) via **Edit** on the release.
+- ✅ Release description added by the maintainer (checked 2026-10-21 via the GitHub API).
 - 👤 Video and announcement. Say clearly: unofficial, not affiliated with Mojang or Microsoft, needs a Java Edition account, needs StikDebug for JIT, tested on one device.
+
+# Release checklist (Voxelium 1.0)
+
+Status as of 2026-10-21.
+- ✅ Version 1.0 (`MARKETING_VERSION`, `LaunchPlanner.launcherVersion`, Modrinth User-Agent `Voxelium/1.0 (iOS Minecraft launcher; github.com/Vortroxious/Voxelium-launcher)`).
+- ✅ Release notes: [RELEASE_NOTES_1.0.md](RELEASE_NOTES_1.0.md).
+- ✅ Device pass on the final 1.0 IPA (build 202610211631, SHA-256 `ee9564c2…416f`, confirmed installed with `devicectl`, 2026-10-21 16:37–16:40Z): Fabric 1.21.11 + Iris/BSL, NeoForge 1.21.1 and Forge 1.20.1 + Oculus/BSL each joined a world and quit cleanly; the shader warning appeared on Forge; Delete version removed two modpacks.
+- ⏳ Commit, then tag `v1.0`.
+- 👤 Push `main` and `v1.0`. Create the GitHub Release **v1.0** with `Voxelium-1.0-unsigned.ipa` and `THIRD_PARTY_NOTICES.txt`, and paste the release notes (without their first line).
+- ✅ Licences: nothing new is bundled except `voxelium-boot.jar` (our own GPL-3.0 code). Forge, NeoForge and their installer tools are downloaded from their own Maven servers at install time, not shipped.

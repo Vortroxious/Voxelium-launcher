@@ -192,9 +192,7 @@ final class MinecraftLauncher: ObservableObject {
                 log.info("launch", "LWJGL debug output on (logs/lwjgl-debug)")
             }
             if let forgePlan {
-                options += ["-Dvoxelium.processors=\(forgePlan.path)", "-Dvoxelium.mainClass=\(plan.mainClass)",
-                            // Forge 1.13 - 1.16's early progress window (same reason as fml.toml below).
-                            "-Dfml.earlyprogresswindow=false"]
+                options += ["-Dvoxelium.processors=\(forgePlan.path)", "-Dvoxelium.mainClass=\(plan.mainClass)"]
                 try ForgeLaunch.disableEarlyWindow(gameDirectory: gameDir)
             }
             options += jvmArgs

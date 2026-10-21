@@ -155,11 +155,11 @@ struct ContentLibraryView: View {
     private var footer: String {
         switch kind {
         case .mods:
-            "Changes apply the next time you start this version. Quilt also loads Fabric mods. Mods that bundle desktop-only native code won't work on iPhone."
+            "Changes apply the next time you start this version. Only mods for this version's loader can be added (Quilt also loads Fabric mods). Mods that bundle desktop-only native code won't work on iPhone."
         case .resourcePacks:
             "Turn packs on in Minecraft's Options → Resource Packs. Switching one off here hides it from the game."
         case .shaderPacks:
-            "Shader packs need the Iris mod (Fabric or Quilt). Packs that use compute shaders (such as Photon) cannot run on the iPhone's OpenGL ES 3.0. With shaders, keep the render distance at 8–10: more runs out of memory."
+            "Shader packs need the Iris mod (Fabric, Quilt, NeoForge) or Oculus (Forge). Packs that use compute shaders (such as Photon) cannot run on the iPhone's OpenGL ES 3.0. With shaders, keep the render distance at 8–10: more runs out of memory."
         }
     }
 
@@ -266,11 +266,12 @@ struct ContentLibraryView: View {
                 let scoped = url.startAccessingSecurityScopedResource()
                 defer { if scoped { url.stopAccessingSecurityScopedResource() } }
                 do {
-                    let item = try manager.add(url, as: kind)
+                    let item = try manager.add(url, as: kind, loader: loaderID)
                     added.append(item.name)
                     model.log.info("content", "Added \(kind.folderName)/\(item.fileName) to \(version.id)")
                 } catch {
                     failed.append(String(describing: error))
+                    model.log.info("content", "Did not add \(url.lastPathComponent) to \(version.id): \(error)")
                 }
             }
             if !failed.isEmpty {

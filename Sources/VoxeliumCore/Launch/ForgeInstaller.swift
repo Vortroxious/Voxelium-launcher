@@ -15,6 +15,7 @@ public struct ForgeMeta: Sendable {
     static let forgePromotions = URL(string: "https://files.minecraftforge.net/net/minecraftforge/forge/promotions_slim.json")!
 
     public func versions(for loader: ModLoader, minecraft: String) async throws -> [LoaderVersion] {
+        guard loader.isAvailable(minecraft: minecraft) else { throw ModLoaderError.notOffered(loader, minecraft) }
         let builds: [LoaderVersion]
         switch loader {
         case .neoforge:
@@ -32,6 +33,13 @@ public struct ForgeMeta: Sendable {
         }
         if builds.isEmpty { throw ModLoaderError.noBuilds(loader, minecraft) }
         return builds
+    }
+
+    /// Forge is offered for Minecraft 1.17 and newer (26.x included).
+    static func offersForge(minecraft mc: String) -> Bool {
+        let p = mc.split(separator: ".").map { Int($0) }
+        guard p.count >= 2, let major = p[0], let minor = p[1] else { return false }
+        return major > 1 || minor >= 17
     }
 
     /// The build-number prefix NeoForge uses for a Minecraft version, or nil when
@@ -101,12 +109,10 @@ public struct ForgeMeta: Sendable {
 }
 
 public enum ForgeInstallError: Error, Equatable, CustomStringConvertible {
-    case legacyInstaller(String)
     case badInstaller(String)
 
     public var description: String {
         switch self {
-        case .legacyInstaller(let v): "\(v) uses the old Forge installer (Minecraft 1.12.2 and older), which Voxelium does not support."
         case .badInstaller(let m): "The installer is not usable: \(m)"
         }
     }
@@ -169,6 +175,8 @@ public struct ForgeInstaller: Sendable {
         _ loader: ModLoader, minecraft: String, build: String, concurrency: Int = 8,
         progress: (@Sendable (DownloadProgress) -> Void)? = nil
     ) async throws -> (id: String, report: DownloadReport) {
+        // Also covers modpacks, which install their loader through here.
+        guard loader.isAvailable(minecraft: minecraft) else { throw ModLoaderError.notOffered(loader, minecraft) }
         guard Self.isSafeBuild(build) else { throw ModLoaderError.badProfile("unexpected build \(build)") }
         let coord = try Self.installerCoordinate(loader, minecraft: minecraft, build: build)
         let installerURL = Self.repository(loader).appendingPathComponent(coord.path)
@@ -183,7 +191,7 @@ public struct ForgeInstaller: Sendable {
             throw ForgeInstallError.badInstaller("no install_profile.json")
         }
         if profile["install"] != nil || profile["versionInfo"] != nil {
-            throw ForgeInstallError.legacyInstaller("\(loader.displayName) \(build)")
+            throw ForgeInstallError.badInstaller("old installer format")
         }
         let jsonPath = ((profile["json"] as? String) ?? "/version.json").trimmingPrefix("/")
         guard let versionData = try zip.read(String(jsonPath)) else { throw ForgeInstallError.badInstaller("no \(jsonPath)") }

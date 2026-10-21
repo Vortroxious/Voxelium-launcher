@@ -58,10 +58,11 @@ public struct ContentItem: Sendable, Equatable, Identifiable {
 public enum ContentError: Error, Equatable, CustomStringConvertible {
     case wrongType(String)
     case notReadable(String)
+    case wrongLoader(String)
 
     public var description: String {
         switch self {
-        case .wrongType(let m), .notReadable(let m): m
+        case .wrongType(let m), .notReadable(let m), .wrongLoader(let m): m
         }
     }
 }
@@ -121,7 +122,10 @@ public struct ContentManager: Sendable {
     /// enabled or disabled). Mods must be jars; packs must be zips, and a shader
     /// pack must contain a `shaders/` folder.
     @discardableResult
-    public func add(_ source: URL, as kind: ContentKind) throws -> ContentItem {
+    /// Copies `source` in as `kind`. With `loader` (the version's mod loader id), a mod
+    /// whose metadata says it is only for other loaders (a Fabric mod on NeoForge, a
+    /// Forge mod on Fabric) is refused; mods without loader metadata are let through.
+    public func add(_ source: URL, as kind: ContentKind, loader: String? = nil) throws -> ContentItem {
         let name = source.lastPathComponent
         guard name.lowercased().hasSuffix(".\(kind.fileExtension)") else {
             throw ContentError.wrongType("\(name) is not a .\(kind.fileExtension) file, so it can't be added to \(kind.title.lowercased()).")
@@ -137,6 +141,9 @@ public struct ContentManager: Sendable {
             throw ContentError.wrongType("\(name) has no pack.mcmeta, so it is not a resource pack\(zip.entries.contains { $0.name.hasPrefix("shaders/") } ? " (it looks like a shader pack)" : "").")
         default:
             break
+        }
+        if kind == .mods, let loader, let warning = Self.compatibilityWarning(Self.inspect(source, kind: .mods, isFolder: false), loader: loader) {
+            throw ContentError.wrongLoader("\(name): \(warning) Look for its \(Self.loaderDisplayName(loader)) version under Browse.")
         }
         let dir = folder(kind)
         try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
