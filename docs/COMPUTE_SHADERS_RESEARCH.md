@@ -64,11 +64,24 @@ iPhone 15 Pro Max (A17 Pro), iOS 27.0. The experimental IPA, build `202610221127
 | After the compute dispatch | 83.8 MB | — |
 | After 300 frames at 1290×2796 | **611.3 MB** | **868.1 MB** |
 
-That frame-test growth, +527 MB and +819 MB, is the open problem. One 1290×2796 RGBA8 target is 14 MB. On the Mac the same kind of loop levelled off at about 154 MB between frame 300 and frame 3000 (`PROBE_FRAMES=3000`), so it is not a leak there. On the phone, 300 frames are not enough to tell a pool that fills once from a per-frame leak. With a 3.4 GB limit, a per-frame leak would end a Minecraft session within seconds, so a longer device run, logging the footprint every 300 frames, is the first follow-up.
+**Long memory run (2026-10-22 12:17–12:18Z):** experimental build `202610221143`, confirmed with `devicectl device info apps`, no JIT attached. Log: `docs/evidence/2026-10-22-zink-kosmickrisp-iphone15promax-ios27-memory-3000.log`. This build has the 3000-frame runs but not patch 0007; it was built before 0007 was packaged.
+
+| Phase, in run order | GL 4.6 override | Native (GL 2.1) |
+|---|---|---|
+| Start of frames | 83.7 MB | 56.5 MB |
+| 300 flush-only frames (never wait), then `glFinish` | 613.5 MB | 853.7 MB |
+| 3000 finish-each frames: at frame 300 → frame 3000 | 714.1 → 714.3 MB (**0.0001 MB/frame**) | 1078.2 → 1096.9 MB (flat from frame 600) |
+| 3000 fenced frames (2 in flight): at frame 300 → frame 3000 | 714.3 → 714.3 MB (**0.0000 MB/frame**) | 1096.9 → 1096.9 MB (**0.0000 MB/frame**) |
+| After EGL teardown → 1 s later | 145.1 → **78.7 MB** | 402.8 → **120.1 MB** |
+
+- **It levels off; it is not a per-frame leak.** Once frames wait for the GPU, there is no growth over 3000 frames, the same as on the Mac.
+- The memory is a pool whose size is set by the worst backlog. The 300 flush-only frames at the start, when nothing waits and the CPU runs ahead of the GPU, filled the pool to 0.6–0.85 GB. It was then reused, not grown, and it was given back when the context was destroyed.
+- The first device run's growth (+527/+819 MB) was this same backlog, because that test only flushed.
+- **Not measured yet on the phone:** the steady footprint of a run that throttles from the first frame. Every device run so far began with the flush-only phase. On the Mac it is 141 MB.
 
 ## Built (2026-10-22)
 
-`scripts/build-zink.sh` (KosmicKrisp is the default `ZINK_VK`) builds Mesa 9b32095 plus `patches/mesa/0001-0006` for iOS arm64, with a minimum of iOS 26.0, because KosmicKrisp needs Metal 4. The output goes to `build/deps/zink-out/kosmickrisp/`:
+`scripts/build-zink.sh` (KosmicKrisp is the default `ZINK_VK`) builds Mesa 9b32095 plus `patches/mesa/0001-0007` for iOS arm64, with a minimum of iOS 26.0, because KosmicKrisp needs Metal 4. The output goes to `build/deps/zink-out/kosmickrisp/`:
 
 | File | Size (stripped) |
 |---|---|
@@ -88,6 +101,7 @@ What the port needed. Each fix is one small patch:
 | 0004 zink: link `-lobjc` on darwin | Zink compiles as Objective-C on darwin. With no window-system platform, the iOS link failed on `___objc_personality_v0`. |
 | 0005 kosmickrisp: link Foundation/Metal/QuartzCore | The driver links with `-undefined dynamic_lookup`, which left 19 Metal symbols to flat lookup. That only works if the host already loaded Metal. |
 | 0006 egl: surfaceless reaches Zink without DRM | On Apple platforms, the surfaceless platform only reached Zink with `LIBGL_ALWAYS_SOFTWARE=1`, and that same variable makes Zink demand a CPU Vulkan device. |
+| 0007 kosmickrisp: reset the Metal 4 command allocator after use | Upstream returned each `MTL4CommandAllocator` to the pool unreset at the end of recording, and never called `reset` (0 calls in a trace). Allocators now stay with their command buffer until Vulkan reset or destroy, when the GPU is done with them, and are reset then. On the Mac this lowered the steady footprint from 154 MB to 141 MB. It is not the cause of the frame-test growth (see below). |
 
 Runtime settings: `MESA_LOADER_DRIVER_OVERRIDE=zink` and `ZINK_VULKAN_LIBRARY=<path to the driver dylib>`. Leave `LIBGL_ALWAYS_SOFTWARE` unset.
 
@@ -120,6 +134,19 @@ Runtime settings: `MESA_LOADER_DRIVER_OVERRIDE=zink` and `ZINK_VULKAN_LIBRARY=<p
   | After the context | 14.2 MB |
   | After the compute test | 59.8 MB |
   | After the frames (1290×2796 RGBA8 target plus pipelines) | 163.0 MB |
+
+- **Memory over long runs (with patch 0007)**, logs in `docs/evidence/2026-10-22-zink-kosmickrisp-mac-memory-*.log`:
+
+  | How each frame ends | Frame 300 | Frame 3000 | Afterwards |
+  |---|---|---|---|
+  | `glFinish` every frame | 141.3 MB | 141.4 MB | 150.0 MB |
+  | Fence per frame, wait for the one 2 frames back (like swap throttling) | 140.8 MB | 140.9 MB | 149.5 MB |
+  | `glFlush` only, nothing waits | 467 MB | **3684 MB** | 6.6 GB after the final `glFinish`, which waited **3.8 s** |
+
+  - **Not a per-frame leak.** When anything waits for the GPU, memory is flat over 3000 frames.
+  - **With nothing waiting, nothing throttles the CPU.** It queued about 2000 frames ahead of the GPU, at about 1.2 MB of GPU memory each. `vmmap` showed the memory as "IOAccelerator (graphics)" regions (677 MB in 6,735 regions after 300 frames); malloc stayed small.
+  - The memory is kept after the work completes. It was still 6.6 GB a second later, and after 300 more frames that waited.
+  - So a renderer built on this stack must throttle frames itself, the way swap does, and must never let the queue run unbounded.
 
 These are Mac numbers. An M4 is much faster than an A17 Pro, and macOS is not iOS. They show that the stack works and how much it costs, nothing more.
 
@@ -155,9 +182,9 @@ All of these are compatible with Voxelium's GPL-3.0.
 
 **Feasible. KosmicKrisp is the route, and MoltenVK is not needed.** On the iPhone, Zink + KosmicKrisp provides GL 4.6 core with working compute, SSBOs and image load/store, which is what Iris checks for compute packs. It runs without JIT and adds about 6.4 MB to the IPA (191.3 MB vs 184.8 MB).
 
-It is not ready to ship. In order of risk:
+It is not ready to ship. Main risks, roughly in order:
 
-1. **Memory growth during frames** (+0.5–0.8 GB in 300 frames on the phone, flat on the Mac). Voxelium already peaks at 2.4–2.6 GB with BSL on MobileGlues (1.0 device pass), against a limit of about 3.4 GB. This needs a long device run, then a fix in KosmicKrisp or Zink if it is per-frame. It could rule the route out.
+1. **Frame throttling is required** (resolved as a leak question). Over 3000 frames the footprint is flat on the phone and on the Mac. But nothing in this stack stops the CPU from running ahead of the GPU: a frame loop that only flushes queued about 1.2 MB of GPU work per frame without limit (3.7 GB by frame 3000 on the Mac). That pool is then kept until the context is destroyed. The renderer's swap must wait for the frame two back, as the fenced test does. Voxelium already peaks at 2.4–2.6 GB with BSL on MobileGlues, against a limit of about 3.4 GB, so even a short burst of unthrottled frames would matter.
 2. **No geometry shaders or transform feedback in KosmicKrisp.** Native GL is 2.1, so Minecraft 1.17+ (GL 3.2 core) only gets a context with the 4.6 override. Vanilla rendering and compute-based packs do not use either feature. Packs with geometry programs (`.gsh`, see the 15-pack scan in `docs/ENGINEERING_LOG.md`) will fail to link those programs. LunarG lists tessellation/geometry as upcoming KosmicKrisp work.
 3. **Not tested with the game.** The probe is a compute dispatch and a quad. Minecraft and Iris exercise far more GL than that, and Zink warned "doesn't support base Zink requirements: have_EXT_custom_border_color" (on the Mac).
 4. **iOS 26 or later**, because KosmicKrisp is Metal 4 only. The app supports iOS 16, so the Zink renderer would be offered only on iOS 26 and later with an A14 or newer chip.
@@ -171,4 +198,4 @@ It is not ready to ship. In order of risk:
 | Launcher: renderer choice ("MobileGlues" / "Zink (experimental)"), environment (`MESA_LOADER_DRIVER_OVERRIDE`, `ZINK_VULKAN_LIBRARY`, `MESA_GL_VERSION_OVERRIDE=4.6`, a per-version `MESA_SHADER_CACHE_DIR`), bundling, licence notices | 2–3 days |
 | Getting Minecraft + Iris + one compute pack (Photon) to render, and fixing what breaks in Zink/KosmicKrisp | 1–3 weeks, the least predictable |
 
-Total: about **3–6 weeks**, with presentation and the unknown Minecraft/Iris issues as the wide part of the range.
+Total: about **3–6 weeks**, with presentation and the unknown Minecraft/Iris issues as the wide part of the range. Presentation must include frame throttling (at most 2 frames in flight), as explained under risk 1.

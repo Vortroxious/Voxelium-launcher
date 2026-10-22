@@ -12,6 +12,7 @@
 #include <string.h>
 #include <time.h>
 #include <mach/mach.h>
+#include <unistd.h>
 
 #define EGL_EGL_PROTOTYPES 0
 typedef void *EGLDisplay, *EGLConfig, *EGLContext, *EGLSurface;
@@ -303,14 +304,36 @@ int main(int argc, char **argv) {
     // PROBE_FRAMES=n runs longer, printing the footprint every 300 frames, to tell
     // a leak (steady growth) from a pool that fills once.
     const int frames = getenv("PROBE_FRAMES") ? atoi(getenv("PROBE_FRAMES")) : 300;
+    // PROBE_FLUSH_ONLY=1 ends frames with glFlush, so nothing waits for the GPU.
+    const int flush_only = getenv("PROBE_FLUSH_ONLY") != NULL;
+    void (*glFlush_)(void);
+    LOAD(glFlush);
+    // PROBE_FENCED=1: a fence per frame, waiting for the one two frames back, as
+    // swap throttling does in a game.
+    const int fenced = getenv("PROBE_FENCED") != NULL;
+    void *(*glFenceSync_)(GLenum, GLbitfield);
+    GLenum (*glClientWaitSync_)(void *, GLbitfield, unsigned long long);
+    void (*glDeleteSync_)(void *);
+    LOAD(glFenceSync); LOAD(glClientWaitSync); LOAD(glDeleteSync);
+    void *fences[2] = {0};
     double first = 0, tf = now_ms();
     for (int f = 0; f < frames; f++) {
         double t1 = now_ms();
         glUniform1f_(tl, f * 0.01f);
         glDrawArrays_(0x0004 /* GL_TRIANGLES */, 0, 3);
-        glFinish_();
+        if (fenced) {
+            void **slot = &fences[f % 2];
+            if (*slot) { glClientWaitSync_(*slot, 0x1 /* FLUSH_COMMANDS */, 1000000000ull); glDeleteSync_(*slot); }
+            *slot = glFenceSync_(0x9117 /* GPU_COMMANDS_COMPLETE */, 0);
+            glFlush_();
+        } else if (flush_only && f > 0) glFlush_(); else glFinish_();
         if (f == 0) first = now_ms() - t1;
-        if (frames > 300 && (f + 1) % 300 == 0) printf("  frame %d: footprint %.1f MB\n", f + 1, footprint_mb());
+        if ((frames > 300 && (f + 1) % 300 == 0) || ((flush_only || fenced) && frames <= 300 && (f + 1) % 50 == 0)) printf("  frame %d: footprint %.1f MB\n", f + 1, footprint_mb());
+    }
+    if (flush_only) {
+        double tw = now_ms();
+        glFinish_();
+        printf("flush-only: final glFinish waited %.1f ms; footprint %.1f MB\n", now_ms() - tw, footprint_mb());
     }
     double total = now_ms() - tf;
     unsigned char px[4] = {0};
@@ -318,5 +341,19 @@ int main(int argc, char **argv) {
     printf("frames: %d at %dx%d, first %.1f ms, mean %.2f ms (excluding first: %.2f ms), centre pixel %u,%u,%u,%u, gl error 0x%x\n",
            frames, W, H, first, total / frames, (total - first) / (frames - 1), px[0], px[1], px[2], px[3], glGetError_());
     printf("footprint after frames: %.1f MB\n", footprint_mb());
+    if (flush_only) { // is the memory freed late, or reused by frames that wait?
+        sleep(1);
+        printf("flush-only: 1 s later footprint %.1f MB\n", footprint_mb());
+        for (int f = 0; f < 300; f++) {
+            glUniform1f_(tl, f * 0.01f);
+            glDrawArrays_(0x0004, 0, 3);
+            glFinish_();
+        }
+        printf("flush-only: after 300 more finish-each frames footprint %.1f MB\n", footprint_mb());
+    }
+    if (getenv("PROBE_HOLD_S")) { // keep the process alive for vmmap/heap
+        printf("holding pid %d\n", getpid());
+        sleep((unsigned)atoi(getenv("PROBE_HOLD_S")));
+    }
     return 0;
 }

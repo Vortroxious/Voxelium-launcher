@@ -1,0 +1,206 @@
+===== Zink test (GL 4.6 override) 2026-10-22T12:17:51Z
+phys_footprint before init: 39.8 MB
+Vulkan driver: KosmicKrisp (libvulkan_kosmickrisp.dylib)
+Vulkan probe: entry point vk_icdGetInstanceProcAddr
+Vulkan instance version 1.3.363
+vkCreateInstance OK in 0.8 ms
+Vulkan physical devices: 1
+[0] Apple A17 Pro GPU apiVersion=1.4.363 driverID=28 driver=KosmicKrisp (Mesa 27.0.0-devel (git-9b3209540c)) vendor=0x106B type=1
+[0] 137 device extensions; transform_feedback absent, robustness2 advertised
+[0] geometryShader=0 tessellationShader=1 transformFeedback=0 geometryStreams=0 robustBufferAccess2=1 robustImageAccess2=1 nullDescriptor=1
+env GALLIUM_DRIVER=zink
+env MESA_LOADER_DRIVER_OVERRIDE=zink
+env ZINK_VULKAN_LIBRARY=/private/var/containers/Bundle/Application/1896F088-0CC5-4A0F-BBA0-8B400DBC99E0/Voxelium.app/Frameworks/zink/libvulkan_kosmickrisp.dylib
+env MESA_LOG_FILE=/var/mobile/Containers/Data/Application/854D5448-8B2B-4025-9EF9-63E24BC00ED2/Documents/logs/zink-mesa.log
+env MESA_DEBUG=1
+env MESA_SHADER_CACHE_DIR=/var/mobile/Containers/Data/Application/854D5448-8B2B-4025-9EF9-63E24BC00ED2/Library/Caches/mesa_shader_cache_gl46override
+env MESA_GL_VERSION_OVERRIDE=4.6
+env MESA_GLSL_VERSION_OVERRIDE=460
+loaded zink/libEGL_mesa.dylib
+EGL 1.5 vendor=Mesa Project version=1.5
+EGL client APIs: OpenGL OpenGL_ES 
+EGL extensions: EGL_ANDROID_blob_cache EGL_ANDROID_native_fence_sync EGL_EXT_config_select_group EGL_EXT_create_context_robustness EGL_EXT_query_reset_notification_strategy EGL_EXT_surface_compression EGL_KHR_cl_event2 EGL_KHR_config_attribs EGL_KHR_context_flush_control EGL_KHR_create_context EGL_KHR_create_context_no_error EGL_KHR_fence_sync EGL_KHR_get_all_proc_addresses EGL_KHR_gl_colorspace EGL_KHR_gl_renderbuffer_image EGL_KHR_gl_texture_2D_image EGL_KHR_gl_texture_3D_image EGL_KHR_gl_texture_cubemap_image EGL_KHR_image_base EGL_KHR_no_config_context EGL_KHR_partial_update EGL_KHR_reusable_sync EGL_KHR_surfaceless_context EGL_EXT_pixel_format_float EGL_KHR_wait_sync EGL_MESA_configless_context EGL_MESA_gl_interop EGL_MESA_query_driver EGL_MESA_x11_native_visual_id 
+created OpenGL 4.3 core context
+EGL + context ready in 42.2 ms
+phys_footprint after context creation: 48.5 MB
+GL_VENDOR=Mesa
+GL_RENDERER=zink Vulkan 1.4(Apple A17 Pro GPU (MESA_KOSMICKRISP))
+GL_VERSION=4.6 (Core Profile) Mesa 27.0.0-devel (git-9b3209540c)
+GL_SHADING_LANGUAGE_VERSION=4.60
+context 4.6, profile core
+217 extensions
+GL_ARB_compute_shader: yes
+GL_ARB_shader_storage_buffer_object: yes
+GL_ARB_shader_image_load_store: yes
+GL_ARB_geometry_shader4: no
+GL_ARB_tessellation_shader: yes
+GL_ARB_transform_feedback3: no
+GL_ARB_multi_draw_indirect: yes
+GL_ARB_gpu_shader5: yes
+GL_MAX_COMPUTE_WORK_GROUP_COUNT=(2147483646, 65535, 65535)
+GL_MAX_COMPUTE_WORK_GROUP_SIZE=(1024, 1024, 1024) invocations=1024
+compute shader compiled and linked in 4.1 ms
+dispatch(16,1,1) + barrier + finish 6.54 ms, map/read-back 0.03 ms, glError=0x0
+VOXELIUM_ZINK_COMPUTE_OK
+phys_footprint after the dispatch: 83.6 MB
+draw shaders compiled and linked in 0.4 ms
+phys_footprint flush-only frame 50: 207.8 MB
+phys_footprint flush-only frame 100: 267.1 MB
+phys_footprint flush-only frame 150: 360.2 MB
+phys_footprint flush-only frame 200: 411.9 MB
+phys_footprint flush-only frame 250: 461.0 MB
+phys_footprint flush-only frame 300: 508.9 MB
+1290x2796 full-screen quad: first frame 13.76 ms, then 299 frames 130.2 ms (0.435 ms/frame, 2296.4 fps)
+phys_footprint after flush-only frames + glFinish: 613.5 MB
+flush-only footprint: start 83.7 MB, frame 300 613.5 MB (300 frames only: it never waits)
+phys_footprint finish-each frame 50: 660.9 MB
+phys_footprint finish-each frame 100: 690.8 MB
+phys_footprint finish-each frame 150: 700.3 MB
+phys_footprint finish-each frame 200: 704.8 MB
+phys_footprint finish-each frame 250: 709.5 MB
+phys_footprint finish-each frame 300: 714.1 MB
+phys_footprint finish-each frame 600: 714.4 MB
+phys_footprint finish-each frame 900: 714.4 MB
+phys_footprint finish-each frame 1200: 714.4 MB
+phys_footprint finish-each frame 1500: 714.3 MB
+phys_footprint finish-each frame 1800: 714.3 MB
+phys_footprint finish-each frame 2100: 714.3 MB
+phys_footprint finish-each frame 2400: 714.3 MB
+phys_footprint finish-each frame 2700: 714.3 MB
+phys_footprint finish-each frame 3000: 714.3 MB
+finish-each: 3000 frames 3099.3 ms (1.033 ms/frame)
+finish-each footprint: start 613.5 MB, frame 300 714.1 MB, frame 3000 714.3 MB, slope after 300 = 0.0001 MB/frame
+phys_footprint fenced frame 50: 714.3 MB
+phys_footprint fenced frame 100: 714.3 MB
+phys_footprint fenced frame 150: 714.3 MB
+phys_footprint fenced frame 200: 714.3 MB
+phys_footprint fenced frame 250: 714.3 MB
+phys_footprint fenced frame 300: 714.3 MB
+phys_footprint fenced frame 600: 714.3 MB
+phys_footprint fenced frame 900: 714.3 MB
+phys_footprint fenced frame 1200: 714.3 MB
+phys_footprint fenced frame 1500: 714.3 MB
+phys_footprint fenced frame 1800: 714.3 MB
+phys_footprint fenced frame 2100: 714.3 MB
+phys_footprint fenced frame 2400: 714.3 MB
+phys_footprint fenced frame 2700: 714.3 MB
+phys_footprint fenced frame 3000: 714.3 MB
+fenced (2 in flight): 3000 frames 1015.2 ms (0.338 ms/frame)
+fenced footprint: start 714.3 MB, frame 300 714.3 MB, frame 3000 714.3 MB, slope after 300 = 0.0000 MB/frame
+read-back centre=(128,128,64,255) glError=0x0 OK
+phys_footprint after the frames: 721.4 MB
+tearing down EGL
+EGL torn down
+phys_footprint after teardown: 145.1 MB
+phys_footprint 1 s after teardown: 78.7 MB
+VOXELIUM_ZINK_OK
+===== Zink test (native version) 2026-10-22T12:18:06Z
+phys_footprint before init: 39.3 MB
+Vulkan driver: KosmicKrisp (libvulkan_kosmickrisp.dylib)
+Vulkan probe: entry point vk_icdGetInstanceProcAddr
+Vulkan instance version 1.3.363
+vkCreateInstance OK in 0.1 ms
+Vulkan physical devices: 1
+[0] Apple A17 Pro GPU apiVersion=1.4.363 driverID=28 driver=KosmicKrisp (Mesa 27.0.0-devel (git-9b3209540c)) vendor=0x106B type=1
+[0] 137 device extensions; transform_feedback absent, robustness2 advertised
+[0] geometryShader=0 tessellationShader=1 transformFeedback=0 geometryStreams=0 robustBufferAccess2=1 robustImageAccess2=1 nullDescriptor=1
+env GALLIUM_DRIVER=zink
+env MESA_LOADER_DRIVER_OVERRIDE=zink
+env ZINK_VULKAN_LIBRARY=/private/var/containers/Bundle/Application/1896F088-0CC5-4A0F-BBA0-8B400DBC99E0/Voxelium.app/Frameworks/zink/libvulkan_kosmickrisp.dylib
+env MESA_LOG_FILE=/var/mobile/Containers/Data/Application/854D5448-8B2B-4025-9EF9-63E24BC00ED2/Documents/logs/zink-mesa.log
+env MESA_DEBUG=1
+env MESA_SHADER_CACHE_DIR=/var/mobile/Containers/Data/Application/854D5448-8B2B-4025-9EF9-63E24BC00ED2/Library/Caches/mesa_shader_cache_native
+loaded zink/libEGL_mesa.dylib
+EGL 1.5 vendor=Mesa Project version=1.5
+EGL client APIs: OpenGL OpenGL_ES 
+EGL extensions: EGL_ANDROID_blob_cache EGL_ANDROID_native_fence_sync EGL_EXT_config_select_group EGL_EXT_create_context_robustness EGL_EXT_query_reset_notification_strategy EGL_EXT_surface_compression EGL_KHR_cl_event2 EGL_KHR_config_attribs EGL_KHR_context_flush_control EGL_KHR_create_context EGL_KHR_create_context_no_error EGL_KHR_fence_sync EGL_KHR_get_all_proc_addresses EGL_KHR_gl_colorspace EGL_KHR_gl_renderbuffer_image EGL_KHR_gl_texture_2D_image EGL_KHR_gl_texture_3D_image EGL_KHR_gl_texture_cubemap_image EGL_KHR_image_base EGL_KHR_no_config_context EGL_KHR_partial_update EGL_KHR_reusable_sync EGL_KHR_surfaceless_context EGL_EXT_pixel_format_float EGL_KHR_wait_sync EGL_MESA_configless_context EGL_MESA_gl_interop EGL_MESA_query_driver EGL_MESA_x11_native_visual_id 
+OpenGL 4.3 core context refused: 0x3009
+OpenGL 4.2 core context refused: 0x3009
+OpenGL 4.1 core context refused: 0x3009
+OpenGL 4.0 core context refused: 0x3009
+OpenGL 3.3 core context refused: 0x3009
+OpenGL 3.2 core context refused: 0x3009
+created default (compatibility) OpenGL context
+EGL + context ready in 10.9 ms
+phys_footprint after context creation: 49.0 MB
+GL_VENDOR=Mesa
+GL_RENDERER=zink Vulkan 1.4(Apple A17 Pro GPU (MESA_KOSMICKRISP))
+GL_VERSION=2.1 Mesa 27.0.0-devel (git-9b3209540c)
+GL_SHADING_LANGUAGE_VERSION=1.20
+context 2.1, profile none (pre-3.2)
+287 extensions
+GL_ARB_compute_shader: yes
+GL_ARB_shader_storage_buffer_object: yes
+GL_ARB_shader_image_load_store: yes
+GL_ARB_geometry_shader4: no
+GL_ARB_tessellation_shader: yes
+GL_ARB_transform_feedback3: no
+GL_ARB_multi_draw_indirect: yes
+GL_ARB_gpu_shader5: yes
+GL_MAX_COMPUTE_WORK_GROUP_COUNT=(2147483646, 65535, 65535)
+GL_MAX_COMPUTE_WORK_GROUP_SIZE=(1024, 1024, 1024) invocations=1024
+compute skipped: GL 2.1, GLSL 1.20 (use the GL 4.6 override)
+draw shaders compiled and linked in 2.1 ms
+phys_footprint flush-only frame 50: 221.9 MB
+phys_footprint flush-only frame 100: 284.2 MB
+phys_footprint flush-only frame 150: 358.7 MB
+phys_footprint flush-only frame 200: 424.0 MB
+phys_footprint flush-only frame 250: 495.7 MB
+phys_footprint flush-only frame 300: 572.3 MB
+1290x2796 full-screen quad: first frame 5.97 ms, then 299 frames 124.7 ms (0.417 ms/frame, 2397.0 fps)
+phys_footprint after flush-only frames + glFinish: 853.7 MB
+flush-only footprint: start 56.5 MB, frame 300 853.7 MB (300 frames only: it never waits)
+phys_footprint finish-each frame 50: 923.0 MB
+phys_footprint finish-each frame 100: 984.7 MB
+phys_footprint finish-each frame 150: 1044.0 MB
+phys_footprint finish-each frame 200: 1069.1 MB
+phys_footprint finish-each frame 250: 1073.7 MB
+phys_footprint finish-each frame 300: 1078.2 MB
+phys_footprint finish-each frame 600: 1097.0 MB
+phys_footprint finish-each frame 900: 1097.0 MB
+phys_footprint finish-each frame 1200: 1097.0 MB
+phys_footprint finish-each frame 1500: 1096.9 MB
+phys_footprint finish-each frame 1800: 1096.9 MB
+phys_footprint finish-each frame 2100: 1096.9 MB
+phys_footprint finish-each frame 2400: 1096.9 MB
+phys_footprint finish-each frame 2700: 1096.9 MB
+phys_footprint finish-each frame 3000: 1096.9 MB
+finish-each: 3000 frames 5045.5 ms (1.682 ms/frame)
+finish-each footprint: start 853.7 MB, frame 300 1078.2 MB, frame 3000 1096.9 MB, slope after 300 = 0.0069 MB/frame
+phys_footprint fenced frame 50: 1096.9 MB
+phys_footprint fenced frame 100: 1096.9 MB
+phys_footprint fenced frame 150: 1096.9 MB
+phys_footprint fenced frame 200: 1096.9 MB
+phys_footprint fenced frame 250: 1096.9 MB
+phys_footprint fenced frame 300: 1096.9 MB
+phys_footprint fenced frame 600: 1096.9 MB
+phys_footprint fenced frame 900: 1096.9 MB
+phys_footprint fenced frame 1200: 1096.9 MB
+phys_footprint fenced frame 1500: 1096.9 MB
+phys_footprint fenced frame 1800: 1096.9 MB
+phys_footprint fenced frame 2100: 1096.9 MB
+phys_footprint fenced frame 2400: 1096.9 MB
+phys_footprint fenced frame 2700: 1096.9 MB
+phys_footprint fenced frame 3000: 1096.9 MB
+fenced (2 in flight): 3000 frames 896.1 ms (0.299 ms/frame)
+fenced footprint: start 1096.9 MB, frame 300 1096.9 MB, frame 3000 1096.9 MB, slope after 300 = 0.0000 MB/frame
+read-back centre=(128,128,64,255) glError=0x0 OK
+phys_footprint after the frames: 1104.0 MB
+VOXELIUM_ZINK_NATIVE_GL2.1_DRAW_OK (no compute at this version)
+tearing down EGL
+EGL torn down
+phys_footprint after teardown: 402.8 MB
+phys_footprint 1 s after teardown: 120.1 MB
+VOXELIUM_ZINK_OK
+2026-10-22T12:17:48Z [INFO] app: Build 1.0 (202610221143)
+2026-10-22T12:17:48Z [INFO] app: Data directory: /var/mobile/Containers/Data/Application/854D5448-8B2B-4025-9EF9-63E24BC00ED2/Documents
+2026-10-22T12:17:48Z [INFO] app: JIT/debugger attached: false
+2026-10-22T12:17:48Z [INFO] app: JIT: flags=0x5 (iOS26=1 mirrored=0 TXM=1) CS_DEBUGGED=0 debuggerNow=0 needsScript=1
+2026-10-22T12:17:48Z [INFO] app: GLFW bridge: dlopen(executable) ok; glfwInit=ok glfwSwapBuffers=ok
+2026-10-22T12:17:57Z [INFO] gl: Zink test passed
+2026-10-22T12:18:02Z [INFO] app: Build 1.0 (202610221143)
+2026-10-22T12:18:02Z [INFO] app: Data directory: /var/mobile/Containers/Data/Application/854D5448-8B2B-4025-9EF9-63E24BC00ED2/Documents
+2026-10-22T12:18:02Z [INFO] app: JIT/debugger attached: false
+2026-10-22T12:18:02Z [INFO] app: JIT: flags=0x5 (iOS26=1 mirrored=0 TXM=1) CS_DEBUGGED=0 debuggerNow=0 needsScript=1
+2026-10-22T12:18:02Z [INFO] app: GLFW bridge: dlopen(executable) ok; glfwInit=ok glfwSwapBuffers=ok
+2026-10-22T12:18:13Z [INFO] gl: Zink test passed
