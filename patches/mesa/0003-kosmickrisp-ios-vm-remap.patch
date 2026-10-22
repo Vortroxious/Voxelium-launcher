@@ -1,0 +1,23 @@
+diff --git a/src/kosmickrisp/vulkan/kk_bo.c b/src/kosmickrisp/vulkan/kk_bo.c
+index 5562b61..3c84688 100644
+--- a/src/kosmickrisp/vulkan/kk_bo.c
++++ b/src/kosmickrisp/vulkan/kk_bo.c
+@@ -14,8 +14,18 @@
+ #include "util/u_memory.h"
+ 
+ #if DETECT_OS_APPLE
++#include <TargetConditionals.h>
+ #include <mach/mach_init.h>
++#if TARGET_OS_OSX
+ #include <mach/mach_vm.h>
++#else
++/* The iOS SDK rejects mach_vm.h; on 64-bit the vm_* calls are the same. */
++#include <mach/vm_map.h>
++#define mach_vm_address_t vm_address_t
++#define mach_vm_remap vm_remap
++#define mach_vm_map vm_map
++#define mach_vm_deallocate vm_deallocate
++#endif
+ #endif /* DETECT_OS_APPLE */
+ 
+ VkResult

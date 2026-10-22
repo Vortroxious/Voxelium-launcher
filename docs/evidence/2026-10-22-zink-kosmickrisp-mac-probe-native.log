@@ -1,0 +1,23 @@
+footprint before EGL: 2.0 MB
+WARNING: Some incorrect rendering might occur because the selected Vulkan device (Apple M4) doesn't support base Zink requirements: have_EXT_custom_border_color 
+EGL 1.5 vendor=Mesa Project version=1.5
+no core context (0x3009); trying a default (compatibility) context
+context ready in 222.4 ms
+footprint after context: 14.1 MB
+GL_VERSION=2.1 Mesa 27.0.0-devel (git-9b3209540c)
+GL_RENDERER=zink Vulkan 1.4(Apple M4 (MESA_KOSMICKRISP))
+GL_VENDOR=Mesa
+GL_SHADING_LANGUAGE_VERSION=1.20
+extensions=0
+  GL_ARB_compute_shader: yes
+  GL_ARB_shader_storage_buffer_object: yes
+  GL_ARB_shader_image_load_store: yes
+  GL_ARB_geometry_shader4: no
+  GL_ARB_tessellation_shader: yes
+  GL_ARB_transform_feedback3: no
+  GL_ARB_multi_draw_indirect: yes
+  GL_ARB_gpu_shader5: yes
+GL 2.1 core43=0 max_work_group_count=2147483646,65535,65535 max_work_group_size=1024,1024,1024
+compute skipped: GL 2.1 (2.1 Mesa 27.0.0-devel (git-9b3209540c))
+footprint after context checks: 14.1 MB
+probe exit=0

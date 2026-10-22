@@ -1,0 +1,84 @@
+diff --git a/src/gallium/drivers/zink/zink_screen.c b/src/gallium/drivers/zink/zink_screen.c
+index 08e46c5..2bd51f2 100644
+--- a/src/gallium/drivers/zink/zink_screen.c
++++ b/src/gallium/drivers/zink/zink_screen.c
+@@ -68,6 +68,26 @@
+ static int num_screens = 0;
+ bool zink_tracing = false;
+ 
++/* A bare ICD (no Vulkan loader, as on iOS) has no layers, and so no
++ * vkEnumerateInstanceLayerProperties: answer that one here.
++ */
++static PFN_vkGetInstanceProcAddr bare_icd_gipa;
++
++static VKAPI_ATTR VkResult VKAPI_CALL
++bare_icd_enumerate_instance_layer_properties(uint32_t *count, VkLayerProperties *props)
++{
++   *count = 0;
++   return VK_SUCCESS;
++}
++
++static VKAPI_ATTR PFN_vkVoidFunction VKAPI_CALL
++bare_icd_get_instance_proc_addr(VkInstance instance, const char *name)
++{
++   if (!strcmp(name, "vkEnumerateInstanceLayerProperties"))
++      return (PFN_vkVoidFunction)bare_icd_enumerate_instance_layer_properties;
++   return bare_icd_gipa(instance, name);
++}
++
+ #if DETECT_OS_WINDOWS
+ #include <io.h>
+ #define VK_LIBNAME "vulkan-1.dll"
+@@ -3645,17 +3665,34 @@ zink_internal_create_screen(const struct pipe_screen_config *config, int64_t dev
+ 
+    u_trace_state_init();
+ 
+-   screen->loader_lib = util_dl_open(VK_LIBNAME);
++   /* ZINK_VULKAN_LIBRARY: load this Vulkan library (a loader, or a bare ICD
++    * such as KosmicKrisp or MoltenVK) instead of VK_LIBNAME. iOS has no
++    * Vulkan loader, so the app names the driver it bundles.
++    */
++   const char *vk_libname = os_get_option("ZINK_VULKAN_LIBRARY");
++   if (!vk_libname || !*vk_libname)
++      vk_libname = VK_LIBNAME;
++   screen->loader_lib = util_dl_open(vk_libname);
+    if (!screen->loader_lib) {
+       if (!screen->driver_name_is_inferred)
+-         mesa_loge("ZINK: failed to load "VK_LIBNAME);
++         mesa_loge("ZINK: failed to load %s", vk_libname);
+       goto fail;
+    }
+ 
+    screen->vk_GetInstanceProcAddr = (PFN_vkGetInstanceProcAddr)util_dl_get_proc_address(screen->loader_lib, "vkGetInstanceProcAddr");
+    screen->vk_GetDeviceProcAddr = (PFN_vkGetDeviceProcAddr)util_dl_get_proc_address(screen->loader_lib, "vkGetDeviceProcAddr");
++   /* A bare Mesa ICD exports only vk_icdGetInstanceProcAddr; vkGetDeviceProcAddr
++    * is then looked up through the instance once it exists.
++    */
++   bool bare_icd = false;
++   if (!screen->vk_GetInstanceProcAddr) {
++      bare_icd_gipa = (PFN_vkGetInstanceProcAddr)util_dl_get_proc_address(screen->loader_lib, "vk_icdGetInstanceProcAddr");
++      bare_icd = bare_icd_gipa != NULL;
++      if (bare_icd)
++         screen->vk_GetInstanceProcAddr = bare_icd_get_instance_proc_addr;
++   }
+    if (!screen->vk_GetInstanceProcAddr ||
+-       !screen->vk_GetDeviceProcAddr) {
++       (!screen->vk_GetDeviceProcAddr && !bare_icd)) {
+       if (!screen->driver_name_is_inferred)
+          mesa_loge("ZINK: failed to get proc address");
+       goto fail;
+@@ -3687,6 +3724,14 @@ zink_internal_create_screen(const struct pipe_screen_config *config, int64_t dev
+    screen->instance_info = &instance_info;
+    simple_mtx_unlock(&instance_lock);
+ 
++   if (!screen->vk_GetDeviceProcAddr)
++      screen->vk_GetDeviceProcAddr = (PFN_vkGetDeviceProcAddr)
++         screen->vk_GetInstanceProcAddr(instance, "vkGetDeviceProcAddr");
++   if (!screen->vk_GetDeviceProcAddr) {
++      mesa_loge("ZINK: failed to get vkGetDeviceProcAddr");
++      goto fail;
++   }
++
+    if (zink_debug & ZINK_DEBUG_VALIDATION) {
+       if (!screen->instance_info->have_layer_KHRONOS_validation &&
+           !screen->instance_info->have_layer_LUNARG_standard_validation) {

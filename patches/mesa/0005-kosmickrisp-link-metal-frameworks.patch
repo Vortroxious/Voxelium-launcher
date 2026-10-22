@@ -1,0 +1,16 @@
+diff --git a/src/kosmickrisp/bridge/meson.build b/src/kosmickrisp/bridge/meson.build
+index 03ba43b..25a6815 100644
+--- a/src/kosmickrisp/bridge/meson.build
++++ b/src/kosmickrisp/bridge/meson.build
+@@ -68,6 +68,11 @@ libmtl_bridge = static_library(
+   objc_args: ['-Wno-unguarded-availability-new'],
+ )
+ 
++# The driver links with -undefined dynamic_lookup (for its weak, unimplemented
++# entry points), so without this the Metal symbols are only found when the host
++# process happens to have Metal loaded already.
+ idep_mtl_bridge = declare_dependency(
+   link_with : libmtl_bridge,
++  dependencies : host_machine.system() == 'darwin' ? dependency(
++    'appleframeworks', modules : ['Foundation', 'Metal', 'QuartzCore']) : [],
+ )

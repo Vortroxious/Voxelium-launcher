@@ -1275,3 +1275,9 @@ Changes:
   - For Forge, the **shader warning was shown** ("BSL_v10.1.8.zip at render distance 12", 16:39:33Z) and the user chose "Play anyway". That confirms the Oculus settings fallback.
   - A second delete: "Deleted version Landscapes Reimagined Genesis 3.2 3.2" (16:38:21Z).
   - The `jna…tmp: dlopen` UnsatisfiedLinkError lines are Minecraft's hardware-info warnings, the same as in every Fabric run.
+- **Compute-shader spike: Zink on KosmicKrisp (2026-10-22, branch `spike/zink-compute`; report in `docs/COMPUTE_SHADERS_RESEARCH.md`).**
+  - Mesa 9b32095 (27.0.0-devel) was built for iOS arm64 by `scripts/build-zink.sh`. It needed six patches in `patches/mesa/`, which port KosmicKrisp to iOS and let Zink load a bare ICD with no Vulkan loader.
+  - **Device pass:** iPhone 15 Pro Max, iOS 27, experimental IPA build 202610221127 (separate bundle ID `io.github.voxelium.launcher.zinkexp`), no JIT attached. Logs in `docs/evidence/2026-10-22-zink-kosmickrisp-iphone15promax-ios27.log`.
+    - Override run (`MESA_GL_VERSION_OVERRIDE=4.6`): Vulkan 1.4 on "Apple A17 Pro GPU". Zink gave `4.6 (Core Profile)`, GLSL 4.60, and the compute SSBO read-back passed (`VOXELIUM_ZINK_COMPUTE_OK`).
+    - Native run: GL 2.1, because KosmicKrisp has no geometry shaders or transform feedback.
+  - **Open:** `phys_footprint` rose from 48 MB to 611 MB (override) and to 868 MB (native) over a 300-frame 1290×2796 loop. On the Mac it levels off at about 154 MB. Peak footprint with BSL on MobileGlues is already 2.4–2.6 GB, so this has to be measured over a longer run before any game test.
