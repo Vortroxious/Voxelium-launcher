@@ -242,6 +242,9 @@ static BOOL sUsed = NO;
         [self logFootprint:@"before init"];
         BOOL ok = [self runChecks];
         [self teardown];
+        [self logFootprint:@"after teardown"];
+        [NSThread sleepForTimeInterval:1.0];
+        [self logFootprint:@"1 s after teardown"];
         [self finish:ok];
     }
 }
@@ -814,12 +817,18 @@ static BOOL sUsed = NO;
     viewport(0, 0, kDrawWidth, kDrawHeight);
     clearColor(0.0f, 0.0f, 0.0f, 1.0f);
 
-    double firstMs = 0;
-    t0 = nowMs();
-    for (int i = 0; i < kDrawFrames; i++) {
+    void (^frame)(int) = ^(int i) {
         clear(GL_COLOR_BUFFER_BIT);
         uniform1f(frameLoc, (GLfloat)i);
         drawArrays(GL_TRIANGLE_STRIP, 0, 4);
+    };
+    // Memory over time: the first run grew about 2 MB per frame. Three ways of
+    // ending a frame show whether that is a leak or work queued without a wait.
+    // 1. glFlush only (no swap, nothing ever waits for the GPU).
+    double firstMs = 0;
+    t0 = nowMs();
+    for (int i = 0; i < kDrawFrames; i++) {
+        frame(i);
         if (i == 0) {
             glFinish_();
             firstMs = nowMs() - t0;
@@ -827,12 +836,56 @@ static BOOL sUsed = NO;
         } else {
             flush();
         }
+        if ((i + 1) % 50 == 0) [self logFootprint:[NSString stringWithFormat:@"flush-only frame %d", i + 1]];
     }
     glFinish_();
     double restMs = nowMs() - t0;
     [self log:@"%dx%d full-screen quad: first frame %.2f ms, then %d frames %.1f ms (%.3f ms/frame, %.1f fps)",
               kDrawWidth, kDrawHeight, firstMs, kDrawFrames - 1, restMs,
               restMs / (kDrawFrames - 1), (kDrawFrames - 1) / (restMs / 1000.0)];
+    [self logFootprint:@"after flush-only frames + glFinish"];
+
+    // 2. glFinish every frame: the CPU waits for each frame.
+    t0 = nowMs();
+    for (int i = 0; i < kDrawFrames; i++) {
+        frame(i);
+        glFinish_();
+        if ((i + 1) % 50 == 0) [self logFootprint:[NSString stringWithFormat:@"finish-each frame %d", i + 1]];
+    }
+    double finishMs = nowMs() - t0;
+    [self log:@"finish-each: %d frames %.1f ms (%.3f ms/frame)", kDrawFrames, finishMs, finishMs / kDrawFrames];
+
+    // 3. A fence per frame, waiting for the one two frames back, as swap
+    //    throttling does in a game.
+    PFNGLFENCESYNCPROC fenceSync = [self gl:"glFenceSync"];
+    PFNGLCLIENTWAITSYNCPROC clientWaitSync = [self gl:"glClientWaitSync"];
+    PFNGLDELETESYNCPROC deleteSync = [self gl:"glDeleteSync"];
+    if (fenceSync && clientWaitSync && deleteSync) {
+        GLsync fences[2] = {0};
+        t0 = nowMs();
+        for (int i = 0; i < kDrawFrames; i++) {
+            frame(i);
+            GLsync *slot = &fences[i % 2];
+            if (*slot) {
+                clientWaitSync(*slot, GL_SYNC_FLUSH_COMMANDS_BIT, 1000000000ull);
+                deleteSync(*slot);
+            }
+            *slot = fenceSync(GL_SYNC_GPU_COMMANDS_COMPLETE, 0);
+            flush();
+            if ((i + 1) % 50 == 0) [self logFootprint:[NSString stringWithFormat:@"fenced frame %d", i + 1]];
+        }
+        for (int k = 0; k < 2; k++) {
+            if (fences[k]) {
+                clientWaitSync(fences[k], GL_SYNC_FLUSH_COMMANDS_BIT, 1000000000ull);
+                deleteSync(fences[k]);
+            }
+        }
+        double fencedMs = nowMs() - t0;
+        [self log:@"fenced (2 in flight): %d frames %.1f ms (%.3f ms/frame)", kDrawFrames, fencedMs, fencedMs / kDrawFrames];
+    } else {
+        [self log:@"glFenceSync unavailable; fenced frames skipped"];
+    }
+    glFinish_();
 
     GLubyte px[4] = {0};
     readPixels(kDrawWidth / 2, kDrawHeight / 2, 1, 1, GL_RGBA, GL_UNSIGNED_BYTE, px);
