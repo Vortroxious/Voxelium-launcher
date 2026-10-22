@@ -169,12 +169,24 @@ final class ZinkTestModel: ObservableObject {
     }
 }
 
+/// Experimental builds: play Minecraft 1.17+ through Zink (desktop GL 4.6 on
+/// KosmicKrisp) instead of MobileGlues. Read by MinecraftLauncher at launch.
+enum ZinkRenderer {
+    static let defaultsKey = "VoxeliumZinkRenderer"
+    static var enabled: Bool { UserDefaults.standard.object(forKey: defaultsKey) as? Bool ?? true }
+}
+
 struct ZinkTestRows: View {
     @StateObject private var test = ZinkTestModel()
+    @AppStorage(ZinkRenderer.defaultsKey) private var playWithZink = true
     let paths: AppPaths?
 
     var body: some View {
         LabeledContent("Zink bundled", value: test.driver.map { "Yes (\($0))" } ?? "No")
+        Toggle("Play with Zink (experimental)", isOn: $playWithZink)
+            .disabled(!test.bundled)
+        Text("Minecraft 1.17+ renders with desktop GL 4.6 on Zink instead of MobileGlues. Needs iOS 26. Not in the same launch as the Zink test.")
+            .font(.caption2).foregroundStyle(.secondary)
         if test.running {
             HStack { ProgressView(); Text("Running Zink test…") }
         } else if let ok = test.result {

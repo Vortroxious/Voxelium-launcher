@@ -1281,4 +1281,11 @@ Changes:
     - Override run (`MESA_GL_VERSION_OVERRIDE=4.6`): Vulkan 1.4 on "Apple A17 Pro GPU". Zink gave `4.6 (Core Profile)`, GLSL 4.60, and the compute SSBO read-back passed (`VOXELIUM_ZINK_COMPUTE_OK`).
     - Native run: GL 2.1, because KosmicKrisp has no geometry shaders or transform feedback.
   - **Memory, resolved as a leak question (12:17Z, build 202610221143):** over 3000 frames the footprint is flat once frames wait for the GPU (0.0000–0.0001 MB/frame after frame 300, in both modes). The earlier growth came from flush-only frames: nothing throttles the CPU, so a GPU backlog builds up (Mac: 1.2 MB per queued frame, 3.7 GB at frame 3000, final `glFinish` waited 3.8 s). The backlog's pool is kept, 0.7–1.1 GB on the phone, until EGL teardown, which brings it back to 79–120 MB within 1 s. A renderer must throttle to about 2 frames in flight.
-  - Patch 0007 makes KosmicKrisp reset its Metal 4 command allocators, which it never did (Mac steady state 154 → 141 MB). It is in `build/deps/zink-out`, but not yet in a device run.
+  - An allocator-reset patch for KosmicKrisp's Metal 4 command allocators (Mac steady state 154 → 141 MB) was withdrawn after the Mellow crash in `beginCommandBufferWithAllocator` (see the in-game entry below).
+- **Minecraft 1.21.11 on Zink, in game (2026-10-22, experimental build 202610221237; `docs/evidence/2026-10-22-zink-game-1.21.11-iris-build202610221237.log`):**
+  - Minecraft reported GL 4.6 core on `zink Vulkan 1.4(Apple A17 Pro GPU (MESA_KOSMICKRISP))`, and the world rendered with Fabric, Sodium and Iris. This used new Mesa patch 0007 (a libGL for LWJGL) and the Metal read-back presenter, with at most 2 frames in flight.
+  - Photon: `deferred4_a` needs 36,860 of 32,768 bytes of shared memory, because Zink hid subgroups (no fp64). Patch 0008 fixes that; Mac check passes.
+  - Camellia: geometry shaders, which KosmicKrisp does not have. The process ended after a 2.8 GB memory warning.
+  - Mellow: ran, then SIGSEGV in `IOGPU` from `mtl_begin_command_buffer`. The allocator-reset patch was withdrawn.
+  - A crash when quitting came from a semaphore released below its start value in the presenter. Fixed.
+  - Retest on build 202610221303: Mellow played about 3 minutes with no crash and stopped normally, with a footprint plateau of about 2.5 GB. Photon still needs 36,860 bytes of shared memory and is dropped (it fails on the user's MacBook too). Log: `docs/evidence/2026-10-22-zink-game-1.21.11-mellow-build202610221303.log`.

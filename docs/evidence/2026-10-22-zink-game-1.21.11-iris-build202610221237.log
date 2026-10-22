@@ -1,0 +1,141 @@
+# Excerpt: Minecraft 1.21.11 (Fabric 0.19.5, Sodium 0.8.14, Iris 1.10.8) on Zink/KosmicKrisp,
+# iPhone 15 Pro Max, iOS 27, experimental build 202610221237, 2026-10-22. Full logs not committed (293 KB).
+
+## run: iris
+===== Minecraft fabric-loader-0.19.5-1.21.11 2026-10-22T12:48:26Z java=21 heap=1335M flags=0x5 (iOS26=1 mirrored=0 TXM=1) CS_DEBUGGED=1 debuggerNow=1 needsScript=1
+2026-10-22 19:48:37.908 Voxelium[28100:3920304] [VXGLFW] Zink: Mesa EGL 1.5 (surfaceless) from /private/var/containers/Bundle/Application/CCA8309E-2811-4B97-9EC1-A4DB59C2BCE7/Voxelium.app/Frameworks/zink/libEGL_mesa.dylib
+2026-10-22 19:48:37.908 Voxelium[28100:3920304] [VXGLFW] initialised: ANGLE Metal display, screen 2796x1290 @120 Hz
+2026-10-22 19:48:38.285 Voxelium[28100:3920304] [VXGLFW] window "Minecraft* 1.21.11" on-screen: 430x932 pt, framebuffer 645x1398 px (requested 854x480, GL 3.3 profile 0x32001)
+[12:48:38] [Render thread/INFO]: OpenGL 4.5 detected, enabling DSA.
+[12:48:38] [Render thread/INFO]: OpenGL Vendor: Mesa
+[12:48:38] [Render thread/INFO]: OpenGL Renderer: zink Vulkan 1.4(Apple A17 Pro GPU (MESA_KOSMICKRISP))
+[12:48:38] [Render thread/INFO]: OpenGL Version: 4.6 (Core Profile) Mesa 27.0.0-devel (git-9b3209540c)
+2026-10-22 19:48:39.022 Voxelium[28100:3920304] [VXMEM] in game: footprint 915 MB (peak 915 MB; GPU 87 MB, rest 827 MB), iOS allows 2460 MB more (lowest 2460 MB, limit remaining 2460 MB)
+2026-10-22 19:48:39.027 Voxelium[28100:3920304] [VXGLFW] Zink: presenting 645x1398 (row stride 2592 bytes)
+2026-10-22 19:48:40.275 Voxelium[28100:3920304] [VXGLFW] Zink: presenting 1398x645 (row stride 5600 bytes)
+2026-10-22 19:48:49.034 Voxelium[28100:3920304] [VXMEM] in game: footprint 1490 MB (peak 1490 MB; GPU 424 MB, rest 1066 MB), iOS allows 1885 MB more (lowest 1885 MB, limit remaining 1885 MB)
+2026-10-22 19:48:59.043 Voxelium[28100:3920304] [VXMEM] in game: footprint 1485 MB (peak 1490 MB; GPU 425 MB, rest 1060 MB), iOS allows 1890 MB more (lowest 1885 MB, limit remaining 1890 MB)
+[12:49:02] [Server thread/INFO]: Vortroxious joined the game
+2026-10-22 19:49:09.611 Voxelium[28100:3920304] [VXMEM] in game: footprint 1748 MB (peak 1748 MB; GPU 471 MB, rest 1277 MB), iOS allows 1627 MB more (lowest 1627 MB, limit remaining 1627 MB)
+2026-10-22 19:49:19.626 Voxelium[28100:3920304] [VXMEM] in game: footprint 1979 MB (peak 1979 MB; GPU 525 MB, rest 1454 MB), iOS allows 1396 MB more (lowest 1396 MB, limit remaining 1396 MB)
+2026-10-22 19:49:29.639 Voxelium[28100:3920304] [VXMEM] in game: footprint 2013 MB (peak 2013 MB; GPU 582 MB, rest 1430 MB), iOS allows 1362 MB more (lowest 1362 MB, limit remaining 1362 MB)
+2026-10-22 19:49:39.644 Voxelium[28100:3920304] [VXMEM] in game: footprint 2068 MB (peak 2068 MB; GPU 587 MB, rest 1480 MB), iOS allows 1307 MB more (lowest 1307 MB, limit remaining 1307 MB)
+2026-10-22 19:49:49.660 Voxelium[28100:3920304] [VXMEM] in game: footprint 2116 MB (peak 2116 MB; GPU 622 MB, rest 1493 MB), iOS allows 1259 MB more (lowest 1259 MB, limit remaining 1259 MB)
+[12:49:55] [Render thread/INFO]: Stopping!
+
+## run: photon
+===== Minecraft fabric-loader-0.19.5-1.21.11 2026-10-22T12:50:23Z java=21 heap=1331M flags=0x5 (iOS26=1 mirrored=0 TXM=1) CS_DEBUGGED=1 debuggerNow=1 needsScript=1
+2026-10-22 19:50:31.938 Voxelium[28116:3922420] [VXGLFW] Zink: Mesa EGL 1.5 (surfaceless) from /private/var/containers/Bundle/Application/CCA8309E-2811-4B97-9EC1-A4DB59C2BCE7/Voxelium.app/Frameworks/zink/libEGL_mesa.dylib
+2026-10-22 19:50:31.938 Voxelium[28116:3922420] [VXGLFW] initialised: ANGLE Metal display, screen 2796x1290 @120 Hz
+2026-10-22 19:50:31.958 Voxelium[28116:3922420] [VXGLFW] window "Minecraft* 1.21.11" on-screen: 430x932 pt, framebuffer 645x1398 px (requested 854x480, GL 3.3 profile 0x32001)
+[12:50:32] [Render thread/INFO]: OpenGL 4.5 detected, enabling DSA.
+[12:50:32] [Render thread/INFO]: OpenGL Vendor: Mesa
+[12:50:32] [Render thread/INFO]: OpenGL Renderer: zink Vulkan 1.4(Apple A17 Pro GPU (MESA_KOSMICKRISP))
+[12:50:32] [Render thread/INFO]: OpenGL Version: 4.6 (Core Profile) Mesa 27.0.0-devel (git-9b3209540c)
+2026-10-22 19:50:32.861 Voxelium[28116:3922420] [VXMEM] in game: footprint 912 MB (peak 912 MB; GPU 87 MB, rest 824 MB), iOS allows 2463 MB more (lowest 2463 MB, limit remaining 2463 MB)
+2026-10-22 19:50:32.864 Voxelium[28116:3922420] [VXGLFW] Zink: presenting 645x1398 (row stride 2592 bytes)
+2026-10-22 19:50:32.922 Voxelium[28116:3922420] [VXGLFW] Zink: presenting 1398x645 (row stride 5600 bytes)
+[12:50:43] [Render thread/INFO]: Using shaderpack: photon_v1.4.zip
+2026-10-22 19:50:43.264 Voxelium[28116:3922420] [VXMEM] in game: footprint 1505 MB (peak 1505 MB; GPU 389 MB, rest 1115 MB), iOS allows 1870 MB more (lowest 1870 MB, limit remaining 1870 MB)
+2026-10-22 19:50:53.281 Voxelium[28116:3922420] [VXMEM] in game: footprint 1539 MB (peak 1539 MB; GPU 415 MB, rest 1123 MB), iOS allows 1836 MB more (lowest 1836 MB, limit remaining 1836 MB)
+[12:50:53] [Server thread/INFO]: Vortroxious joined the game
+[12:50:58] [Render thread/WARN]: Program link log for deferred4_a: error: Too much shared memory used (36860/32768)
+[12:50:58] [Render thread/ERROR]: Failed to create shader rendering pipeline, disabling shaders!
+net.irisshaders.iris.gl.shader.ShaderCompileException: deferred4_a: deferred4_a: error: Too much shared memory used (36860/32768)
+[12:50:59] [Render thread/INFO]: [System] [CHAT] The shaderpack failed to load! Please report the error to the shader developer. Copy Info
+2026-10-22 19:51:03.333 Voxelium[28116:3922420] [VXMEM] in game: footprint 2162 MB (peak 2162 MB; GPU 693 MB, rest 1468 MB), iOS allows 1213 MB more (lowest 1213 MB, limit remaining 1213 MB)
+
+## run: camellia
+===== Minecraft fabric-loader-0.19.5-1.21.11 2026-10-22T12:52:35Z java=21 heap=1301M flags=0x5 (iOS26=1 mirrored=0 TXM=1) CS_DEBUGGED=1 debuggerNow=1 needsScript=1
+2026-10-22 19:52:42.161 Voxelium[28142:3924867] [VXGLFW] Zink: Mesa EGL 1.5 (surfaceless) from /private/var/containers/Bundle/Application/CCA8309E-2811-4B97-9EC1-A4DB59C2BCE7/Voxelium.app/Frameworks/zink/libEGL_mesa.dylib
+2026-10-22 19:52:42.161 Voxelium[28142:3924867] [VXGLFW] initialised: ANGLE Metal display, screen 2796x1290 @120 Hz
+2026-10-22 19:52:42.204 Voxelium[28142:3924867] [VXGLFW] window "Minecraft* 1.21.11" on-screen: 430x932 pt, framebuffer 645x1398 px (requested 854x480, GL 3.3 profile 0x32001)
+[12:52:42] [Render thread/INFO]: OpenGL 4.5 detected, enabling DSA.
+[12:52:43] [Render thread/INFO]: Using shaderpack: photon_v1.4.zip
+[12:52:43] [Render thread/INFO]: OpenGL Vendor: Mesa
+[12:52:43] [Render thread/INFO]: OpenGL Renderer: zink Vulkan 1.4(Apple A17 Pro GPU (MESA_KOSMICKRISP))
+[12:52:43] [Render thread/INFO]: OpenGL Version: 4.6 (Core Profile) Mesa 27.0.0-devel (git-9b3209540c)
+2026-10-22 19:52:44.328 Voxelium[28142:3924867] [VXMEM] in game: footprint 996 MB (peak 996 MB; GPU 88 MB, rest 908 MB), iOS allows 2379 MB more (lowest 2379 MB, limit remaining 2379 MB)
+2026-10-22 19:52:44.337 Voxelium[28142:3924867] [VXGLFW] Zink: presenting 645x1398 (row stride 2592 bytes)
+2026-10-22 19:52:44.377 Voxelium[28142:3924867] [VXGLFW] Zink: presenting 1398x645 (row stride 5600 bytes)
+[12:52:47] [Render thread/WARN]: Program link log for deferred4_a: error: Too much shared memory used (36860/32768)
+[12:52:47] [Render thread/ERROR]: Failed to create shader rendering pipeline, disabling shaders!
+net.irisshaders.iris.gl.shader.ShaderCompileException: deferred4_a: deferred4_a: error: Too much shared memory used (36860/32768)
+2026-10-22 19:52:54.335 Voxelium[28142:3924867] [VXMEM] in game: footprint 1763 MB (peak 1763 MB; GPU 606 MB, rest 1156 MB), iOS allows 1612 MB more (lowest 1612 MB, limit remaining 1612 MB)
+[12:52:59] [Render thread/INFO]: Using shaderpack: Camellia-v1.2.0.zip
+2026-10-22 19:53:04.407 Voxelium[28142:3924867] [VXMEM] in game: footprint 1755 MB (peak 1763 MB; GPU 608 MB, rest 1146 MB), iOS allows 1620 MB more (lowest 1612 MB, limit remaining 1620 MB)
+[12:53:07] [Server thread/INFO]: Vortroxious joined the game
+[12:53:07] [Render thread/INFO]: [System] [CHAT] The shaderpack failed to load! Please report the error to the shader developer. Copy Info
+2026-10-22 19:53:07.963 Voxelium[28142:3924499] [VXMEM] iOS memory warning: footprint 2776 MB (peak 2776 MB; GPU 1596 MB, rest 1180 MB), iOS allows 599 MB more (lowest 599 MB, limit remaining 599 MB)
+2026-10-22 19:53:07.964 Voxelium[28142:3924499] [VXMEM] showing the low-memory notice in game
+
+## run: mellow1
+===== Minecraft fabric-loader-0.19.5-1.21.11 2026-10-22T12:53:55Z java=21 heap=1328M flags=0x5 (iOS26=1 mirrored=0 TXM=1) CS_DEBUGGED=1 debuggerNow=1 needsScript=1
+2026-10-22 19:54:03.887 Voxelium[28157:3926495] [VXGLFW] Zink: Mesa EGL 1.5 (surfaceless) from /private/var/containers/Bundle/Application/CCA8309E-2811-4B97-9EC1-A4DB59C2BCE7/Voxelium.app/Frameworks/zink/libEGL_mesa.dylib
+2026-10-22 19:54:03.887 Voxelium[28157:3926495] [VXGLFW] initialised: ANGLE Metal display, screen 2796x1290 @120 Hz
+2026-10-22 19:54:03.921 Voxelium[28157:3926495] [VXGLFW] window "Minecraft* 1.21.11" on-screen: 430x932 pt, framebuffer 645x1398 px (requested 854x480, GL 3.3 profile 0x32001)
+[12:54:04] [Render thread/INFO]: OpenGL 4.5 detected, enabling DSA.
+[12:54:04] [Render thread/INFO]: Using shaderpack: Camellia-v1.2.0.zip
+[12:54:04] [Render thread/INFO]: OpenGL Vendor: Mesa
+[12:54:04] [Render thread/INFO]: OpenGL Renderer: zink Vulkan 1.4(Apple A17 Pro GPU (MESA_KOSMICKRISP))
+[12:54:04] [Render thread/INFO]: OpenGL Version: 4.6 (Core Profile) Mesa 27.0.0-devel (git-9b3209540c)
+2026-10-22 19:54:05.356 Voxelium[28157:3926495] [VXMEM] in game: footprint 946 MB (peak 946 MB; GPU 87 MB, rest 859 MB), iOS allows 2429 MB more (lowest 2429 MB, limit remaining 2429 MB)
+2026-10-22 19:54:05.357 Voxelium[28157:3926495] [VXGLFW] Zink: presenting 645x1398 (row stride 2592 bytes)
+2026-10-22 19:54:05.417 Voxelium[28157:3926495] [VXGLFW] Zink: presenting 1398x645 (row stride 5600 bytes)
+
+## run: mellow2
+===== Minecraft fabric-loader-0.19.5-1.21.11 2026-10-22T12:54:24Z java=21 heap=1333M flags=0x5 (iOS26=1 mirrored=0 TXM=1) CS_DEBUGGED=1 debuggerNow=1 needsScript=1
+2026-10-22 19:54:32.678 Voxelium[28169:3927112] [VXGLFW] Zink: Mesa EGL 1.5 (surfaceless) from /private/var/containers/Bundle/Application/CCA8309E-2811-4B97-9EC1-A4DB59C2BCE7/Voxelium.app/Frameworks/zink/libEGL_mesa.dylib
+2026-10-22 19:54:32.678 Voxelium[28169:3927112] [VXGLFW] initialised: ANGLE Metal display, screen 2796x1290 @120 Hz
+2026-10-22 19:54:32.708 Voxelium[28169:3927112] [VXGLFW] window "Minecraft* 1.21.11" on-screen: 430x932 pt, framebuffer 645x1398 px (requested 854x480, GL 3.3 profile 0x32001)
+[12:54:33] [Render thread/INFO]: OpenGL 4.5 detected, enabling DSA.
+[12:54:33] [Render thread/INFO]: OpenGL Vendor: Mesa
+[12:54:33] [Render thread/INFO]: OpenGL Renderer: zink Vulkan 1.4(Apple A17 Pro GPU (MESA_KOSMICKRISP))
+[12:54:33] [Render thread/INFO]: OpenGL Version: 4.6 (Core Profile) Mesa 27.0.0-devel (git-9b3209540c)
+2026-10-22 19:54:33.577 Voxelium[28169:3927112] [VXMEM] in game: footprint 892 MB (peak 892 MB; GPU 87 MB, rest 805 MB), iOS allows 2483 MB more (lowest 2483 MB, limit remaining 2483 MB)
+2026-10-22 19:54:33.578 Voxelium[28169:3927112] [VXGLFW] Zink: presenting 645x1398 (row stride 2592 bytes)
+2026-10-22 19:54:33.618 Voxelium[28169:3927112] [VXGLFW] Zink: presenting 1398x645 (row stride 5600 bytes)
+2026-10-22 19:54:43.594 Voxelium[28169:3927112] [VXMEM] in game: footprint 1422 MB (peak 1422 MB; GPU 443 MB, rest 979 MB), iOS allows 1953 MB more (lowest 1953 MB, limit remaining 1953 MB)
+[12:54:46] [Render thread/INFO]: Using shaderpack: Mellow v3.4.1a.zip
+2026-10-22 19:54:53.597 Voxelium[28169:3927112] [VXMEM] in game: footprint 1503 MB (peak 1503 MB; GPU 443 MB, rest 1060 MB), iOS allows 1872 MB more (lowest 1872 MB, limit remaining 1872 MB)
+[12:54:54] [Server thread/INFO]: Vortroxious joined the game
+2026-10-22 19:55:04.037 Voxelium[28169:3927112] [VXMEM] in game: footprint 1762 MB (peak 1762 MB; GPU 491 MB, rest 1270 MB), iOS allows 1613 MB more (lowest 1613 MB, limit remaining 1613 MB)
+2026-10-22 19:55:14.039 Voxelium[28169:3927112] [VXMEM] in game: footprint 1923 MB (peak 1923 MB; GPU 615 MB, rest 1307 MB), iOS allows 1452 MB more (lowest 1452 MB, limit remaining 1452 MB)
+2026-10-22 19:55:24.047 Voxelium[28169:3927112] [VXMEM] in game: footprint 2008 MB (peak 2008 MB; GPU 689 MB, rest 1318 MB), iOS allows 1367 MB more (lowest 1367 MB, limit remaining 1367 MB)
+2026-10-22 19:55:34.049 Voxelium[28169:3927112] [VXMEM] in game: footprint 2026 MB (peak 2026 MB; GPU 715 MB, rest 1311 MB), iOS allows 1349 MB more (lowest 1349 MB, limit remaining 1349 MB)
+#  SIGSEGV (0xb) at pc=0x000000021902813c, pid=28169, tid=80923
+# Problematic frame:
+
+## hs_err_pid28169.log (Mellow crash), native frames
+Native frames: (J=compiled Java code, j=interpreted, Vv=VM code, C=native code)
+C  [IOGPU+0x2513c]  <redacted>+0x80
+C  [IOGPU+0x25860]  <redacted>+0x60
+C  [IOGPU+0x254d0]  <redacted>+0x20
+C  [IOGPU+0x25614]  <redacted>+0x28
+C  [AGXMetalG16P_B0+0x3b1ef4]  <redacted>+0x48
+C  [libvulkan_kosmickrisp.dylib+0x2c942c]  vk_icdGetInstanceProcAddr+0x20e920
+C  [libvulkan_kosmickrisp.dylib+0xabc58]  vk_icdGetPhysicalDeviceProcAddr+0x13040
+C  [libgallium-27.0.0-devel.dylib+0x6f84b0]  _mesa_glapi_get_dispatch+0x1c04c
+C  [libgallium-27.0.0-devel.dylib+0x7212bc]  _mesa_glapi_get_dispatch+0x44e58
+C  [libgallium-27.0.0-devel.dylib+0x7336b8]  _mesa_glapi_get_dispatch+0x57254
+C  [libgallium-27.0.0-devel.dylib+0x6fa614]  _mesa_glapi_get_dispatch+0x1e1b0
+C  [libgallium-27.0.0-devel.dylib+0x7fb4b4]  _mesa_glapi_get_dispatch+0x11f050
+C  [libgallium-27.0.0-devel.dylib+0x63fd40]  kopperGetSyncValues+0x632300
+C  [libgallium-27.0.0-devel.dylib+0x64b06c]  kopperGetSyncValues+0x63d62c
+C  [libgallium-27.0.0-devel.dylib+0x64a044]  kopperGetSyncValues+0x63c604
+C  [libgallium-27.0.0-devel.dylib+0x8428fc]  _mesa_glapi_get_dispatch+0x166498
+C  [libgallium-27.0.0-devel.dylib+0x109254]  kopperGetSyncValues+0xfb814
+C  [libgallium-27.0.0-devel.dylib+0x178dec]  kopperGetSyncValues+0x16b3ac
+C  [libgallium-27.0.0-devel.dylib+0x177784]  kopperGetSyncValues+0x169d44
+C  [libgallium-27.0.0-devel.dylib+0x1773cc]  kopperGetSyncValues+0x16998c
+C  [libgallium-27.0.0-devel.dylib+0x178498]  kopperGetSyncValues+0x16aa58
+J 15540  org.lwjgl.opengl.GL45C.nglNamedBufferSubData(IJJJ)V (0 bytes) @ 0x000000012c70fdf0 [0x000000012c70fd40+0x00000000000000b0]
+J 42217 c2 net.minecraft.class_1921.method_60895(Lnet/minecraft/class_9801;)V (550 bytes) @ 0x000000012d0e8248 [0x000000012d0e6b40+0x0000000000001708]
+
+## symbolicated against build-tree dylibs (same build)
+libvulkan_kosmickrisp+0x2c942c mtl_begin_command_buffer+44
+libvulkan_kosmickrisp+0xabc58  kk_BeginCommandBuffer+100
+libgallium+0x6f84b0 zink_start_batch+108 <- flush_batch <- zink_flush <- zink_batch_usage_wait <- zink_buffer_map <- tc_buffer_map <- u_vbuf_translate_begin <- u_vbuf_draw_vbo <- _mesa_DrawElementsBaseVertex <- glthread <- _mesa_marshal_BufferSubData_merged
+
+## Voxelium-2026-10-22-194956.ips (quit after the Iris-only run)
+EXC_BREAKPOINT in _dispatch_semaphore_dispose <- -[VXZinkPresenter .cxx_destruct] <- glfwDestroyWindow

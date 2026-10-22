@@ -12,6 +12,11 @@
 // caller's thread in glfwPollEvents/glfwWaitEvents, as GLFW specifies.
 //
 // Platform is reported as GLFW_PLATFORM_NULL so nothing tries Cocoa/AppKit.
+//
+// Experimental builds only (VOXELIUM_ZINK_EXPERIMENT): with VOXELIUM_GL_BACKEND=zink
+// the context comes from Mesa's EGL (Zink on KosmicKrisp, desktop GL 4.6) instead of
+// ANGLE. Mesa has no iOS window surface, so the game draws into a pbuffer and each
+// swap reads it back and draws it into the CAMetalLayer with Metal; see "Zink".
 
 #import <UIKit/UIKit.h>
 #import <QuartzCore/QuartzCore.h>
@@ -33,6 +38,12 @@
 
 #import "VXGLFW.h"
 #import "JVMBridge.h"
+
+#if VOXELIUM_ZINK_EXPERIMENT
+#import <Metal/Metal.h>
+#define GL_GLES_PROTOTYPES 0
+#include <GLES3/gl3.h>
+#endif
 
 // Keep every API function in the executable's export trie even though nothing
 // in the app calls them directly.
@@ -75,8 +86,18 @@ static PFNEGLSWAPBUFFERSPROC p_eglSwapBuffers;
 static PFNEGLSWAPINTERVALPROC p_eglSwapInterval;
 static PFNEGLQUERYSURFACEPROC p_eglQuerySurface;
 
+#if VOXELIUM_ZINK_EXPERIMENT
+// VOXELIUM_GL_BACKEND=zink (set by the launcher): Mesa's EGL from $VOXELIUM_ZINK_DIR.
+static BOOL gZink;
+static BOOL vxLoadMesaEGL(void);
+#endif
+
 static BOOL vxLoadEGL(void) {
     if (gDisplay != EGL_NO_DISPLAY) return YES;
+#if VOXELIUM_ZINK_EXPERIMENT
+    const char *backend = getenv("VOXELIUM_GL_BACKEND");
+    if (backend && !strcmp(backend, "zink")) return vxLoadMesaEGL();
+#endif
     NSString *path = [NSBundle.mainBundle.privateFrameworksPath stringByAppendingPathComponent:@"libEGL.framework/libEGL"];
     gEGLLib = dlopen(path.fileSystemRepresentation, RTLD_NOW | RTLD_LOCAL);
     if (!gEGLLib) {
@@ -119,6 +140,263 @@ static BOOL vxLoadEGL(void) {
     gDisplay = dpy;
     return YES;
 }
+
+#if VOXELIUM_ZINK_EXPERIMENT
+static void vxOnMain(dispatch_block_t block);
+
+#ifndef EGL_PLATFORM_SURFACELESS_MESA
+#define EGL_PLATFORM_SURFACELESS_MESA 0x31DD
+#endif
+
+static BOOL vxLoadMesaEGL(void) {
+    const char *dir = getenv("VOXELIUM_ZINK_DIR");
+    NSString *path = [(dir ? @(dir) : [NSBundle.mainBundle.privateFrameworksPath stringByAppendingPathComponent:@"zink"])
+                      stringByAppendingPathComponent:@"libEGL_mesa.dylib"];
+    gEGLLib = dlopen(path.fileSystemRepresentation, RTLD_NOW | RTLD_LOCAL);
+    if (!gEGLLib) {
+        vxError(GLFW_PLATFORM_UNAVAILABLE, "cannot load Mesa libEGL: %s", dlerror());
+        return NO;
+    }
+#define L(name) p_##name = (__typeof__(p_##name))dlsym(gEGLLib, #name)
+    L(eglGetProcAddress); L(eglGetError); L(eglInitialize); L(eglTerminate); L(eglBindAPI);
+    L(eglChooseConfig); L(eglCreateWindowSurface); L(eglCreatePbufferSurface); L(eglDestroySurface);
+    L(eglCreateContext); L(eglDestroyContext); L(eglMakeCurrent); L(eglSwapBuffers);
+    L(eglSwapInterval); L(eglQuerySurface);
+#undef L
+    PFNEGLGETPLATFORMDISPLAYPROC getPlatformDisplay = (PFNEGLGETPLATFORMDISPLAYPROC)dlsym(gEGLLib, "eglGetPlatformDisplay");
+    if (!getPlatformDisplay || !p_eglInitialize || !p_eglCreateContext) {
+        vxError(GLFW_PLATFORM_UNAVAILABLE, "Mesa libEGL is missing entry points");
+        return NO;
+    }
+    EGLDisplay dpy = getPlatformDisplay(EGL_PLATFORM_SURFACELESS_MESA, EGL_DEFAULT_DISPLAY, NULL);
+    EGLint major = 0, minor = 0;
+    if (dpy == EGL_NO_DISPLAY || !p_eglInitialize(dpy, &major, &minor)) {
+        vxError(GLFW_PLATFORM_UNAVAILABLE, "Mesa eglInitialize failed: 0x%X", p_eglGetError ? p_eglGetError() : 0);
+        return NO;
+    }
+    p_eglBindAPI(EGL_OPENGL_API);
+    // Everything renders into pbuffers: the window's is read back at each swap.
+    EGLint count = 0;
+    EGLint attrs[] = {
+        EGL_RED_SIZE, 8, EGL_GREEN_SIZE, 8, EGL_BLUE_SIZE, 8, EGL_ALPHA_SIZE, 8,
+        EGL_DEPTH_SIZE, 24, EGL_STENCIL_SIZE, 8,
+        EGL_RENDERABLE_TYPE, EGL_OPENGL_BIT, EGL_SURFACE_TYPE, EGL_PBUFFER_BIT, EGL_NONE};
+    if (!p_eglChooseConfig(dpy, attrs, &gPbufferConfig, 1, &count) || count < 1) {
+        vxError(GLFW_PLATFORM_UNAVAILABLE, "no suitable Mesa EGL config: 0x%X", p_eglGetError());
+        p_eglTerminate(dpy);
+        return NO;
+    }
+    gWindowConfig = gPbufferConfig;
+    gDisplay = dpy;
+    gZink = YES;
+    NSLog(@"[VXGLFW] Zink: Mesa EGL %d.%d (surfaceless) from %@", major, minor, path);
+    return YES;
+}
+
+// Presents a Zink window: at each swap the pbuffer (GL's default framebuffer) is
+// read into one of two pixel-pack buffers, and the previous frame's buffer is
+// waited for, copied into a Metal buffer and drawn into the CAMetalLayer. Waiting
+// for the previous frame keeps at most two frames of GL work queued: with nothing
+// waiting, Zink on KosmicKrisp queues GPU work (about 1.2 MB a frame) without
+// limit (docs/COMPUTE_SHADERS_RESEARCH.md).
+@interface VXZinkPresenter : NSObject {
+@public
+    int width, height, stride;
+    GLuint pbo[2];
+    GLsync fence[2];
+    uint64_t frame;
+}
+@property (nonatomic, strong) CAMetalLayer *layer;
+@property (nonatomic, strong) id<MTLDevice> device;
+@property (nonatomic, strong) id<MTLCommandQueue> queue;
+@property (nonatomic, strong) id<MTLRenderPipelineState> pipeline;
+@property (nonatomic, strong) NSArray<id<MTLBuffer>> *buffers;
+@property (nonatomic, strong) NSArray<id<MTLTexture>> *textures;
+@property (nonatomic, strong) dispatch_semaphore_t inFlight;
+@end
+
+@implementation VXZinkPresenter
+@end
+
+static struct {
+    PFNGLGETINTEGERVPROC getIntegerv;
+    PFNGLBINDFRAMEBUFFERPROC bindFramebuffer;
+    PFNGLBINDBUFFERPROC bindBuffer;
+    PFNGLGENBUFFERSPROC genBuffers;
+    PFNGLDELETEBUFFERSPROC deleteBuffers;
+    PFNGLBUFFERDATAPROC bufferData;
+    PFNGLPIXELSTOREIPROC pixelStorei;
+    PFNGLREADPIXELSPROC readPixels;
+    PFNGLFENCESYNCPROC fenceSync;
+    PFNGLCLIENTWAITSYNCPROC clientWaitSync;
+    PFNGLDELETESYNCPROC deleteSync;
+    PFNGLMAPBUFFERRANGEPROC mapBufferRange;
+    PFNGLUNMAPBUFFERPROC unmapBuffer;
+    PFNGLFLUSHPROC flush;
+} gZinkGL;
+
+static BOOL vxZinkLoadGL(void) {
+    if (gZinkGL.readPixels) return YES;
+#define G(field, name) gZinkGL.field = (__typeof__(gZinkGL.field))p_eglGetProcAddress(name)
+    G(getIntegerv, "glGetIntegerv"); G(bindFramebuffer, "glBindFramebuffer"); G(bindBuffer, "glBindBuffer");
+    G(genBuffers, "glGenBuffers"); G(deleteBuffers, "glDeleteBuffers"); G(bufferData, "glBufferData");
+    G(pixelStorei, "glPixelStorei"); G(readPixels, "glReadPixels"); G(fenceSync, "glFenceSync");
+    G(clientWaitSync, "glClientWaitSync"); G(deleteSync, "glDeleteSync"); G(mapBufferRange, "glMapBufferRange");
+    G(unmapBuffer, "glUnmapBuffer"); G(flush, "glFlush");
+#undef G
+    return gZinkGL.readPixels && gZinkGL.mapBufferRange && gZinkGL.fenceSync;
+}
+
+static NSString *const kVXZinkShader =
+    @"#include <metal_stdlib>\n"
+     "using namespace metal;\n"
+     "struct V { float4 p [[position]]; float2 uv; };\n"
+     // One triangle covering the screen. GL rows run bottom-up and the texture's
+     // row 0 is GL's bottom row, so uv = q puts GL's top row at the top.
+     "vertex V vx(uint id [[vertex_id]]) {\n"
+     "  float2 q = float2((id << 1) & 2, id & 2);\n"
+     "  V v; v.p = float4(q * 2.0 - 1.0, 0.0, 1.0); v.uv = q; return v; }\n"
+     "fragment float4 fx(V in [[stage_in]], texture2d<float> t [[texture(0)]]) {\n"
+     "  constexpr sampler s(filter::nearest); return float4(t.sample(s, in.uv).rgb, 1.0); }\n";
+
+static VXZinkPresenter *vxZinkPresenterCreate(CAMetalLayer *layer) {
+    VXZinkPresenter *p = [VXZinkPresenter new];
+    p.device = MTLCreateSystemDefaultDevice();
+    p.queue = [p.device newCommandQueue];
+    NSError *error = nil;
+    id<MTLLibrary> lib = [p.device newLibraryWithSource:kVXZinkShader options:nil error:&error];
+    MTLRenderPipelineDescriptor *d = [MTLRenderPipelineDescriptor new];
+    d.vertexFunction = [lib newFunctionWithName:@"vx"];
+    d.fragmentFunction = [lib newFunctionWithName:@"fx"];
+    d.colorAttachments[0].pixelFormat = MTLPixelFormatBGRA8Unorm;
+    p.pipeline = lib ? [p.device newRenderPipelineStateWithDescriptor:d error:&error] : nil;
+    if (!p.pipeline) {
+        NSLog(@"[VXGLFW] Zink: Metal present pipeline failed: %@", error);
+        return nil;
+    }
+    p.inFlight = dispatch_semaphore_create(3);
+    p.layer = layer;
+    vxOnMain(^{
+        layer.device = p.device;
+        layer.pixelFormat = MTLPixelFormatBGRA8Unorm;
+        layer.framebufferOnly = YES;
+        layer.opaque = YES;
+        layer.maximumDrawableCount = 3;
+    });
+    return p;
+}
+
+// Drops queued read-backs and reallocates everything for a new framebuffer size.
+// Called with the window's context current.
+static void vxZinkPresenterResize(VXZinkPresenter *p, int width, int height) {
+    for (int i = 0; i < 2; i++) {
+        if (p->fence[i]) { gZinkGL.deleteSync(p->fence[i]); p->fence[i] = NULL; }
+    }
+    if (p->pbo[0]) gZinkGL.deleteBuffers(2, p->pbo);
+    p->width = width;
+    p->height = height;
+    NSUInteger align = [p.device minimumLinearTextureAlignmentForPixelFormat:MTLPixelFormatBGRA8Unorm];
+    p->stride = (int)(((NSUInteger)width * 4 + align - 1) / align * align);
+    size_t size = (size_t)p->stride * height;
+    GLint oldPack = 0;
+    gZinkGL.getIntegerv(GL_PIXEL_PACK_BUFFER_BINDING, &oldPack);
+    gZinkGL.genBuffers(2, p->pbo);
+    for (int i = 0; i < 2; i++) {
+        gZinkGL.bindBuffer(GL_PIXEL_PACK_BUFFER, p->pbo[i]);
+        gZinkGL.bufferData(GL_PIXEL_PACK_BUFFER, (GLsizeiptr)size, NULL, GL_STREAM_READ);
+    }
+    gZinkGL.bindBuffer(GL_PIXEL_PACK_BUFFER, (GLuint)oldPack);
+    // Wait out frames Metal still draws from the old buffers.
+    for (int i = 0; i < 3; i++) dispatch_semaphore_wait(p.inFlight, DISPATCH_TIME_FOREVER);
+    NSMutableArray *buffers = [NSMutableArray array], *textures = [NSMutableArray array];
+    MTLTextureDescriptor *td = [MTLTextureDescriptor texture2DDescriptorWithPixelFormat:MTLPixelFormatBGRA8Unorm
+                                                                                  width:width height:height mipmapped:NO];
+    td.usage = MTLTextureUsageShaderRead;
+    td.storageMode = MTLStorageModeShared;
+    for (int i = 0; i < 3; i++) {
+        id<MTLBuffer> b = [p.device newBufferWithLength:size options:MTLResourceStorageModeShared];
+        [buffers addObject:b];
+        [textures addObject:[b newTextureWithDescriptor:td offset:0 bytesPerRow:(NSUInteger)p->stride]];
+    }
+    p.buffers = buffers;
+    p.textures = textures;
+    for (int i = 0; i < 3; i++) dispatch_semaphore_signal(p.inFlight);
+    CAMetalLayer *layer = p.layer;
+    vxOnMain(^{ layer.drawableSize = CGSizeMake(width, height); });
+    p->frame = 0;
+    NSLog(@"[VXGLFW] Zink: presenting %dx%d (row stride %d bytes)", width, height, p->stride);
+}
+
+// Shows a mapped read-back (bottom-up BGRA rows, p->stride apart) on the layer.
+static void vxZinkShow(VXZinkPresenter *p, const void *pixels) {
+    dispatch_semaphore_wait(p.inFlight, DISPATCH_TIME_FOREVER);
+    NSUInteger slot = (NSUInteger)(p->frame % 3);
+    memcpy(p.buffers[slot].contents, pixels, (size_t)p->stride * p->height);
+    @autoreleasepool {
+        id<CAMetalDrawable> drawable = [p.layer nextDrawable];
+        if (!drawable) {
+            dispatch_semaphore_signal(p.inFlight);
+            return;
+        }
+        MTLRenderPassDescriptor *rp = [MTLRenderPassDescriptor renderPassDescriptor];
+        rp.colorAttachments[0].texture = drawable.texture;
+        rp.colorAttachments[0].loadAction = MTLLoadActionDontCare;
+        rp.colorAttachments[0].storeAction = MTLStoreActionStore;
+        id<MTLCommandBuffer> cb = [p.queue commandBuffer];
+        id<MTLRenderCommandEncoder> enc = [cb renderCommandEncoderWithDescriptor:rp];
+        [enc setRenderPipelineState:p.pipeline];
+        [enc setFragmentTexture:p.textures[slot] atIndex:0];
+        [enc drawPrimitives:MTLPrimitiveTypeTriangle vertexStart:0 vertexCount:3];
+        [enc endEncoding];
+        [cb presentDrawable:drawable];
+        dispatch_semaphore_t sem = p.inFlight;
+        [cb addCompletedHandler:^(id<MTLCommandBuffer> b) { dispatch_semaphore_signal(sem); }];
+        [cb commit];
+    }
+}
+
+// One swap: queue this frame's read-back, then wait for the previous one and show it.
+static void vxZinkPresent(VXZinkPresenter *p) {
+    GLint readFB = 0, pack = 0, align = 0, rowLength = 0, skipRows = 0, skipPixels = 0;
+    gZinkGL.getIntegerv(GL_READ_FRAMEBUFFER_BINDING, &readFB);
+    gZinkGL.getIntegerv(GL_PIXEL_PACK_BUFFER_BINDING, &pack);
+    gZinkGL.getIntegerv(GL_PACK_ALIGNMENT, &align);
+    gZinkGL.getIntegerv(GL_PACK_ROW_LENGTH, &rowLength);
+    gZinkGL.getIntegerv(GL_PACK_SKIP_ROWS, &skipRows);
+    gZinkGL.getIntegerv(GL_PACK_SKIP_PIXELS, &skipPixels);
+
+    int cur = (int)(p->frame % 2), prev = 1 - cur;
+    gZinkGL.bindFramebuffer(GL_READ_FRAMEBUFFER, 0);
+    gZinkGL.bindBuffer(GL_PIXEL_PACK_BUFFER, p->pbo[cur]);
+    gZinkGL.pixelStorei(GL_PACK_ALIGNMENT, 4);
+    gZinkGL.pixelStorei(GL_PACK_ROW_LENGTH, p->stride / 4);
+    gZinkGL.pixelStorei(GL_PACK_SKIP_ROWS, 0);
+    gZinkGL.pixelStorei(GL_PACK_SKIP_PIXELS, 0);
+    gZinkGL.readPixels(0, 0, p->width, p->height, 0x80E1 /* GL_BGRA */, GL_UNSIGNED_BYTE, NULL);
+    p->fence[cur] = gZinkGL.fenceSync(GL_SYNC_GPU_COMMANDS_COMPLETE, 0);
+    gZinkGL.flush();
+
+    if (p->fence[prev]) {
+        gZinkGL.clientWaitSync(p->fence[prev], GL_SYNC_FLUSH_COMMANDS_BIT, 2000000000ull);
+        gZinkGL.deleteSync(p->fence[prev]);
+        p->fence[prev] = NULL;
+        gZinkGL.bindBuffer(GL_PIXEL_PACK_BUFFER, p->pbo[prev]);
+        const void *pixels = gZinkGL.mapBufferRange(GL_PIXEL_PACK_BUFFER, 0, (GLsizeiptr)p->stride * p->height, GL_MAP_READ_BIT);
+        if (pixels) {
+            vxZinkShow(p, pixels);
+            gZinkGL.unmapBuffer(GL_PIXEL_PACK_BUFFER);
+        }
+    }
+    p->frame++;
+
+    gZinkGL.bindBuffer(GL_PIXEL_PACK_BUFFER, (GLuint)pack);
+    gZinkGL.bindFramebuffer(GL_READ_FRAMEBUFFER, (GLuint)readFB);
+    gZinkGL.pixelStorei(GL_PACK_ALIGNMENT, align);
+    gZinkGL.pixelStorei(GL_PACK_ROW_LENGTH, rowLength);
+    gZinkGL.pixelStorei(GL_PACK_SKIP_ROWS, skipRows);
+    gZinkGL.pixelStorei(GL_PACK_SKIP_PIXELS, skipPixels);
+}
+#endif
 
 #pragma mark - Main-thread helper
 
@@ -185,6 +463,10 @@ static void vxPush(VXEvent e) {
 @property (nonatomic, strong) UIWindow *uiWindow;
 @property (nonatomic, strong) VXGLFWView *view;
 @property (nonatomic, copy) NSString *title;
+#if VOXELIUM_ZINK_EXPERIMENT
+// Zink: the on-screen window's pbuffer is shown through this (nil otherwise).
+@property (nonatomic, strong) VXZinkPresenter *zink;
+#endif
 @end
 
 @implementation VXGLFWWindowObj
@@ -1132,7 +1414,12 @@ VXAPI int glfwInit(void) {
                                .redBits = 8, .greenBits = 8, .blueBits = 8, .refreshRate = fps};
     vxResetHints();
     gInitialized = YES;
-    NSLog(@"[VXGLFW] initialised: ANGLE Metal display, screen %dx%d @%d Hz", gVideoMode.width, gVideoMode.height, fps);
+#if VOXELIUM_ZINK_EXPERIMENT
+    const char *displayKind = gZink ? "Mesa Zink (surfaceless)" : "ANGLE Metal";
+#else
+    const char *displayKind = "ANGLE Metal";
+#endif
+    NSLog(@"[VXGLFW] initialised: %s display, screen %dx%d @%d Hz", displayKind, gVideoMode.width, gVideoMode.height, fps);
     return GLFW_TRUE;
 }
 
@@ -1238,7 +1525,25 @@ VXAPI void glfwWindowHintString(int hint, const char *value) {}
 
 #pragma mark - Windows
 
-static EGLContext vxCreateContext(EGLContext share) {
+static EGLContext vxCreateContext(VXGLFWWindowObj *w, EGLContext share) {
+#if VOXELIUM_ZINK_EXPERIMENT
+    if (gZink) {
+        // Desktop GL core. Mesa gives the highest version it supports for a core
+        // request (4.6 with MESA_GL_VERSION_OVERRIDE=4.6), so ask for the game's.
+        p_eglBindAPI(EGL_OPENGL_API);
+        int major = w->hintMajor >= 3 ? w->hintMajor : 3, minor = w->hintMajor >= 3 ? w->hintMinor : 2;
+        if (major == 3 && minor < 2) minor = 2;
+        EGLint flags = w->hintForward ? EGL_CONTEXT_OPENGL_FORWARD_COMPATIBLE_BIT_KHR : 0;
+        EGLint attrs[] = {EGL_CONTEXT_MAJOR_VERSION, major, EGL_CONTEXT_MINOR_VERSION, minor,
+                          EGL_CONTEXT_OPENGL_PROFILE_MASK, EGL_CONTEXT_OPENGL_CORE_PROFILE_BIT,
+                          EGL_CONTEXT_FLAGS_KHR, flags, EGL_NONE};
+        EGLContext c = p_eglCreateContext(gDisplay, gWindowConfig, share, attrs);
+        if (c == EGL_NO_CONTEXT)
+            NSLog(@"[VXGLFW] Zink: GL %d.%d core context refused: 0x%X (MESA_GL_VERSION_OVERRIDE=%s)",
+                  major, minor, p_eglGetError(), getenv("MESA_GL_VERSION_OVERRIDE") ?: "unset");
+        return c;
+    }
+#endif
     for (int minor = 2; minor >= 0; minor--) {
         EGLint attrs[] = {EGL_CONTEXT_MAJOR_VERSION, 3, EGL_CONTEXT_MINOR_VERSION, minor, EGL_NONE};
         EGLContext c = p_eglCreateContext(gDisplay, gWindowConfig, share, attrs);
@@ -1423,6 +1728,15 @@ VXAPI GLFWwindow *glfwCreateWindow(int width, int height, const char *title, GLF
             w->height = (int)s.height;
             w->fbWidth = (int)lround(s.width * w->scale);
             w->fbHeight = (int)lround(s.height * w->scale);
+#if VOXELIUM_ZINK_EXPERIMENT
+            if (gZink) {
+                // No window surfaces in Mesa here: a pbuffer of the framebuffer size,
+                // shown on the layer at each swap (vxZinkPresent).
+                EGLint pb[] = {EGL_WIDTH, w->fbWidth, EGL_HEIGHT, w->fbHeight, EGL_NONE};
+                surface = p_eglCreatePbufferSurface(gDisplay, gPbufferConfig, pb);
+                return;
+            }
+#endif
             surface = p_eglCreateWindowSurface(gDisplay, gWindowConfig, (__bridge EGLNativeWindowType)view.layer, NULL);
         });
         w->surface = surface;
@@ -1436,7 +1750,7 @@ VXAPI GLFWwindow *glfwCreateWindow(int width, int height, const char *title, GLF
         vxOnMain(^{ w.uiWindow.hidden = YES; });
         return NULL;
     }
-    w->context = vxCreateContext(share ? W(share)->context : EGL_NO_CONTEXT);
+    w->context = vxCreateContext(w, share ? W(share)->context : EGL_NO_CONTEXT);
     if (w->context == EGL_NO_CONTEXT) {
         vxError(GLFW_VERSION_UNAVAILABLE, "EGL context creation failed: 0x%X", p_eglGetError());
         p_eglDestroySurface(gDisplay, w->surface);
@@ -1444,6 +1758,19 @@ VXAPI GLFWwindow *glfwCreateWindow(int width, int height, const char *title, GLF
         vxOnMain(^{ w.uiWindow.hidden = YES; });
         return NULL;
     }
+#if VOXELIUM_ZINK_EXPERIMENT
+    if (gZink && !w->offscreen) {
+        w.zink = vxZinkPresenterCreate((CAMetalLayer *)w.view.layer);
+        if (!w.zink) {
+            vxError(GLFW_PLATFORM_ERROR, "Zink: cannot set up Metal presentation");
+            p_eglDestroyContext(gDisplay, w->context);
+            p_eglDestroySurface(gDisplay, w->surface);
+            if (gVisibleWindow == w) gVisibleWindow = nil;
+            vxOnMain(^{ w.uiWindow.hidden = YES; });
+            return NULL;
+        }
+    }
+#endif
     EGLint ew = 0, eh = 0;
     p_eglQuerySurface(gDisplay, w->surface, EGL_WIDTH, &ew);
     p_eglQuerySurface(gDisplay, w->surface, EGL_HEIGHT, &eh);
@@ -1462,6 +1789,17 @@ VXAPI void glfwDestroyWindow(GLFWwindow *window) {
         p_eglMakeCurrent(gDisplay, EGL_NO_SURFACE, EGL_NO_SURFACE, EGL_NO_CONTEXT);
         tCurrent = nil;
     }
+#if VOXELIUM_ZINK_EXPERIMENT
+    if (w.zink) {
+        // Let Metal finish with the frames it still shows; the GL objects go with the
+        // context. Signal back after waiting: libdispatch traps when a semaphore is
+        // released below its initial value (crash on quitting the game, 2026-10-22).
+        dispatch_semaphore_t sem = w.zink.inFlight;
+        for (int i = 0; i < 3; i++) dispatch_semaphore_wait(sem, DISPATCH_TIME_FOREVER);
+        for (int i = 0; i < 3; i++) dispatch_semaphore_signal(sem);
+        w.zink = nil;
+    }
+#endif
     if (w->context) p_eglDestroyContext(gDisplay, w->context);
     if (w->surface) p_eglDestroySurface(gDisplay, w->surface);
     w->context = EGL_NO_CONTEXT;
@@ -1929,6 +2267,32 @@ VXAPI void glfwSwapBuffers(GLFWwindow *window) {
             NSLog(@"[VXGLFW] in foreground: rendering resumed");
         }
     }
+#if VOXELIUM_ZINK_EXPERIMENT
+    if (w.zink) {
+        if (tCurrent != w || !vxZinkLoadGL()) return;
+        // The framebuffer size follows the view (rotation); the pbuffer cannot, so
+        // replace it. Minecraft draws into its own targets and blits to this one.
+        VXZinkPresenter *z = w.zink;
+        if (z->width != w->fbWidth || z->height != w->fbHeight) {
+            EGLint pb[] = {EGL_WIDTH, w->fbWidth, EGL_HEIGHT, w->fbHeight, EGL_NONE};
+            EGLSurface fresh = (z->width == 0) ? w->surface : p_eglCreatePbufferSurface(gDisplay, gPbufferConfig, pb);
+            if (fresh == EGL_NO_SURFACE || !p_eglMakeCurrent(gDisplay, fresh, fresh, w->context)) {
+                vxError(GLFW_PLATFORM_ERROR, "Zink: resizing the pbuffer to %dx%d failed: 0x%X", w->fbWidth, w->fbHeight, p_eglGetError());
+                return;
+            }
+            if (fresh != w->surface) {
+                p_eglDestroySurface(gDisplay, w->surface);
+                w->surface = fresh;
+            }
+            EGLint ew = 0, eh = 0;
+            p_eglQuerySurface(gDisplay, w->surface, EGL_WIDTH, &ew);
+            p_eglQuerySurface(gDisplay, w->surface, EGL_HEIGHT, &eh);
+            vxZinkPresenterResize(z, ew > 0 ? ew : w->fbWidth, eh > 0 ? eh : w->fbHeight);
+        }
+        vxZinkPresent(z);
+        return;
+    }
+#endif
     if (!p_eglSwapBuffers(gDisplay, w->surface)) {
         vxError(GLFW_PLATFORM_ERROR, "eglSwapBuffers failed: 0x%X", p_eglGetError());
     }

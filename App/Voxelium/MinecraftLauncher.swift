@@ -142,7 +142,20 @@ final class MinecraftLauncher: ObservableObject {
             // NULL on 1.16.5); they get gl4es, as on Amethyst and ZalithLauncher. 1.17+ use
             // MobileGlues. Both run on the app's ANGLE context.
             let useGL4ES = javaMajor == 8
-            let glLibrary = frameworks.appendingPathComponent(useGL4ES ? "libgl4es.dylib" : "libmobileglues.dylib")
+            var glLibrary = frameworks.appendingPathComponent(useGL4ES ? "libgl4es.dylib" : "libmobileglues.dylib")
+            #if VOXELIUM_ZINK_EXPERIMENT
+            // Experimental builds: desktop GL 4.6 through Zink on KosmicKrisp instead
+            // (VXGLFW shows its pbuffer on the layer). Not for gl4es versions, and not
+            // after the Zink test ran in this process (Mesa is set up once).
+            let zinkDir = frameworks.appendingPathComponent("zink", isDirectory: true)
+            let useZink = ZinkRenderer.enabled && !useGL4ES && !ZinkSession.used
+                && ProcessInfo.processInfo.isOperatingSystemAtLeast(OperatingSystemVersion(majorVersion: 26, minorVersion: 0, patchVersion: 0))
+                && fm.fileExists(atPath: zinkDir.appendingPathComponent("libGL_mesa.dylib").path)
+                && fm.fileExists(atPath: zinkDir.appendingPathComponent("libvulkan_kosmickrisp.dylib").path)
+            if useZink { glLibrary = zinkDir.appendingPathComponent("libGL_mesa.dylib") }
+            #else
+            let useZink = false
+            #endif
             guard fm.fileExists(atPath: glLibrary.path) else {
                 throw LaunchError.message("Bundled file missing: \(glLibrary.lastPathComponent)")
             }
@@ -230,11 +243,33 @@ final class MinecraftLauncher: ObservableObject {
                 fm.createFile(atPath: logURL.path, contents: Data(header.utf8))
             }
 
-            log.info("launch", "Starting Minecraft \(versionID)\(resolved.isModded ? " (on \(resolved.chain.dropFirst().joined(separator: " → ")), own game folder)" : "") as \(identity.playerName) (\(identity.userType)): Java \(javaMajor) (asks \(major)), LWJGL \(build.rawValue) for \(wanted.map { "\($0)" } ?? "?"), GL \(useGL4ES ? "gl4es" : "MobileGlues"), heap \(heap) MB, render scale \(Int(renderScale * 100))%, \(ours.count + plan.classpath.count) classpath entries, \(options.count) JVM options")
+            log.info("launch", "Starting Minecraft \(versionID)\(resolved.isModded ? " (on \(resolved.chain.dropFirst().joined(separator: " → ")), own game folder)" : "") as \(identity.playerName) (\(identity.userType)): Java \(javaMajor) (asks \(major)), LWJGL \(build.rawValue) for \(wanted.map { "\($0)" } ?? "?"), GL \(useGL4ES ? "gl4es" : useZink ? "Zink (experimental)" : "MobileGlues"), heap \(heap) MB, render scale \(Int(renderScale * 100))%, \(ours.count + plan.classpath.count) classpath entries, \(options.count) JVM options")
             Self.started = true
-            if !useGL4ES { MobileGluesSession.used = true }
+            if !useGL4ES && !useZink { MobileGluesSession.used = true }
             // The app's GLFW resolves glfwGetProcAddress from this library.
             setenv("VOXELIUM_GL_LIBRARY", glLibrary.path, 1)
+            #if VOXELIUM_ZINK_EXPERIMENT
+            if useZink {
+                ZinkSession.used = true
+                // As measured in the Zink test (docs/COMPUTE_SHADERS_RESEARCH.md): Zink
+                // through EGL's surfaceless platform, KosmicKrisp loaded directly, and the
+                // version forced to 4.6 (KosmicKrisp lacks geometry shaders and transform
+                // feedback, so Mesa would offer only 2.1). Its own shader cache folder.
+                setenv("VOXELIUM_GL_BACKEND", "zink", 1)
+                setenv("VOXELIUM_ZINK_DIR", zinkDir.path, 1)
+                setenv("MESA_LOADER_DRIVER_OVERRIDE", "zink", 1)
+                setenv("ZINK_VULKAN_LIBRARY", zinkDir.appendingPathComponent("libvulkan_kosmickrisp.dylib").path, 1)
+                setenv("MESA_GL_VERSION_OVERRIDE", "4.6", 1)
+                setenv("MESA_GLSL_VERSION_OVERRIDE", "460", 1)
+                unsetenv("LIBGL_ALWAYS_SOFTWARE")
+                let caches = fm.urls(for: .cachesDirectory, in: .userDomainMask)[0]
+                    .appendingPathComponent("mesa_shader_cache_game", isDirectory: true)
+                try? fm.createDirectory(at: caches, withIntermediateDirectories: true)
+                setenv("MESA_SHADER_CACHE_DIR", caches.path, 1)
+                // Zink/Mesa warnings and errors (Iris packs that fail in the driver).
+                setenv("MESA_LOG_FILE", paths.logsDir.appendingPathComponent("zink-game-mesa.log").path, 1)
+            }
+            #endif
             if useGL4ES {
                 // gl4es loads GLES from here (ANGLE) and uses its GLES 2 backend.
                 setenv("LIBGL_GLES", frameworks.appendingPathComponent("libGLESv2.framework/libGLESv2").path, 1)

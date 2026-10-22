@@ -203,6 +203,11 @@ package_ios() {
   mkdir -p "$OUT/LICENSES"
   cp "$build/src/egl/libEGL.1.dylib" "$OUT/libEGL_mesa.dylib"
   cp "$build/src/gallium/targets/dri/$gallium" "$OUT/"
+  # The GL entry points by name (patch 0008), for LWJGL, which dlsym()s them.
+  cp "$build/src/mesa/glapi/darwin-libgl/libGL.1.dylib" "$OUT/libGL_mesa.dylib"
+  install_name_tool -id @rpath/libGL_mesa.dylib "$OUT/libGL_mesa.dylib"
+  install_name_tool -delete_rpath @loader_path/../../../gallium/targets/dri "$OUT/libGL_mesa.dylib" 2>/dev/null || true
+  install_name_tool -add_rpath @loader_path "$OUT/libGL_mesa.dylib"
   install_name_tool -id @rpath/libEGL_mesa.dylib "$OUT/libEGL_mesa.dylib"
   install_name_tool -delete_rpath @loader_path/../gallium/targets/dri "$OUT/libEGL_mesa.dylib" 2>/dev/null || true
   install_name_tool -add_rpath @loader_path "$OUT/libEGL_mesa.dylib"
@@ -214,6 +219,10 @@ package_ios() {
     cp "$DEPS/moltenvk/LICENSE" "$OUT/LICENSES/MoltenVK-LICENSE.txt"
   fi
   local f platform
+  # Unstripped copies, to symbolicate device crash reports (hs_err, .ips) exactly.
+  rm -rf "$DEPS/zink-out-symbols/$ZINK_VK"
+  mkdir -p "$DEPS/zink-out-symbols/$ZINK_VK"
+  cp "$OUT"/*.dylib "$DEPS/zink-out-symbols/$ZINK_VK/"
   for f in "$OUT"/*.dylib; do
     strip -x "$f" 2>/dev/null || true
     platform=$(otool -l "$f" | awk '/LC_BUILD_VERSION/{f=1} f&&/platform/{print $2; exit}')

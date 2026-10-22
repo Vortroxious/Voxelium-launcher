@@ -162,6 +162,17 @@ int main(int argc, char **argv) {
     LOAD(glDispatchCompute); LOAD(glMemoryBarrier); LOAD(glMapBufferRange); LOAD(glUnmapBuffer);
     LOAD(glFinish); LOAD(glGetError);
 
+    // PROBE_LIBGL=<path>: check that Mesa's libGL (what LWJGL dlsym()s) dispatches
+    // to this context: its glGetString must agree with eglGetProcAddress's.
+    if (getenv("PROBE_LIBGL")) {
+        void *libgl = dlopen(getenv("PROBE_LIBGL"), RTLD_NOW | RTLD_LOCAL);
+        const GLubyte *(*dl_glGetString)(GLenum) = libgl ? dlsym(libgl, "glGetString") : NULL;
+        void *dl_create = libgl ? dlsym(libgl, "glCreateBuffers") : NULL;
+        const char *a = dl_glGetString ? (const char *)dl_glGetString(GL_VERSION) : "(none)";
+        printf("libGL: %s, glGetString(GL_VERSION)=%s, glCreateBuffers=%s, %s\n",
+               libgl ? "loaded" : dlerror(), a ? a : "(null)", dl_create ? "found" : "missing",
+               a && !strcmp(a, (const char *)glGetString_(GL_VERSION)) ? "VOXELIUM_ZINK_LIBGL_OK" : "LIBGL MISMATCH");
+    }
     GLint glmaj = 0, glmin = 0, next = 0;
     glGetIntegerv_(GL_MAJOR_VERSION, &glmaj);
     glGetIntegerv_(GL_MINOR_VERSION, &glmin);
@@ -171,7 +182,7 @@ int main(int argc, char **argv) {
     printf("GL_VERSION=%s\nGL_RENDERER=%s\nGL_VENDOR=%s\nGL_SHADING_LANGUAGE_VERSION=%s\nextensions=%d\n",
            glGetString_(GL_VERSION), glGetString_(GL_RENDERER), glGetString_(GL_VENDOR),
            glGetString_(GL_SHADING_LANGUAGE_VERSION), next);
-    static const char *wanted[] = {"GL_ARB_compute_shader", "GL_ARB_shader_storage_buffer_object",
+    static const char *wanted[] = {"GL_KHR_shader_subgroup", "GL_ARB_compute_shader", "GL_ARB_shader_storage_buffer_object",
                                    "GL_ARB_shader_image_load_store", "GL_ARB_geometry_shader4",
                                    "GL_ARB_tessellation_shader", "GL_ARB_transform_feedback3",
                                    "GL_ARB_multi_draw_indirect", "GL_ARB_gpu_shader5"};
@@ -247,6 +258,66 @@ int main(int argc, char **argv) {
     printf("gl error after test: 0x%x\n", glGetError_());
     printf("VOXELIUM_ZINK_COMPUTE_OK (%d values read back)\n", N);
     printf("footprint after compute: %.1f MB\n", footprint_mb());
+
+    // Subgroup arithmetic, as Photon's sky SH pass (d4a_generate_sky_sh.csh) uses it:
+    // 256 invocations, subgroupAdd, then a reduction through shared vec3[32][9].
+    // Without GL_KHR_shader_subgroup_arithmetic Photon needs shared vec3[256][9],
+    // more than Metal's 32 KB of threadgroup memory.
+    {
+        const char *sg =
+            "#version 430 core\n"
+            "#extension GL_KHR_shader_subgroup_arithmetic : require\n"
+            "layout(local_size_x = 256) in;\n"
+            "layout(std430, binding = 0) buffer Out { vec4 v[]; };\n"
+            "shared vec3 shared_memory[32][9];\n"
+            "void main() {\n"
+            "  uint i = gl_LocalInvocationIndex;\n"
+            "  for (uint band = 0u; band < 9u; band++) {\n"
+            "    vec3 sum = subgroupAdd(vec3(float(i), float(band), 1.0));\n"
+            "    if (subgroupElect()) shared_memory[gl_SubgroupID][band] = sum;\n"
+            "  }\n"
+            "  barrier();\n"
+            "  if (i < 9u) {\n"
+            "    vec3 total = vec3(0.0);\n"
+            "    for (uint s = 0u; s < gl_NumSubgroups; s++) total += shared_memory[s][i];\n"
+            "    v[i] = vec4(total, float(gl_NumSubgroups));\n"
+            "  }\n"
+            "}\n";
+        GLuint s2 = glCreateShader_(GL_COMPUTE_SHADER);
+        glShaderSource_(s2, 1, &sg, NULL);
+        glCompileShader_(s2);
+        glGetShaderiv_(s2, GL_COMPILE_STATUS, &ok);
+        if (!ok) {
+            glGetShaderInfoLog_(s2, sizeof log, NULL, log);
+            printf("subgroup compute: compile failed: %s\n", log);
+        } else {
+            GLuint p2 = glCreateProgram_();
+            glAttachShader_(p2, s2);
+            glLinkProgram_(p2);
+            glGetProgramiv_(p2, GL_LINK_STATUS, &ok);
+            if (!ok) {
+                glGetProgramInfoLog_(p2, sizeof log, NULL, log);
+                printf("subgroup compute: link failed: %s\n", log);
+            } else {
+                GLuint b2;
+                glGenBuffers_(1, &b2);
+                glBindBuffer_(GL_SHADER_STORAGE_BUFFER, b2);
+                glBufferData_(GL_SHADER_STORAGE_BUFFER, 9 * 16, NULL, GL_DYNAMIC_READ);
+                glBindBufferBase_(GL_SHADER_STORAGE_BUFFER, 0, b2);
+                glUseProgram_(p2);
+                glDispatchCompute_(1, 1, 1);
+                glMemoryBarrier_(GL_SHADER_STORAGE_BARRIER_BIT | GL_BUFFER_UPDATE_BARRIER_BIT);
+                glFinish_();
+                const float *r = glMapBufferRange_(GL_SHADER_STORAGE_BUFFER, 0, 9 * 16, GL_MAP_READ_BIT);
+                int good = r != NULL;
+                for (int band = 0; good && band < 9; band++)
+                    good = r[band * 4 + 0] == 32640.0f && r[band * 4 + 1] == 256.0f * band && r[band * 4 + 2] == 256.0f;
+                printf("subgroup compute: %d subgroups, band0=(%.0f,%.0f,%.0f) %s\n", r ? (int)r[3] : -1,
+                       r ? r[0] : 0, r ? r[1] : 0, r ? r[2] : 0, good ? "VOXELIUM_ZINK_SUBGROUP_OK" : "SUBGROUP MISMATCH");
+                if (r) glUnmapBuffer_(GL_SHADER_STORAGE_BUFFER);
+            }
+        }
+    }
 
     // Frame time: a full-screen pass with some per-pixel work into an FBO the size
     // of an iPhone 15 Pro Max screen (1290x2796), finished every frame.

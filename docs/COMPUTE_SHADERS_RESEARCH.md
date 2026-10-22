@@ -64,7 +64,7 @@ iPhone 15 Pro Max (A17 Pro), iOS 27.0. The experimental IPA, build `202610221127
 | After the compute dispatch | 83.8 MB | — |
 | After 300 frames at 1290×2796 | **611.3 MB** | **868.1 MB** |
 
-**Long memory run (2026-10-22 12:17–12:18Z):** experimental build `202610221143`, confirmed with `devicectl device info apps`, no JIT attached. Log: `docs/evidence/2026-10-22-zink-kosmickrisp-iphone15promax-ios27-memory-3000.log`. This build has the 3000-frame runs but not patch 0007; it was built before 0007 was packaged.
+**Long memory run (2026-10-22 12:17–12:18Z):** experimental build `202610221143`, confirmed with `devicectl device info apps`, no JIT attached. Log: `docs/evidence/2026-10-22-zink-kosmickrisp-iphone15promax-ios27-memory-3000.log`. This build has the 3000-frame runs but not the allocator-reset patch, which was later withdrawn.
 
 | Phase, in run order | GL 4.6 override | Native (GL 2.1) |
 |---|---|---|
@@ -79,9 +79,33 @@ iPhone 15 Pro Max (A17 Pro), iOS 27.0. The experimental IPA, build `202610221127
 - The first device run's growth (+527/+819 MB) was this same backlog, because that test only flushed.
 - **Not measured yet on the phone:** the steady footprint of a run that throttles from the first frame. Every device run so far began with the flush-only phase. On the Mac it is 141 MB.
 
+## In game: Minecraft 1.21.11 on Zink (experimental build 202610221237, 2026-10-22)
+
+Excerpt: `docs/evidence/2026-10-22-zink-game-1.21.11-iris-build202610221237.log`. The setup was Fabric 0.19.5 with Sodium 0.8.14 and Iris 1.10.8, render scale 50% (framebuffer 1398×645), JIT through StikDebug.
+
+How it is wired, in experimental builds only:
+- `VXGLFW.m` takes its context from Mesa's EGL (surfaceless) instead of ANGLE. The game draws into a pbuffer.
+- Each swap reads the frame back into one of two pixel-pack buffers and waits for the previous frame's fence, so at most 2 frames are in flight. That frame is then drawn into the `CAMetalLayer` with Metal.
+- LWJGL loads `Frameworks/zink/libGL_mesa.dylib` (patch 0007), which exports every GL entry point Mesa dispatches (2,324, including GL 4.5 DSA and 4.6).
+
+| Run | Result |
+|---|---|
+| Iris, no pack | Minecraft reports `OpenGL Version: 4.6 (Core Profile) Mesa`, renderer `zink Vulkan 1.4(Apple A17 Pro GPU (MESA_KOSMICKRISP))`. Iris logged "OpenGL 4.5 detected, enabling DSA". Joined a world, played about 50 s, stopped normally. The footprint rose from 915 to 2,116 MB in game. Quitting then crashed in our presenter's semaphore (fixed). |
+| Photon v1.4 | Compute programs compiled. Iris then disabled the pack: `deferred4_a: error: Too much shared memory used (36860/32768)`. Photon's sky SH pass uses `shared vec3[256][9]` unless `GL_KHR_shader_subgroup_arithmetic` exists, in which case it uses `[32][9]`. Zink hid every subgroup operation because KosmicKrisp has no `shaderFloat64`. Patch 0008 exposes subgroups on KosmicKrisp; on the Mac the same reduction pattern now passes (`VOXELIUM_ZINK_SUBGROUP_OK`). |
+| Camellia 1.2.0 (path tracing) | "The shaderpack failed to load!", then an iOS memory warning (2,776 MB, GPU 1,596 MB), then the process ended with no crash or jetsam report. The relaunch with Camellia active died while "Creating pipeline". Camellia has 5 geometry-shader programs (`shadow.gsh`, `gbuffers_*.gsh`), and KosmicKrisp has no geometry shaders. Not fixable in this stack today. |
+| Mellow 3.4.1a | Loaded, joined, ran smoothly for about 40 s, then SIGSEGV in Apple's GPU driver (`IOGPU`, via `AGXMetalG16P`). The path was `mtl_begin_command_buffer` ← `kk_BeginCommandBuffer` ← `zink_start_batch` ← `zink_flush` ← `zink_buffer_map` (from `glBufferSubData`). That build had the allocator-reset patch, which changed exactly this path; the patch is withdrawn (see below). Mellow has no compute or geometry programs. |
+
+**Retest, build 202610221303** (2026-10-22 13:10–13:13Z; log `docs/evidence/2026-10-22-zink-game-1.21.11-mellow-build202610221303.log`). This build has patch 0008 and the semaphore fix, without the allocator-reset patch.
+- **Mellow 3.4.1a played without crashing** for about 3 minutes, including switching packs mid-game, and the game stopped normally. There was no crash report.
+- The user reported it ran smoothly; frame rate was not measured.
+- The footprint levelled off at about 2.5 GB (peak 2,530 MB, GPU 944 MB), against a limit of about 3.4 GB.
+- **Photon still failed** with the same `Too much shared memory used (36860/32768)`, so patch 0008 did not change Iris's path on the phone. Photon is dropped. The user reports it does not run on their MacBook either, and both have Apple's 32 KB threadgroup-memory limit.
+
+The allocator-reset patch (formerly 0007) is withdrawn. It reset each `MTL4CommandAllocator` once Vulkan considered the command buffer done. Apple's rule is stricter: the GPU must be finished with it, as reported by Metal's own completion. The Mellow crash is in the first Metal call made with a reset allocator. Without the patch, memory stayed flat over 6,900 throttled frames on the phone.
+
 ## Built (2026-10-22)
 
-`scripts/build-zink.sh` (KosmicKrisp is the default `ZINK_VK`) builds Mesa 9b32095 plus `patches/mesa/0001-0007` for iOS arm64, with a minimum of iOS 26.0, because KosmicKrisp needs Metal 4. The output goes to `build/deps/zink-out/kosmickrisp/`:
+`scripts/build-zink.sh` (KosmicKrisp is the default `ZINK_VK`) builds Mesa 9b32095 plus `patches/mesa/0001-0008` for iOS arm64, with a minimum of iOS 26.0, because KosmicKrisp needs Metal 4. The output goes to `build/deps/zink-out/kosmickrisp/`:
 
 | File | Size (stripped) |
 |---|---|
@@ -101,7 +125,8 @@ What the port needed. Each fix is one small patch:
 | 0004 zink: link `-lobjc` on darwin | Zink compiles as Objective-C on darwin. With no window-system platform, the iOS link failed on `___objc_personality_v0`. |
 | 0005 kosmickrisp: link Foundation/Metal/QuartzCore | The driver links with `-undefined dynamic_lookup`, which left 19 Metal symbols to flat lookup. That only works if the host already loaded Metal. |
 | 0006 egl: surfaceless reaches Zink without DRM | On Apple platforms, the surfaceless platform only reached Zink with `LIBGL_ALWAYS_SOFTWARE=1`, and that same variable makes Zink demand a CPU Vulkan device. |
-| 0007 kosmickrisp: reset the Metal 4 command allocator after use | Upstream returned each `MTL4CommandAllocator` to the pool unreset at the end of recording, and never called `reset` (0 calls in a trace). Allocators now stay with their command buffer until Vulkan reset or destroy, when the GPU is done with them, and are reset then. On the Mac this lowered the steady footprint from 154 MB to 141 MB. It is not the cause of the frame-test growth (see below). |
+| 0007 apple: a libGL without GLX | LWJGL looks up GL functions by name in "the GL library". Mesa's GLX libGL is not built on iOS, and its symbol list is the frozen Linux ABI (no GL 4.5/4.6), so this exports every entry point Mesa dispatches. |
+| 0008 zink: subgroups on KosmicKrisp without fp64 | Zink exposed `GL_KHR_shader_subgroup` only with `shaderFloat64`, which Apple GPUs lack. On the Mac the subgroup check passes; on the phone Photon still took its no-subgroup path. Kept because Mellow ran with it; it can be dropped. |
 
 Runtime settings: `MESA_LOADER_DRIVER_OVERRIDE=zink` and `ZINK_VULKAN_LIBRARY=<path to the driver dylib>`. Leave `LIBGL_ALWAYS_SOFTWARE` unset.
 
@@ -135,7 +160,7 @@ Runtime settings: `MESA_LOADER_DRIVER_OVERRIDE=zink` and `ZINK_VULKAN_LIBRARY=<p
   | After the compute test | 59.8 MB |
   | After the frames (1290×2796 RGBA8 target plus pipelines) | 163.0 MB |
 
-- **Memory over long runs (with patch 0007)**, logs in `docs/evidence/2026-10-22-zink-kosmickrisp-mac-memory-*.log`:
+- **Memory over long runs (with the allocator-reset patch, since withdrawn)**, logs in `docs/evidence/2026-10-22-zink-kosmickrisp-mac-memory-*.log`:
 
   | How each frame ends | Frame 300 | Frame 3000 | Afterwards |
   |---|---|---|---|
@@ -186,7 +211,10 @@ It is not ready to ship. Main risks, roughly in order:
 
 1. **Frame throttling is required** (resolved as a leak question). Over 3000 frames the footprint is flat on the phone and on the Mac. But nothing in this stack stops the CPU from running ahead of the GPU: a frame loop that only flushes queued about 1.2 MB of GPU work per frame without limit (3.7 GB by frame 3000 on the Mac). That pool is then kept until the context is destroyed. The renderer's swap must wait for the frame two back, as the fenced test does. Voxelium already peaks at 2.4–2.6 GB with BSL on MobileGlues, against a limit of about 3.4 GB, so even a short burst of unthrottled frames would matter.
 2. **No geometry shaders or transform feedback in KosmicKrisp.** Native GL is 2.1, so Minecraft 1.17+ (GL 3.2 core) only gets a context with the 4.6 override. Vanilla rendering and compute-based packs do not use either feature. Packs with geometry programs (`.gsh`, see the 15-pack scan in `docs/ENGINEERING_LOG.md`) will fail to link those programs. LunarG lists tessellation/geometry as upcoming KosmicKrisp work.
-3. **Not tested with the game.** The probe is a compute dispatch and a quad. Minecraft and Iris exercise far more GL than that, and Zink warned "doesn't support base Zink requirements: have_EXT_custom_border_color" (on the Mac).
+3. **In game it works, but not for every shader pack.** Vanilla 1.21.11 (with Sodium and Iris) and Mellow ran on the phone on Zink at GL 4.6, Mellow for about 3 minutes with no crash (build 202610221303). Compute packs still meet Apple-GPU limits that Zink cannot hide:
+   - Photon needs more than the 32 KB of threadgroup memory, and fails on a MacBook too;
+   - Camellia needs geometry shaders, which KosmicKrisp does not have.
+   Which compute packs work has to be checked pack by pack.
 4. **iOS 26 or later**, because KosmicKrisp is Metal 4 only. The app supports iOS 16, so the Zink renderer would be offered only on iOS 26 and later with an A14 or newer chip.
 
 **Estimate to wire Zink into `MinecraftLauncher.swift` as an optional shader-pack renderer** (Minecraft 1.17+, iOS 26+), once the memory question is answered:
