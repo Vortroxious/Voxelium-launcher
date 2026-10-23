@@ -2378,3 +2378,23 @@ NSString *VXGLFWSelfCheck(void) {
             init == (void *)glfwInit ? "ok" : (init ? "different address" : "missing"),
             swap == (void *)glfwSwapBuffers ? "ok" : (swap ? "different address" : "missing")];
 }
+
+// Minecraft 26.3+ draws through SDL3 and Vulkan, so glfwSwapBuffers never runs and
+// cannot log memory. Log it on a timer instead (every 10 s), and on memory warnings
+// (with a GC), until Stage 4 moves the overlay and gauge to the SDL path.
+void VXStartMemoryLog(const char *label) {
+    static dispatch_source_t timer;
+    static dispatch_once_t once;
+    const char *why = strdup(label);
+    dispatch_once(&once, ^{
+        timer = dispatch_source_create(DISPATCH_SOURCE_TYPE_TIMER, 0, 0, dispatch_get_global_queue(QOS_CLASS_UTILITY, 0));
+        dispatch_source_set_timer(timer, dispatch_time(DISPATCH_TIME_NOW, 10 * NSEC_PER_SEC), 10 * NSEC_PER_SEC, NSEC_PER_SEC);
+        dispatch_source_set_event_handler(timer, ^{ vxLogMemory(why); });
+        dispatch_resume(timer);
+        [NSNotificationCenter.defaultCenter addObserverForName:UIApplicationDidReceiveMemoryWarningNotification object:nil
+                                                         queue:NSOperationQueue.mainQueue usingBlock:^(NSNotification *n) {
+            vxLogMemory("iOS memory warning");
+            VXJVMRequestGC("iOS memory warning");
+        }];
+    });
+}

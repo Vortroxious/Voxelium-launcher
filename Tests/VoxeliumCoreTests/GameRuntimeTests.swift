@@ -31,8 +31,24 @@ import Testing
 
     @Test func lwjgl34UsesTheNewBuild() {
         #expect(GameRuntime.lwjglBuild(for: .init(3, 4, 1)) == .v341)
-        #expect(GameRuntime.lwjglBuild(for: .init(3, 4, 3)) == .v341)
+        #expect(GameRuntime.lwjglBuild(for: .init(3, 4, 2)) == .v341)
+        #expect(GameRuntime.lwjglBuild(for: .init(3, 4, 3)) == .v343)   // 26.3: SDL3 + Vulkan
+        #expect(GameRuntime.lwjglBuild(for: .init(3, 5, 0)) == .v343)
         #expect(GameRuntime.lwjglBuild(for: .init(3, 3, 3)) == .v333)
         #expect(GameRuntime.lwjglBuild(for: nil) == .v333)
+    }
+
+    @Test func minecraft263UsesSDLAndVulkanModules() throws {
+        let v = try VersionInfo.decode(Fixture.data("26.3"))
+        #expect(GameRuntime.javaMajor(for: v) == 25)
+        let lw = GameRuntime.lwjgl(for: v)
+        #expect(lw == .init(3, 4, 3) && GameRuntime.lwjglBuild(for: lw) == .v343)
+        // Exactly the LWJGL modules 26.3 lists, from the app's 3.4.3 build.
+        let listed = Set(v.libraries.compactMap { lib -> String? in
+            let c = lib.name.split(separator: ":")
+            return c.count >= 3 && c[0] == "org.lwjgl" ? String(c[1]) : nil
+        })
+        #expect(Set(GameRuntime.sdlVulkanLWJGLModules) == listed)
+        #expect(!listed.contains("lwjgl-glfw"))
     }
 }

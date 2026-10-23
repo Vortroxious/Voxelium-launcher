@@ -1372,3 +1372,57 @@ Stage 2 of the 26.3 plan (SDL3 + Vulkan on KosmicKrisp): the LWJGL 3.4.3 natives
   - Build 202610231555 from `29ca4ca` plus these changes: 201,707,215 bytes, SHA-256 `798c3c150b8ba758cb66ac84f83dd1ef2ba0e4d307a9e185182c5d7c221f1aef`, arm64/iOS, iOS 16.0 minimum.
   - `java/lwjgl-3.4.3/` holds the 11 jars, the 4 natives, OpenAL, FreeType, `libshaderc_shared` and `libspirv-cross` (about 17 MB more than 1.0). `java/lwjgl` and `java/lwjgl-3.4.1` are as before.
   - Not installed on a device; nothing uses 3.4.3 until Stage 3.
+
+## 2026-10-23 — 26.3, Stage 3: launching 26.3 on SDL3 + Vulkan (KosmicKrisp)
+Branch `claude/mc263-stage3-07d0ce`, from `mc263/integration` (`dcb7bd7`). Not committed yet.
+- **Launcher:**
+  - `GameRuntime.LWJGLBuild.v343` for LWJGL ≥ 3.4.3, plus `sdlVulkanLWJGLModules`, the 11 modules of 26.3's version JSON (no GLFW or tinyfd). Tests use the 26.3 JSON (`61fff131`) as a fixture.
+  - `MinecraftLauncher`:
+    - A version listing `lwjgl-sdl` now launches on iOS 26+ when the build bundles `Frameworks/sdl3/{libSDL3,libvulkan.1,libvulkan_kosmickrisp}.dylib`. Only the experimental IPA does so far. Otherwise it's refused, with the reason (iOS < 26: KosmicKrisp needs Metal 4).
+    - 26.2 (`lwjgl-vulkan` without SDL) stays refused.
+    - The 1.13–26.1.2 path is unchanged.
+    - The 26.3 path skips VXGLFW, MobileGlues and Zink. It sets `org.lwjgl.{sdl,vulkan,shaderc,spvc,opengl}.libname` (Vulkan: the loader shim) and `SDL_VULKAN_LIBRARY`, and starts a 10 s `[VXMEM]` timer (`VXStartMemoryLog`), since glfwSwapBuffers no longer logs memory.
+  - **Backend choice, from client.jar `e877b6a0`:**
+    - `PreferredGraphicsApi` `default`/`opengl` try GL first, then Vulkan; `vulkan` tries Vulkan first.
+    - After a start that didn't finish, Minecraft switches `default` to `opengl`.
+    - `OptionsForceDefaultGraphicsApiFix` (data version 4892) resets the key to `default` in older options files.
+    - The launch argument `--graphicsBackend vulkan` overrides all of these ("Graphics backend forced to vulkan by launch argument"), so the launcher passes it. It also writes `preferredGraphicsBackend:"vulkan"` (`GameOptions.forceVulkanBackend`, tested), quoted as Minecraft writes it.
+  - **iOS objc stubs:** 26.3's `MacosUtil.disableCloseWindowMenuItem` calls `Proxy.sendProxy`, `sendInt` and `sendRaw`, which the stubs lacked. Checked on the Mac against 26.3's real `MacosUtil`: `NoSuchMethodError` with the old stubs, ok with the new ones (an empty menu, so it does nothing).
+- **Mac first** (Apple M4, JDK 26, Mojang's macOS LWJGL 3.4.3 / SDL 3.4.14, `vulkan-out/kosmickrisp-mac`, `--quickPlaySingleplayer` on a copy of an existing world):
+  - "Using graphics backend Vulkan, using drivers: 1.4.363 KosmicKrisp Mesa 27.0.0-devel (git-9b3209540c)", device "Apple M4".
+  - It upgraded and joined the world, rendered chunks, saved, and quit to the title screen and out (exit 0). MoltenVK behaved the same.
+  - The only unsupported feature is wireframe fill (two optional debug pipelines).
+  - The 30–40 s pause before quick play is Minecraft's Realms check with the offline token, not the driver. Evidence: `docs/evidence/2026-10-23-minecraft-26.3-vulkan-kosmickrisp-mac-world.log`.
+- **Device, build 202610231638** (experimental IPA, devicectl-confirmed; Fabric 26.3 started twice, logs copied 16:44Z):
+  - Both starts crashed in Minecraft's eager library loading. The order was spvc, SDL and shaderc (all ok), then OpenGL: "There is no OpenGL context management API available".
+  - LWJGL's `GL.create()` on "Mac OS X" loads `OpenGL.framework`, which iOS doesn't have. The Mac has it, so the Mac run couldn't show this.
+  - SDL reported "SDL Platform: iOS". JNA/oshi warnings as on 26.1. Evidence: `docs/evidence/2026-10-23-minecraft-26.3-fabric-iphone15promax-ios27-build202610231638-opengl-crash.log`.
+  - **Fix:** `-Dorg.lwjgl.opengl.libname=<the app executable>`, a library that's already loaded; nothing draws through it on Vulkan.
+    - Checked on the Mac with a library without any GL functions (libSDL3) as LWJGL's OpenGL: Vulkan was still chosen, and the world was joined.
+    - **Build 202610231646** (SHA-256 `ee622e53162254884ff972b29a66faa139739bbf49897bba12d5a4126309230e`). Not yet run on the device.
+- **Device, build 202610231646: Fabric 26.3 runs on Vulkan on the iPhone** (devicectl-confirmed; fabric-loader 0.19.5 with no mods; logs copied 2026-10-23 16:52Z):
+  - "Using graphics backend Vulkan, using drivers: 1.4.363 KosmicKrisp Mesa 27.0.0-devel (git-9b3209540c)", "Using graphics device: Apple A17 Pro GPU (APPLE)", "Created window using SDL video driver: uikit".
+  - It reached the title screen, created world "Test", and joined it ("Vortroxious joined the game", spawn prepared in 4 s, chunks rendering). It then saved, quit to the title screen and out, with taps as mouse clicks. Minecraft returned status 0.
+  - **`[VXMEM]`:** 1177 MB during resource loading, 1381 MB on the title screen, and 2333–2428 MB in the world (GPU about 1027 MB). The peak was **2691 MB** at quit (684 MB left before the limit).
+    - Render scale isn't applied on the SDL path yet, so this is the full 2796×1290 swapchain; it's Stage 4 work.
+    - Java heap after the last GC: 611 MB of 886 MB.
+  - **Expected warnings:**
+    - UIKit doesn't support the window icon or relative mouse mode;
+    - "Error while loading the narrator" (objc stub);
+    - the wireframe pipelines;
+    - UIKit's "UIApplicationSupportsIndirectInputEvents" note about mouse support;
+    - JNA/oshi system-info warnings, as on 26.1.
+  - Evidence: `docs/evidence/2026-10-23-minecraft-26.3-fabric-vulkan-kosmickrisp-iphone15promax-ios27-build202610231646.log`.
+  - **Still to check on this build:** vanilla 26.3, and the 1.21.11 Fabric, NeoForge 1.21.1 and Forge 1.20.1 regressions.
+- **Regression round, build 202610231646** (devicectl-confirmed; logs copied 2026-10-23 ~17:03Z). The experimental app's "Play with Zink (experimental)" switch was on (its default), so the 1.17+ versions rendered with **Zink**, not MobileGlues:
+  - **Fabric 26.3** (16:55): Vulkan on KosmicKrisp / Apple A17 Pro GPU again. It reached the title screen (1387 MB), and the user quit after 12 s.
+  - **Fabric 1.21.11** (16:55): Zink, joined the world, peak 1897 MB, quit.
+  - **NeoForge 21.1.264 / 1.21.1** (installed in the app at 16:57):
+    - The first start (16:57:11) wrote only the jvm.log header and the JIT flags line, with no JIT probe. The app was then relaunched. That's before any Minecraft code; cause not proven (StikDebug/JIT handshake?).
+    - The second start ran the 6 installer steps, loaded NeoForge 21.1.264 on Zink, joined the world (peak 1991 MB) and quit.
+  - **Forge 47.4.28 / 1.20.1** (installed at 17:00): Zink, joined the world, peak 2440 MB, quit.
+  - The "Can't Find Class" lines are Forge/NeoForge transformer output, as before.
+  - **Not covered:** the MobileGlues path that Voxelium 1.0 ships, because the Zink switch was on, and vanilla 26.3.
+- **Third Fabric 26.3 world join, build 202610231646** (17:03:57; logs copied about 17:06Z):
+  - Vulkan on KosmicKrisp / Apple A17 Pro GPU, world joined at 17:04:11, saved and quit, status 0. Peak 2303 MB (GPU 1025 MB).
+  - No 1.21.11 run on MobileGlues and no vanilla 26.3 run were logged, so those two checks are still open.

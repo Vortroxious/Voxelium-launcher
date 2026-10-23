@@ -43,17 +43,27 @@ public enum GameRuntime {
         }.max()
     }
 
-    /// Which of the app's LWJGL builds a version uses: like upstream, 3.4.1 for
-    /// LWJGL ≥ 3.4.1, otherwise 3.3.3 (LWJGL 2 versions additionally need the
-    /// lwjglx bridge on top of 3.3.3).
+    /// Which of the app's LWJGL builds a version uses: 3.4.3 for LWJGL ≥ 3.4.3
+    /// (Minecraft 26.3, SDL3 and Vulkan), like upstream 3.4.1 for LWJGL ≥ 3.4.1,
+    /// otherwise 3.3.3 (LWJGL 2 versions additionally need the lwjglx bridge on
+    /// top of 3.3.3).
     public enum LWJGLBuild: String, Sendable, Equatable {
-        case v333 = "3.3.3", v341 = "3.4.1"
+        case v333 = "3.3.3", v341 = "3.4.1", v343 = "3.4.3"
     }
 
     public static func lwjglBuild(for v: LWJGLVersion?) -> LWJGLBuild {
         guard let v else { return .v333 }
+        if v >= LWJGLVersion(3, 4, 3) { return .v343 }
         return v >= LWJGLVersion(3, 4, 1) ? .v341 : .v333
     }
+
+    /// Java-side LWJGL modules of Minecraft 26.3+ (its version JSON, `61fff131`): SDL3
+    /// and Vulkan replace GLFW, with shaderc, SPIRV-Cross (spvc) and VMA for the Vulkan
+    /// renderer. All come from the app's 3.4.3 build; there is no GLFW or tinyfd.
+    public static let sdlVulkanLWJGLModules = [
+        "lwjgl", "lwjgl-sdl", "lwjgl-vulkan", "lwjgl-shaderc", "lwjgl-spvc", "lwjgl-vma",
+        "lwjgl-freetype", "lwjgl-jemalloc", "lwjgl-openal", "lwjgl-opengl", "lwjgl-stb",
+    ]
 
     public static func needsLWJGL2Bridge(_ v: LWJGLVersion?) -> Bool { (v?.major ?? 3) < 3 }
 }
