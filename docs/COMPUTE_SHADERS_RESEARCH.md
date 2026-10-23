@@ -103,9 +103,34 @@ How it is wired, in experimental builds only:
 
 The allocator-reset patch (formerly 0007) is withdrawn. It reset each `MTL4CommandAllocator` once Vulkan considered the command buffer done. Apple's rule is stricter: the GPU must be finished with it, as reported by Metal's own completion. The Mellow crash is in the first Metal call made with a reset allocator. Without the patch, memory stayed flat over 6,900 throttled frames on the phone.
 
+## Vulkan for apps: KosmicKrisp with its Metal window system (2026-10-23)
+
+This is Stage 1a of the Minecraft 26.3 plan: 26.3 has a Vulkan renderer, and it gets its surface from SDL3. It uses no Zink.
+- `scripts/build-zink.sh vulkan` builds KosmicKrisp alone for iOS with `-Dplatforms=macos`, which compiles Mesa's `wsi_common_metal`, into `build/deps/vulkan-out/kosmickrisp/`.
+- `vulkan-mac` does the same for the Mac.
+- **Patch 0009** (`wsi-metal-ios-fifo-only`): `CAMetalLayer.displaySyncEnabled` is macOS-only, and iOS always syncs to the display, so on iOS the window system offers only FIFO.
+- **Loader shim** `scripts/vulkan-shim.c` → `libvulkan.1.dylib` (50 KB). It exports `vkGetInstanceProcAddr`, `vkGetDeviceProcAddr`, `vkCreateInstance` and `vkEnumerateInstance{Version,LayerProperties,ExtensionProperties}`, forwarding to KosmicKrisp's `vk_icdGetInstanceProcAddr`.
+  - It reports no layers.
+  - It offers `VK_KHR_portability_enumeration`, which Apple-platform apps enable for MoltenVK, and strips it and its flag before the conformant ICD sees it.
+- **Test** `App/Voxelium/Native/VXVulkanSwapchain.h`, shared by `scripts/vk-swapchain-probe.m` (Mac) and the experimental app ("Vulkan swapchain test"). From a background thread it creates a `VK_EXT_metal_surface` surface on a `CAMetalLayer` and a FIFO swapchain, clears it in changing colours for 5 s with at most 2 frames in flight, then tears down.
+
+| | Mac (Apple M4, macOS 27) | iPhone 15 Pro Max (iOS 27, build 202610231136, no JIT) |
+|---|---|---|
+| Instance | Vulkan 1.3.363; `VK_KHR_surface`, `VK_EXT_metal_surface`, `VK_KHR_portability_enumeration` (shim) | same |
+| Device | Apple M4, Vulkan 1.4.363, 145 extensions, `VK_KHR_swapchain`, no `VK_KHR_portability_subset` | Apple A17 Pro GPU, Vulkan 1.4.363, 145 extensions, `VK_KHR_swapchain`, no `VK_KHR_portability_subset` |
+| Surface | 1920×1080, 3 images, IMMEDIATE + FIFO | 1290×2796, then 2796×1290 after rotating; 3 images; **FIFO only** |
+| Frames in 5 s | 280 (55.9 fps); 30 s run: 1,815 (60.5 fps) | 298 (59.5 fps) portrait, then 575 (114.9 fps) landscape |
+| `phys_footprint` during frames | about 163–166 MB, flat | about 196 MB, then about 212 MB, flat |
+| After teardown | 154–157 MB | 187 MB, then 206 MB |
+| Result | `VOXELIUM_VK_SWAPCHAIN_OK` | `VOXELIUM_VK_SWAPCHAIN_OK` (twice) |
+
+Logs: `docs/evidence/2026-10-23-vulkan-swapchain-kosmickrisp-*.log`.
+- About 150 MB stays after `vkDestroyDevice`/`vkDestroyInstance`, presumably Metal's or the driver's caches. It did not grow with a second run, which started at 88 MB and stayed in the same range. It does not block anything, but is worth watching in Minecraft.
+- What sets 60 versus 120 fps (ProMotion) was not examined.
+
 ## Built (2026-10-22)
 
-`scripts/build-zink.sh` (KosmicKrisp is the default `ZINK_VK`) builds Mesa 9b32095 plus `patches/mesa/0001-0008` for iOS arm64, with a minimum of iOS 26.0, because KosmicKrisp needs Metal 4. The output goes to `build/deps/zink-out/kosmickrisp/`:
+`scripts/build-zink.sh` (KosmicKrisp is the default `ZINK_VK`) builds Mesa 9b32095 plus `patches/mesa/0001-0009` for iOS arm64, with a minimum of iOS 26.0, because KosmicKrisp needs Metal 4. The output goes to `build/deps/zink-out/kosmickrisp/`:
 
 | File | Size (stripped) |
 |---|---|
@@ -126,6 +151,7 @@ What the port needed. Each fix is one small patch:
 | 0005 kosmickrisp: link Foundation/Metal/QuartzCore | The driver links with `-undefined dynamic_lookup`, which left 19 Metal symbols to flat lookup. That only works if the host already loaded Metal. |
 | 0006 egl: surfaceless reaches Zink without DRM | On Apple platforms, the surfaceless platform only reached Zink with `LIBGL_ALWAYS_SOFTWARE=1`, and that same variable makes Zink demand a CPU Vulkan device. |
 | 0007 apple: a libGL without GLX | LWJGL looks up GL functions by name in "the GL library". Mesa's GLX libGL is not built on iOS, and its symbol list is the frozen Linux ABI (no GL 4.5/4.6), so this exports every entry point Mesa dispatches. |
+| 0009 wsi: Metal WSI on iOS offers FIFO only | `CAMetalLayer.displaySyncEnabled` is macOS-only; iOS always syncs to the display. Needed for KosmicKrisp's window system on iOS (`build-zink.sh vulkan`). |
 | 0008 zink: subgroups on KosmicKrisp without fp64 | Zink exposed `GL_KHR_shader_subgroup` only with `shaderFloat64`, which Apple GPUs lack. On the Mac the subgroup check passes; on the phone Photon still took its no-subgroup path. Kept because Mellow ran with it; it can be dropped. |
 
 Runtime settings: `MESA_LOADER_DRIVER_OVERRIDE=zink` and `ZINK_VULKAN_LIBRARY=<path to the driver dylib>`. Leave `LIBGL_ALWAYS_SOFTWARE` unset.

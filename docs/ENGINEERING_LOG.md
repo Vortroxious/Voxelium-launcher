@@ -1318,3 +1318,13 @@ Changes:
     - Run 1: finger 9 down / 7 up, mouse 5 down / 4 up. The missing ups are fingers still down when the window closed.
     - Run 2: 9 down / 9 up, mouse 6 down / 6 up.
   - **Not covered on this build:** a second `SDL_Init` after `SDL_Quit` in the same launch, so patch 0004 is untested on the device. The SDL-only test was not run (it passed on build 202610231125).
+- **Minecraft 26.3 plan, Stage 1a: KosmicKrisp WSI on iOS + Vulkan loader shim (2026-10-23, branch `stage1/kosmickrisp-wsi`):**
+  - `scripts/build-zink.sh vulkan` builds KosmicKrisp with Mesa's Metal window system for iOS (`build/deps/vulkan-out/kosmickrisp/`). One new patch, 0009: iOS has no `displaySyncEnabled`, so it offers FIFO only.
+  - `scripts/vulkan-shim.c` is a `libvulkan.1.dylib` that exports `vkGetInstanceProcAddr` and the other global entry points for SDL3 and LWJGL.
+  - **Device pass:** iPhone 15 Pro Max, iOS 27, experimental build 202610231136 (confirmed with `devicectl device info apps`), no JIT.
+    - Vulkan 1.4 on "Apple A17 Pro GPU", with `VK_KHR_surface`, `VK_EXT_metal_surface` and `VK_KHR_swapchain`, FIFO, 3 images.
+    - 298 frames in 5 s (59.5 fps) at 1290×2796, then 575 (114.9 fps) at 2796×1290.
+    - Footprint flat at about 196 and 212 MB; `VOXELIUM_VK_SWAPCHAIN_OK` twice.
+  - Mac: 1,815 frames in 30 s at 60.5 fps, flat at about 163 MB. Logs: `docs/evidence/2026-10-23-vulkan-swapchain-kosmickrisp-*.log`.
+  - Build 202610231121's test button did nothing: its `fullScreenCover` hung on an `EmptyView` list row, which SwiftUI drops. Fixed in 202610231136.
+

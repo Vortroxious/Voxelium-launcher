@@ -1,0 +1,28 @@
+===== Vulkan swapchain test 2026-10-23T11:43:14Z (202610231136)
+phys_footprint before Vulkan: 36.6 MB
+instance: Vulkan 1.3.363, 15 extensions; VK_KHR_surface=1 VK_EXT_metal_surface=1 VK_KHR_portability_enumeration=1
+device: Apple A17 Pro GPU, Vulkan 1.4.363, driver 0x6863063
+device: 145 extensions; VK_KHR_swapchain=1 VK_KHR_portability_subset=0
+instance + device in 10.9 ms; phys_footprint 39.3 MB
+surface: 1290x2796 (current 1290x2796), images 3-3, 5 formats (using 44), present modes FIFO
+swapchain: 3 images, FIFO, at most 2 frames in flight; phys_footprint 39.4 MB
+frame 120: phys_footprint 196.1 MB
+frame 240: phys_footprint 196.1 MB
+presented 298 frames in 5009 ms (59.5 fps; first 335.9 ms, longest gap 34.6 ms); phys_footprint 196.1 MB
+phys_footprint after teardown: 186.7 MB
+VOXELIUM_VK_SWAPCHAIN_OK
+===== Vulkan swapchain test 2026-10-23T11:43:20Z (202610231136)
+phys_footprint before Vulkan: 88.0 MB
+instance: Vulkan 1.3.363, 15 extensions; VK_KHR_surface=1 VK_EXT_metal_surface=1 VK_KHR_portability_enumeration=1
+device: Apple A17 Pro GPU, Vulkan 1.4.363, driver 0x6863063
+device: 145 extensions; VK_KHR_swapchain=1 VK_KHR_portability_subset=0
+instance + device in 2.4 ms; phys_footprint 88.1 MB
+surface: 2796x1290 (current 2796x1290), images 3-3, 5 formats (using 44), present modes FIFO
+swapchain: 3 images, FIFO, at most 2 frames in flight; phys_footprint 88.1 MB
+frame 120: phys_footprint 211.5 MB
+frame 240: phys_footprint 214.4 MB
+frame 360: phys_footprint 212.5 MB
+frame 480: phys_footprint 212.6 MB
+presented 575 frames in 5006 ms (114.9 fps; first 3.8 ms, longest gap 27.6 ms); phys_footprint 212.7 MB
+phys_footprint after teardown: 205.8 MB
+VOXELIUM_VK_SWAPCHAIN_OK

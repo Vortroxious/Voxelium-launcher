@@ -180,10 +180,33 @@ enum ZinkRenderer {
 struct ZinkTestRows: View {
     @StateObject private var test = ZinkTestModel()
     @AppStorage(ZinkRenderer.defaultsKey) private var playWithZink = true
+    @State private var swapchainTest = false
+    @State private var swapchainResult: Bool?
+    @State private var swapchainReport = ""
     let paths: AppPaths?
 
     var body: some View {
         LabeledContent("Zink bundled", value: test.driver.map { "Yes (\($0))" } ?? "No")
+        // The cover hangs on the button: a List drops an EmptyView row, and its
+        // fullScreenCover with it (nothing happened on tap, build 202610231121).
+        Button("Vulkan swapchain test (KosmicKrisp WSI)") { swapchainTest = true }
+            .disabled(!VXVulkanWSIBundled())
+            .fullScreenCover(isPresented: $swapchainTest) {
+                VulkanSwapchainTestController(
+                    logPath: paths.map { $0.logsDir.appendingPathComponent("vulkan-swapchain.log").path }
+                ) { ok, report in
+                    swapchainResult = ok
+                    swapchainReport = report
+                    Logger.shared.log(ok ? .info : .error, "gl", ok ? "Vulkan swapchain test passed" : "Vulkan swapchain test failed")
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) { swapchainTest = false }
+                }
+                .ignoresSafeArea()
+            }
+        if let ok = swapchainResult {
+            Label(ok ? "Vulkan swapchain: VOXELIUM_VK_SWAPCHAIN_OK" : "Vulkan swapchain test failed",
+                  systemImage: ok ? "checkmark.seal.fill" : "xmark.octagon.fill")
+                .foregroundStyle(ok ? Color.green : Color.red)
+        }
         Toggle("Play with Zink (experimental)", isOn: $playWithZink)
             .disabled(!test.bundled)
         Text("Minecraft 1.17+ renders with desktop GL 4.6 on Zink instead of MobileGlues. Needs iOS 26. Not in the same launch as the Zink test.")
@@ -208,6 +231,12 @@ struct ZinkTestRows: View {
         if !test.report.isEmpty {
             ScrollView(.horizontal) {
                 Text(test.report).font(.caption2.monospaced()).textSelection(.enabled)
+            }
+            .frame(maxHeight: 220)
+        }
+        if !swapchainReport.isEmpty {
+            ScrollView(.horizontal) {
+                Text(swapchainReport).font(.caption2.monospaced()).textSelection(.enabled)
             }
             .frame(maxHeight: 220)
         }
@@ -295,5 +324,19 @@ struct SDLVulkanTestRows: View {
             .frame(maxHeight: 220)
         }
     }
+}
+
+struct VulkanSwapchainTestController: UIViewControllerRepresentable {
+    let logPath: String?
+    let onFinish: (Bool, String) -> Void
+
+    func makeUIViewController(context: Context) -> VXVulkanSwapchainTestViewController {
+        let vc = VXVulkanSwapchainTestViewController()
+        vc.logPath = logPath
+        vc.onFinish = { ok, report in onFinish(ok, report) }
+        return vc
+    }
+
+    func updateUIViewController(_ vc: VXVulkanSwapchainTestViewController, context: Context) {}
 }
 #endif

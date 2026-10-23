@@ -10,7 +10,9 @@
 #
 # Stages: tools (host toolchain), native (host mesa_clc/vtn_bindgen2), ios
 # (the cross build). With no argument all three run; each is skipped when
-# its output already exists.
+# its output already exists. Also: mac (the same stack on this Mac, plus
+# scripts/zink-probe.c), package (repackage ios), vulkan / vulkan-mac
+# (KosmicKrisp with its Metal window system and the loader shim, no Zink).
 #
 # Host toolchain: micromamba with pinned conda-forge packages (LLVM/Clang,
 # libclc, SPIRV-LLVM-Translator, SPIRV-Tools, meson, ninja, bison, flex), so no
@@ -80,6 +82,10 @@ stage_tools() {
 
 fetch_mesa() {
   fetch https://gitlab.freedesktop.org/mesa/mesa.git "$MESA_REV" "$SRC"
+  # Files earlier patch runs created are untracked; remove them (not the build
+  # directories or the cross file) so the patches apply to a clean tree.
+  git -C "$SRC" reset -q
+  git -C "$SRC" clean -fdq -e '/build-*' -e '/*.cross'
   local p
   for p in "$ROOT"/patches/mesa/*.patch; do
     [ -e "$p" ] || continue
@@ -138,10 +144,9 @@ stage_mac() {
     | tee "$ROOT/build/logs/zink-mac-probe.log"
 }
 
-# --- ios: the cross build (Zink + EGL surfaceless, plus KosmicKrisp when chosen)
-stage_ios() {
-  tool_env
-  local sdk cross="$SRC/ios-arm64.cross" build="$SRC/build-ios-$ZINK_VK"
+# Meson cross file for iOS arm64 devices, at $SRC/ios-arm64.cross.
+write_ios_cross() {
+  local sdk cross="$SRC/ios-arm64.cross"
   sdk="$(xcrun --sdk iphoneos --show-sdk-path)"
   local clang clangxx
   clang="$(xcrun --sdk iphoneos -f clang)"
@@ -175,6 +180,13 @@ cpu_family = 'aarch64'
 cpu = 'arm64'
 endian = 'little'
 CROSS
+}
+
+# --- ios: the cross build (Zink + EGL surfaceless, plus KosmicKrisp when chosen)
+stage_ios() {
+  tool_env
+  local cross="$SRC/ios-arm64.cross" build="$SRC/build-ios-$ZINK_VK"
+  write_ios_cross
   local vk_args=(-Dvulkan-drivers=)
   [ "$ZINK_VK" = "kosmickrisp" ] && vk_args=(-Dvulkan-drivers=kosmickrisp)
   [ "$ZINK_VK" = "moltenvk" ] && vk_args=(-Dvulkan-drivers= "-Dmoltenvk-dir=$DEPS/moltenvk")
@@ -241,6 +253,67 @@ package_ios() {
   for f in "$OUT"/*.dylib; do otool -L "$f" | tail -n +2; done
 }
 
+# --- vulkan: KosmicKrisp alone, with Mesa's Metal window system (VK_KHR_surface,
+# VK_EXT_metal_surface, VK_KHR_swapchain on a CAMetalLayer), plus the loader shim
+# (scripts/vulkan-shim.c) as libvulkan.1.dylib. For Vulkan apps (Minecraft 26.3
+# through SDL3 and LWJGL), not Zink. $1 = ios (default) or mac (for the probe).
+# Output: build/deps/vulkan-out/kosmickrisp[-mac]/.
+stage_vulkan() {
+  local target="${1:-ios}" build out cross_args=() cc sdk_flags
+  tool_env
+  export PATH="$TOOLS/native/bin:$PATH"
+  if [ "$target" = "ios" ]; then
+    write_ios_cross
+    build="$SRC/build-ios-kosmickrisp-wsi"
+    out="$DEPS/vulkan-out/kosmickrisp"
+    cross_args=(--cross-file "$SRC/ios-arm64.cross")
+    cc="$(xcrun --sdk iphoneos -f clang)"
+    sdk_flags=(-arch arm64 -isysroot "$(xcrun --sdk iphoneos --show-sdk-path)" -miphoneos-version-min=$IOS_MIN)
+  else
+    build="$SRC/build-mac-kosmickrisp-wsi"
+    out="$DEPS/vulkan-out/kosmickrisp-mac"
+    cc=/usr/bin/cc
+    sdk_flags=()
+  fi
+  if [ ! -f "$build/build.ninja" ]; then
+    meson setup "$build" "$SRC" ${cross_args[@]+"${cross_args[@]}"} \
+      --prefix "$build/install" -Dbuildtype=release -Db_ndebug=true \
+      -Dplatforms=macos -Dgallium-drivers= -Dvulkan-drivers=kosmickrisp \
+      -Dopengl=false -Dgles1=disabled -Dgles2=disabled -Degl=disabled -Dglx=disabled \
+      -Dllvm=disabled -Dzstd=disabled -Dexpat=disabled -Dxmlconfig=disabled \
+      -Dmesa-clc=system -Dprecomp-compiler=system \
+      -Dvalgrind=disabled -Dlibunwind=disabled -Dlmsensors=disabled -Dbuild-tests=false
+  fi
+  ninja -C "$build" src/kosmickrisp/vulkan/libvulkan_kosmickrisp.dylib
+  rm -rf "$out"
+  mkdir -p "$out/LICENSES"
+  cp "$build/src/kosmickrisp/vulkan/libvulkan_kosmickrisp.dylib" "$out/"
+  "$cc" ${sdk_flags[@]+"${sdk_flags[@]}"} -O2 -dynamiclib -fvisibility=hidden -I"$SRC/include" \
+    "$ROOT/scripts/vulkan-shim.c" -o "$out/libvulkan.1.dylib" \
+    -install_name @rpath/libvulkan.1.dylib -L"$out" -lvulkan_kosmickrisp -Wl,-rpath,@loader_path
+  mkdir -p "$DEPS/vulkan-out-symbols"
+  rm -rf "$DEPS/vulkan-out-symbols/$(basename "$out")"
+  mkdir -p "$DEPS/vulkan-out-symbols/$(basename "$out")"
+  cp "$out"/*.dylib "$DEPS/vulkan-out-symbols/$(basename "$out")/"
+  local f platform want=1
+  [ "$target" = "ios" ] && want=2
+  for f in "$out"/*.dylib; do
+    strip -x "$f" 2>/dev/null || true
+    [ "$target" = "mac" ] && codesign --force --sign - "$f" >/dev/null 2>&1
+    platform=$(otool -l "$f" | awk '/LC_BUILD_VERSION/{f=1} f&&/platform/{print $2; exit}')
+    [ "$platform" = "$want" ] || { echo "$f has platform $platform, wanted $want" >&2; exit 1; }
+  done
+  cp "$SRC/docs/license.rst" "$out/LICENSES/mesa-license.rst"
+  cp -R "$SRC/licenses" "$out/LICENSES/mesa-licenses"
+  {
+    echo "Mesa $MESA_REV with patches/mesa/ (KosmicKrisp with the Metal WSI):"
+    (cd "$ROOT/patches/mesa" && ls *.patch)
+    echo "libvulkan.1.dylib: scripts/vulkan-shim.c"
+  } > "$out/LICENSES/BUILD-INFO.txt"
+  ls -la "$out"
+  for f in "$out"/*.dylib; do otool -L "$f" | tail -n +2; done
+}
+
 echo "stage=$STAGE vk=$ZINK_VK"
 case "$STAGE" in
   tools) stage_tools ;;
@@ -248,6 +321,8 @@ case "$STAGE" in
   mac) fetch_mesa; stage_mac ;;
   ios) fetch_mesa; stage_ios ;;
   package) package_ios "$SRC/build-ios-$ZINK_VK" ;;
+  vulkan) fetch_mesa; stage_vulkan ios ;;
+  vulkan-mac) fetch_mesa; stage_vulkan mac ;;
   all) stage_tools; fetch_mesa; stage_native; stage_ios ;;
   *) echo "unknown stage $STAGE" >&2; exit 2 ;;
 esac

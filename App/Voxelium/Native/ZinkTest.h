@@ -4,7 +4,7 @@
 // resort). Compiled only into the experimental IPA
 // (scripts/build-ipa-zink-experimental.sh); the shipping app never sees it.
 #if VOXELIUM_ZINK_EXPERIMENT
-#import <Foundation/Foundation.h>
+#import <UIKit/UIKit.h>
 
 NS_ASSUME_NONNULL_BEGIN
 
@@ -34,6 +34,23 @@ NS_ASSUME_NONNULL_BEGIN
 @property (class, nonatomic, readonly) BOOL used;
 
 @end
+
+/// Minecraft 26.3 plan, Stage 1a: a full-screen CAMetalLayer and, from a
+/// background thread (as Java will), a Vulkan swapchain through the loader
+/// shim and KosmicKrisp's Metal WSI (Frameworks/vulkan): FIFO, cleared in
+/// changing colours for 5 s, at most 2 frames in flight (VXVulkanSwapchain.h).
+@interface VXVulkanSwapchainTestViewController : UIViewController
+
+/// Called once on the main thread with `ok` and a multi-line report.
+@property (nonatomic, copy, nullable) void (^onFinish)(BOOL ok, NSString *report);
+
+/// Lines are also appended to this file when set.
+@property (nonatomic, copy, nullable) NSString *logPath;
+
+@end
+
+/// True when Frameworks/vulkan holds the loader shim and KosmicKrisp.
+BOOL VXVulkanWSIBundled(void);
 
 /// True when Frameworks/zink holds libEGL_mesa.dylib and a Vulkan driver.
 BOOL VXZinkBundled(void);
