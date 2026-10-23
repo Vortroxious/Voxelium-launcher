@@ -286,7 +286,7 @@ struct SDLVulkanTestRows: View {
             .disabled(!test.bundled || test.running || (test.vulkanLibrary != nil && test.vulkanBlocked))
         Button("SDL window test (no Vulkan)") { test.start(paths: paths, sdlOnly: true) }
             .disabled(!test.bundled || test.running)
-        Text("Opens SDL's window from a background thread for 5 s, as Minecraft 26.3 does. Tap and drag on it while it runs: every touch is logged. Vulkan runs once per launch, not after the Zink test. Log: logs/sdl-vulkan.log")
+        Text("Opens SDL's window from a background thread for 5 s, as Minecraft 26.3 does. While it runs, tap a few times, drag, then touch with two fingers, lifting each time: every touch is logged. Vulkan runs once per launch, not after the Zink test. Log: logs/sdl-vulkan.log")
             .font(.caption2).foregroundStyle(.secondary)
         if !test.report.isEmpty {
             ScrollView(.horizontal) {

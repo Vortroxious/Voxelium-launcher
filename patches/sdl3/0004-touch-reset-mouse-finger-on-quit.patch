@@ -1,0 +1,25 @@
+Touch: forget the finger that drives touch-to-mouse on SDL_Quit.
+
+SDL_touch.c keeps the finger it turns into mouse events in statics that
+SDL_QuitTouch did not reset. A finger held while SDL shut down never sent
+its up, so after the next SDL_Init no touch made mouse events (seen on the
+iPhone, build 202610231125, second test run in one launch).
+
+diff --git a/src/events/SDL_touch.c b/src/events/SDL_touch.c
+index b8ebb78..161bf11 100644
+--- a/src/events/SDL_touch.c
++++ b/src/events/SDL_touch.c
+@@ -612,6 +612,13 @@ void SDL_QuitTouch(void)
+ 
+         SDL_free(SDL_touchDevices);
+         SDL_touchDevices = NULL;
++
++        /* Voxelium: a finger still down when SDL quits never sends its
++         * "up", which left touch-to-mouse disabled for the next SDL_Init
++         * in the process. */
++        finger_touching = false;
++        track_touchid = 0;
++        track_fingerid = 0;
+     }
+     SDL_UnlockTouch();
+ 

@@ -10,6 +10,7 @@
 #if VOXELIUM_ZINK_EXPERIMENT
 #import <UIKit/UIKit.h>
 #include <dlfcn.h>
+#include <mach-o/dyld.h>
 #include <mach/mach.h>
 
 #if __has_include(<SDL3/SDL.h>) && __has_include(<vulkan/vulkan_core.h>)
@@ -43,8 +44,9 @@ BOOL VXSDLBundled(void) { return VX_SDL_HEADERS && sdlPath() != nil; }
 
 NSString *VXSDLVulkanLibraryPath(void) {
     // The loader shim exports vkGetInstanceProcAddr, which SDL looks up; the
-    // bare ICD only has vk_icdGetInstanceProcAddr.
-    for (NSString *dir in @[@"zink", @"sdl3", @""]) {
+    // bare ICD only has vk_icdGetInstanceProcAddr. Frameworks/sdl3 holds the
+    // shim with KosmicKrisp built with Metal WSI (Frameworks/zink's has none).
+    for (NSString *dir in @[@"sdl3", @"zink", @""]) {
         NSString *p = existing([frameworksDir(dir) stringByAppendingPathComponent:@"libvulkan.1.dylib"]);
         if (p) return p;
     }
@@ -300,6 +302,14 @@ static BOOL sVulkanUsed = NO;
         if (p_SDL_Vulkan_LoadLibrary(vk.fileSystemRepresentation)) {
             _vulkanLoaded = YES;
             [self log:@"SDL_Vulkan_LoadLibrary(%@) ok", vk.lastPathComponent];
+            // Frameworks/zink has another libvulkan_kosmickrisp.dylib (no WSI)
+            // with the same install name: show which one dyld loaded.
+            for (uint32_t i = 0; i < _dyld_image_count(); i++) {
+                NSString *img = @(_dyld_get_image_name(i));
+                if ([img.lastPathComponent hasPrefix:@"libvulkan"]) {
+                    [self log:@"loaded %@/%@", img.stringByDeletingLastPathComponent.lastPathComponent, img.lastPathComponent];
+                }
+            }
         } else {
             [self log:@"SDL_Vulkan_LoadLibrary(%@) failed: %@", vk.lastPathComponent, [self sdlError]];
             [self log:@"continuing with SDL only (window + touches through SDL's Metal renderer)"];
