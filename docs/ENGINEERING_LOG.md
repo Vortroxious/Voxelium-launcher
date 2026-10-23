@@ -1275,3 +1275,47 @@ Changes:
   - For Forge, the **shader warning was shown** ("BSL_v10.1.8.zip at render distance 12", 16:39:33Z) and the user chose "Play anyway". That confirms the Oculus settings fallback.
   - A second delete: "Deleted version Landscapes Reimagined Genesis 3.2 3.2" (16:38:21Z).
   - The `jna…tmp: dlopen` UnsatisfiedLinkError lines are Minecraft's hardware-info warnings, the same as in every Fabric run.
+
+## 2026-10-23 — 26.3, Stage 2: iOS LWJGL 3.4.3, shaderc and SPIRV-Cross
+Stage 2 of the 26.3 plan (SDL3 + Vulkan on KosmicKrisp): the LWJGL 3.4.3 natives and jars Minecraft 26.3 lists (read from its version JSON, `61fff131`), built for iOS arm64. Nothing launches 26.3 yet (Stage 3).
+- **LWJGL 3.4.3:** `LWJGL_SERIES=3.4.3 scripts/build-lwjgl.sh` → `build/deps/lwjgl-out-3.4.3`. It's built from **upstream** tag `3.4.3` (`30fac9b9`), since AngelAuraMC's fork stops at `wip/rebase_3.4.1`.
+  - **Carried over from the fork:** the iOS build changes, found by diffing `wip/rebase_3.4.1` against upstream 3.4.1. They're in `patches/lwjgl/3.4.3-0001-ios-build.patch`:
+    - `config/macos/build.xml` compiles and links against the iPhoneOS SDK with `-miphoneos-version-min`, and without `-Werror`;
+    - `update-dependency` keeps an existing `libffi.a` (`skipexisting`), so ours is not replaced by LWJGL's macOS one;
+    - `<objc/runtime.h>` replaces `<objc/objc-runtime.h>`, which the iOS SDK lacks (template and generated C);
+    - VMA rounds sub-pointer alignments up to `sizeof(void*)`; Apple's aligned allocation rejects them.
+  - **Left out (Android, Linux or Pojav-specific):** miniz, `VK.tryCreateFromEnv`, `Library.createFromHandle`, loading `AngelAuraAmethyst`, `RTLD_GLOBAL`, `Checks` returning true, and the no-abort `functionMissingAbort`. Our 3.4.1 `GL.java` patch is for the GL path, which 26.3 doesn't use here.
+  - **libffi 3.8.0:** 3.4.3's core calls libffi's new call-plan API (`ffi_call_plan_alloc/invoke/free/size`). With 3.5.2 the link failed with those four undefined. libffi 3.8.0's Darwin generator names every 64-bit target `*64_platform`, and its `config.sub` rejects `x86_64-apple-ios-simulator`. So for 3.8.0 the script keeps only `ios_device_arm64_platform` and stubs the x86_64 headers the Xcode project copies.
+  - **Other build changes:** `JAVA_HOME` is exported, since 3.4.3 compiles its Java 25 classes with `--system "${env.JAVA_HOME}"`. The release step runs with `-Dbuild.offline=true`: online, it downloads every platform's official natives for jars we discard, and one failed download (`linux/ppc64le/libshaderc.so`) failed a run. `lwjgl-unsafe.jar`, new in 3.4.3, is not copied.
+  - **Output:**
+    - natives `liblwjgl`, `liblwjgl_opengl`, `liblwjgl_stb` and `liblwjgl_vma`. These are the four JNI libraries Mojang's macOS 26.3 natives have; FreeType, jemalloc, OpenAL, SDL, shaderc, SPIRV-Cross and MoltenVK there are third-party libraries.
+    - jars `lwjgl, -freetype, -jemalloc, -openal, -opengl, -sdl, -shaderc, -spvc, -stb, -vma, -vulkan`.
+    - As for 3.4.1, the jars lose `META-INF/versions/25` (FFM upcalls hit the JIT-protected code cache on iOS) and their `.sha1` files.
+  - **Checks:** `voxelium-cli check-macho`: all four natives are arm64/iOS and device-loadable. Three runs, one from a fresh clone with libffi rebuilt, gave byte-identical natives.
+- **shaderc and SPIRV-Cross:** `scripts/build-shaderc.sh` → `build/deps/shaderc-out`, using the same CMake 4.4.4 and source fetching as MobileGlues.
+  - **`libshaderc_shared.dylib`** is shaderc v2026.3 from `LWJGL-CI/shaderc` tag `LWJGL-3.4.3` (`b85bc9ae`), i.e. what LWJGL ships, with glslang 16.4.0, SPIRV-Tools v2026.3 and SPIRV-Headers `29981f65` as its DEPS pins.
+    - LWJGL's CMake change folds glslang and SPIRV-Tools in and exports their C APIs: lwjgl-shaderc's `GLSLang`, `SPV` and `SPVOptimizer` classes look their functions up in the shaderc library.
+    - Its `-force_load`ed archives aren't dependencies of `shaderc_shared`, so the script builds them first.
+    - LWJGL's default file name is `libshaderc.dylib`, so Stage 3 sets `-Dorg.lwjgl.shaderc.libname`.
+  - **`libspirv-cross.dylib`** is SPIRV-Cross `vulkan-sdk-1.4.357.0` (`6c09849f`, C API 0.68), the upstream commit under `LWJGL-CI/SPIRV-Cross` tag `LWJGL-3.4.3`.
+    - Its file name is LWJGL's default, and its install name is `@rpath/libspirv-cross.dylib`. SPIRV-Cross itself (and Mojang's macOS build) uses `@rpath/libspirv-cross-c-shared.0.dylib`, the install name of MobileGlues' C API 0.64 copy.
+  - Both are stripped as LWJGL's CI does (`strip -u -r`) and ad-hoc re-signed. Check exports with `dyld_info -exports`: `nm` no longer lists them after the strip.
+- **Bundling:** the Xcode copy phase copies `lwjgl-out-3.4.3` (jars and natives), OpenAL, FreeType and `shaderc-out` into `java/lwjgl-3.4.3/`. It does nothing when 3.4.3 isn't built.
+  - `scripts/collect-licenses.sh` adds LWJGL 3.4.3, libffi 3.8.0, VMA (MIT, from its header), shaderc, glslang 16.4.0, SPIRV-Tools, SPIRV-Headers and SPIRV-Cross, again only when 3.4.3 is built. The `THIRD_PARTY_NOTICES.txt` files are regenerated with them.
+- **Mac check:** `scripts/check-lwjgl-3.4.3.sh`, on JDK 26 on an M4 Mac. It fetches Mojang's 26.3 LWJGL jars and macOS arm64 natives, each checked against its SHA-1 in the version JSON.
+  - **Smoke test** (`JavaTest/lwjgl343/.../Lwjgl343SmokeTest.java`): passed both with Mojang's jars and with **ours**, each against Mojang's macOS natives. Our natives are iOS binaries and don't load on macOS. The steps:
+    - core memory and jemalloc;
+    - SDL 3.4.14, with a log callback (a native-to-Java upcall through a libffi closure);
+    - stb image loading, FreeType 2.14.3, and loading OpenAL and OpenGL;
+    - shaderc compiling a Vulkan 1.2 vertex shader (1,304 bytes of SPIR-V; glslang 16.4.0 through its C API);
+    - spvc 0.68 cross-compiling that SPIR-V to GLSL 330 and MSL;
+    - a Vulkan 1.2 instance and device on MoltenVK (Apple M4), then a VMA allocator and a mapped 64 KiB buffer.
+  - With our jars, that's LWJGL's JNI/libffi path (no FFM classes) against a real 3.4.3 `liblwjgl`. Our build reports version `3.4.3-snapshot+SNAPSHOT`, as our 3.4.1 does.
+  - **JNI surface** (`JniSurfaceCheck.java`, which reads the jars' `native` methods with the JDK's class-file API):
+    - All 4,853 native methods in our 11 jars were checked. The 305 without a symbol in our natives are exactly those missing from Mojang's macOS natives too: Windows (WGL, VMA Win32 handles), Linux (incl. liburing) and FreeBSD.
+    - Our `Java_*` exports equal Mojang's (4,548 each), apart from Mojang's 8 JAWT natives. Those belong to `lwjgl-jawt`, which isn't a Minecraft library and is off in our build.
+  - **C exports:** our shaderc (174) and SPIRV-Cross (169) export exactly the C symbols of Mojang's macOS builds.
+- **IPA:** `scripts/build-ipa.sh` still builds, run in this worktree with a private `build/` so the shared IPAs weren't overwritten.
+  - Build 202610231555 from `29ca4ca` plus these changes: 201,707,215 bytes, SHA-256 `798c3c150b8ba758cb66ac84f83dd1ef2ba0e4d307a9e185182c5d7c221f1aef`, arm64/iOS, iOS 16.0 minimum.
+  - `java/lwjgl-3.4.3/` holds the 11 jars, the 4 natives, OpenAL, FreeType, `libshaderc_shared` and `libspirv-cross` (about 17 MB more than 1.0). `java/lwjgl` and `java/lwjgl-3.4.1` are as before.
+  - Not installed on a device; nothing uses 3.4.3 until Stage 3.
