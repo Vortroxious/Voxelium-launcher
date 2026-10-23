@@ -74,6 +74,14 @@ section "FreeType 2.13.3 (libfreetype.dylib)" \
   "$DEPS/freetype/docs/FTL.TXT"
 section "OpenAL Soft 1.25.2 (libopenal.dylib)" "LGPL-2.0 or later. Dynamically linked; source: github.com/kcat/openal-soft, rebuild with scripts/build-openal.sh." \
   "$DEPS/openal-soft/COPYING"
+# SDL3 is only in the experimental IPA so far (Minecraft 26.3 work, which also
+# carries the notice in Frameworks/sdl3/LICENSES); WITH_SDL3=YES adds it here
+# once the shipping app bundles it.
+if [ "${WITH_SDL3:-}" = "YES" ]; then
+  section "SDL 3.4.14 (libSDL3.dylib), libsdl-org/SDL 147a8ee32dbf, with patches/sdl3" \
+    "zlib. Source: github.com/libsdl-org/SDL, our changes in patches/sdl3/, rebuild with scripts/build-sdl3.sh." \
+    "$DEPS/sdl3/LICENSE.txt"
+fi
 section "UniversalJIT26.js and UniversalJIT26Extension.js (Amethyst-iOS); JIT helpers in JITSupport.m adapted from Amethyst-iOS" \
   "GPL-3.0, the same licence as Voxelium (see LICENSE)." "$ROOT/LICENSE"
 

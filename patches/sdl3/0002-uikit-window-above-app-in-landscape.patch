@@ -1,0 +1,61 @@
+UIKit: put SDL's window above the host app, in landscape.
+
+SDL's UIWindow gets UIWindowLevelNormal + 1, so it sits over the launcher's
+SwiftUI window, and asks its scene for the window's orientations (iOS 16+
+no longer rotates a scene for a view controller alone). Orientations default
+to landscape when SDL_IOS_ORIENTATIONS is unset; Minecraft asks for a
+resizable window, which upstream would let rotate to portrait.
+
+diff --git a/src/video/uikit/SDL_uikitwindow.m b/src/video/uikit/SDL_uikitwindow.m
+index 4ec90a8..3e538f2 100644
+--- a/src/video/uikit/SDL_uikitwindow.m
++++ b/src/video/uikit/SDL_uikitwindow.m
+@@ -77,6 +77,10 @@ static bool SetupWindowData(SDL_VideoDevice *_this, SDL_Window *window, UIWindow
+ 
+     data.uiwindow = uiwindow;
+ 
++    /* Voxelium: SDL's window is shown over the launcher's own (SwiftUI)
++     * window, as the GLFW window of earlier Minecraft versions is. */
++    uiwindow.windowLevel = UIWindowLevelNormal + 1;
++
+ #ifndef SDL_PLATFORM_VISIONOS
+     if (displaydata.uiscreen != [UIScreen mainScreen]) {
+         window->flags &= ~SDL_WINDOW_RESIZABLE;   // window is NEVER resizable
+@@ -238,6 +242,24 @@ void UIKit_ShowWindow(SDL_VideoDevice *_this, SDL_Window *window)
+         SDL_UIKitWindowData *data = (__bridge SDL_UIKitWindowData *)window->internal;
+         [data.uiwindow makeKeyAndVisible];
+ 
++#if !defined(SDL_PLATFORM_TVOS) && !defined(SDL_PLATFORM_VISIONOS)
++        /* Voxelium: the launcher's scene may be in portrait. Since iOS 16 a
++         * view controller's orientations no longer rotate the scene, so ask
++         * the scene for the window's orientations (landscape by default). */
++        if (@available(iOS 16.0, *)) {
++            UIWindowScene *scene = data.uiwindow.windowScene;
++            [data.viewcontroller setNeedsUpdateOfSupportedInterfaceOrientations];
++            if (scene && data.uiwindow.screen == [UIScreen mainScreen]) {
++                UIWindowSceneGeometryPreferencesIOS *prefs =
++                    [[UIWindowSceneGeometryPreferencesIOS alloc] initWithInterfaceOrientations:UIKit_GetSupportedOrientations(window)];
++                [scene requestGeometryUpdateWithPreferences:prefs
++                                               errorHandler:^(NSError *error) {
++                                                 SDL_LogWarn(SDL_LOG_CATEGORY_VIDEO, "UIKit: scene orientation request failed: %s", error.localizedDescription.UTF8String);
++                                               }];
++            }
++        }
++#endif
++
+         // Make this window the current mouse focus for touch input
+         SDL_VideoDisplay *display = SDL_GetVideoDisplayForWindow(window);
+         SDL_UIKitDisplayData *displaydata = (__bridge SDL_UIKitDisplayData *)display->internal;
+@@ -396,6 +418,12 @@ void UIKit_GetWindowSizeInPixels(SDL_VideoDevice *_this, SDL_Window *window, int
+ UIKit_GetSupportedOrientations(SDL_Window *window)
+ {
+     const char *hint = SDL_GetHint(SDL_HINT_ORIENTATIONS);
++    /* Voxelium: Minecraft is a landscape game and asks for a resizable window,
++     * which upstream would let rotate to portrait. SDL_IOS_ORIENTATIONS
++     * (hint or environment variable) still overrides this. */
++    if (!hint) {
++        hint = "LandscapeLeft LandscapeRight";
++    }
+     NSUInteger validOrientations = UIInterfaceOrientationMaskAll;
+     NSUInteger orientationMask = 0;
+ 

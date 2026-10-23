@@ -59,6 +59,7 @@
 				A10000000000000000000063 /* Bundle Java runtime */,
 				A10000000000000000000064 /* Bundle ANGLE */,
 				A10000000000000000000065 /* Bundle Zink (experimental) */,
+				A10000000000000000000066 /* Bundle SDL3 (experimental) */,
 			);
 			buildRules = (
 			);
@@ -174,6 +175,25 @@
 			runOnlyForDeploymentPostprocessing = 0;
 			shellPath = /bin/sh;
 			shellScript = "set -e\n# Compute-shader spike: Mesa's Zink + a Vulkan driver (scripts/build-zink.sh).\n# Opt-in only: scripts/build-ipa-zink-experimental.sh passes VOXELIUM_ZINK=YES;\n# nothing in this project sets it, so normal builds never contain Frameworks/zink.\nDEST=\"${TARGET_BUILD_DIR}/${FRAMEWORKS_FOLDER_PATH}/zink\"\nrm -rf \"$DEST\"\nif [ \"${VOXELIUM_ZINK:-}\" != \"YES\" ]; then\n  exit 0\nfi\nOUT=\"${PROJECT_DIR}/../build/deps/zink-out\"\n# VOXELIUM_ZINK_VK picks the Vulkan driver build; KosmicKrisp unless only MoltenVK exists.\nVK=\"${VOXELIUM_ZINK_VK:-}\"\nif [ -z \"$VK\" ]; then\n  if [ -f \"$OUT/kosmickrisp/libEGL_mesa.dylib\" ]; then VK=kosmickrisp; else VK=moltenvk; fi\nfi\nSRC=\"$OUT/$VK\"\nmkdir -p \"$DEST\"\nif [ ! -f \"$SRC/libEGL_mesa.dylib\" ]; then\n  echo \"warning: Zink not built ($SRC; scripts/build-zink.sh); Frameworks/zink is empty.\"\n  exit 0\nfi\n# -L: no symlinks in the app bundle. LICENSES/ comes along.\ncp -RL \"$SRC\"/. \"$DEST/\"\n# The dylibs use @rpath install names; let them find each other in Frameworks/zink.\nfor f in \"$DEST\"/*.dylib; do\n  if ! otool -l \"$f\" | grep -q \"path @loader_path \"; then\n    install_name_tool -add_rpath @loader_path \"$f\" 2>/dev/null\n    codesign --force --sign - --timestamp=none \"$f\"\n  fi\ndone\necho \"note: bundled Zink ($VK) into Frameworks/zink\"\nif [ \"${CODE_SIGNING_ALLOWED}\" = \"YES\" ] && [ -n \"${EXPANDED_CODE_SIGN_IDENTITY}\" ]; then\n  for f in \"$DEST\"/*.dylib; do codesign --force --sign \"${EXPANDED_CODE_SIGN_IDENTITY}\" --timestamp=none \"$f\"; done\nfi\n";
+		};
+		A10000000000000000000066 /* Bundle SDL3 (experimental) */ = {
+			isa = PBXShellScriptBuildPhase;
+			alwaysOutOfDate = 1;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			inputFileListPaths = (
+			);
+			inputPaths = (
+			);
+			name = "Bundle SDL3 (experimental)";
+			outputFileListPaths = (
+			);
+			outputPaths = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+			shellPath = /bin/sh;
+			shellScript = "set -e\n# Minecraft 26.3 feasibility: SDL3 for iOS (scripts/build-sdl3.sh), for the SDL + Vulkan test.\n# Opt-in only: scripts/build-ipa-zink-experimental.sh passes VOXELIUM_SDL3=YES;\n# nothing in this project sets it, so normal builds never contain Frameworks/sdl3.\nDEST=\"${TARGET_BUILD_DIR}/${FRAMEWORKS_FOLDER_PATH}/sdl3\"\nrm -rf \"$DEST\"\nif [ \"${VOXELIUM_SDL3:-}\" != \"YES\" ]; then\n  exit 0\nfi\nSRC=\"${PROJECT_DIR}/../build/deps/sdl3-out\"\nmkdir -p \"$DEST\"\nif [ ! -f \"$SRC/libSDL3.dylib\" ]; then\n  echo \"warning: SDL3 not built ($SRC; scripts/build-sdl3.sh); Frameworks/sdl3 is empty.\"\n  exit 0\nfi\ncp \"$SRC/libSDL3.dylib\" \"$DEST/\"\ncp -R \"$SRC/LICENSES\" \"$DEST/\"\necho \"note: bundled SDL3 into Frameworks/sdl3\"\nif [ \"${CODE_SIGNING_ALLOWED}\" = \"YES\" ] && [ -n \"${EXPANDED_CODE_SIGN_IDENTITY}\" ]; then\n  codesign --force --sign \"${EXPANDED_CODE_SIGN_IDENTITY}\" --timestamp=none \"$DEST/libSDL3.dylib\"\nfi\n";
 		};
 /* End PBXShellScriptBuildPhase section */
 

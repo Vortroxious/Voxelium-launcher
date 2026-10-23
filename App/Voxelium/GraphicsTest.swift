@@ -95,6 +95,7 @@ struct GraphicsTestSection: View {
             }
             #if VOXELIUM_ZINK_EXPERIMENT
             ZinkTestRows(paths: paths)
+            SDLVulkanTestRows(paths: paths)
             #endif
             if !test.report.isEmpty {
                 ScrollView(.horizontal) {
@@ -197,13 +198,96 @@ struct ZinkTestRows: View {
         // Zink on Metal reports GL 2.1 without MESA_GL_VERSION_OVERRIDE, so the
         // 4.6 override (with the compute check) is the main test.
         Button("Zink test (experimental)") { test.start(paths: paths, versionOverride: true) }
-            .disabled(!test.bundled || ZinkSession.used)
+            .disabled(!test.bundled || ZinkSession.used || SDLVulkanSession.used)
         Button("Zink test, native GL version (no override)") { test.start(paths: paths, versionOverride: false) }
-            .disabled(!test.bundled || ZinkSession.used)
+            .disabled(!test.bundled || ZinkSession.used || SDLVulkanSession.used)
         if ZinkSession.used && !test.running {
             Text("Zink has run in this launch. Close and relaunch the app to run it again. Log: logs/zink.log")
                 .font(.caption2).foregroundStyle(.secondary)
         }
+        if !test.report.isEmpty {
+            ScrollView(.horizontal) {
+                Text(test.report).font(.caption2.monospaced()).textSelection(.enabled)
+            }
+            .frame(maxHeight: 220)
+        }
+    }
+}
+
+/// The SDL + Vulkan test loads the same Vulkan driver as the Zink test; like
+/// Zink, it is set up once per app launch, and not after the Zink test.
+enum SDLVulkanSession {
+    @MainActor static var used = false
+}
+
+/// Minecraft 26.3 feasibility (experimental IPA only): SDL3's window opened
+/// from a background thread, with a Vulkan swapchain on SDL's surface when a
+/// Vulkan library is bundled. Logged to logs/sdl-vulkan.log and the launcher log.
+@MainActor
+final class SDLVulkanTestModel: ObservableObject {
+    @Published var running = false
+    @Published var result: Bool?
+    @Published var report = ""
+    private var test: VXSDLVulkanTest?
+
+    var bundled: Bool { VXSDLBundled() }
+    var vulkanLibrary: String? { VXSDLVulkanLibraryPath().map { ($0 as NSString).lastPathComponent } }
+    var vulkanBlocked: Bool { SDLVulkanSession.used || ZinkSession.used }
+
+    func start(paths: AppPaths?, sdlOnly: Bool) {
+        let usesVulkan = !sdlOnly && vulkanLibrary != nil
+        if usesVulkan {
+            guard !vulkanBlocked else { return }
+            SDLVulkanSession.used = true
+        }
+        running = true
+        result = nil
+        report = ""
+        Logger.shared.info("sdl", "SDL test started (\(usesVulkan ? "Vulkan library \(vulkanLibrary ?? "?")" : "SDL only"))")
+        let test = VXSDLVulkanTest()
+        if let logs = paths?.logsDir {
+            try? FileManager.default.createDirectory(at: logs, withIntermediateDirectories: true)
+            test.logPath = logs.appendingPathComponent("sdl-vulkan.log").path
+        }
+        test.sdlOnly = sdlOnly
+        test.onLog = { line in Logger.shared.info("sdl", line) }
+        test.onFinish = { ok, report in
+            Task { @MainActor in self.finish(ok: ok, report: report) }
+        }
+        self.test = test
+        test.start()
+    }
+
+    private func finish(ok: Bool, report: String) {
+        running = false
+        result = ok
+        // Every event is in the logs; the summary is enough on screen.
+        self.report = report.split(separator: "\n").filter { !$0.hasPrefix("event ") }.joined(separator: "\n")
+        test = nil
+        Logger.shared.log(ok ? .info : .error, "sdl", ok ? "SDL test passed" : "SDL test failed")
+    }
+}
+
+struct SDLVulkanTestRows: View {
+    @StateObject private var test = SDLVulkanTestModel()
+    let paths: AppPaths?
+
+    var body: some View {
+        LabeledContent("SDL3 bundled", value: test.bundled ? "Yes (3.4.14)" : "No")
+        LabeledContent("Vulkan for SDL", value: test.vulkanLibrary ?? "None")
+        if test.running {
+            HStack { ProgressView(); Text("Running SDL test…") }
+        } else if let ok = test.result {
+            Label(ok ? "SDL: VOXELIUM_SDL_TEST_OK" : "SDL test failed",
+                  systemImage: ok ? "checkmark.seal.fill" : "xmark.octagon.fill")
+                .foregroundStyle(ok ? Color.green : Color.red)
+        }
+        Button("SDL + Vulkan test (experimental)") { test.start(paths: paths, sdlOnly: false) }
+            .disabled(!test.bundled || test.running || (test.vulkanLibrary != nil && test.vulkanBlocked))
+        Button("SDL window test (no Vulkan)") { test.start(paths: paths, sdlOnly: true) }
+            .disabled(!test.bundled || test.running)
+        Text("Opens SDL's window from a background thread for 5 s, as Minecraft 26.3 does. Tap and drag on it while it runs: every touch is logged. Vulkan runs once per launch, not after the Zink test. Log: logs/sdl-vulkan.log")
+            .font(.caption2).foregroundStyle(.secondary)
         if !test.report.isEmpty {
             ScrollView(.horizontal) {
                 Text(test.report).font(.caption2.monospaced()).textSelection(.enabled)

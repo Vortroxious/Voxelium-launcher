@@ -1,0 +1,27 @@
+Start ready on iOS without SDL_main.
+
+SDL_main.h makes iOS require SDL's own main()/SDL_RunApp, which calls
+SDL_SetMainReady(). Here SDL is a library loaded into a running app, and
+Minecraft never calls SDL_SetMainReady(), so SDL_Init failed with "Application
+didn't initialize properly". The UIKit driver needs neither SDL's main nor
+its app delegate, so SDL starts ready, and its main thread is the first thread
+that calls into it (no debug assertion between main and video thread).
+
+diff --git a/src/SDL.c b/src/SDL.c
+index 3e61b8a..b41a261 100644
+--- a/src/SDL.c
++++ b/src/SDL.c
+@@ -186,7 +186,12 @@ const char *SDL_GetAppMetadataProperty(const char *name)
+ 
+ 
+ // The initialized subsystems
+-#ifdef SDL_MAIN_NEEDED
++/* Voxelium: on iOS SDL_main.h asks for SDL's own main() and app delegate
++ * (SDL_RunApp), which mark SDL ready. Here SDL is a library loaded into an
++ * app that already runs (Minecraft through LWJGL calls SDL_Init and never
++ * SDL_SetMainReady), and the UIKit driver needs neither, so it starts ready.
++ * SDL's main thread is then the first thread that calls into SDL. */
++#if defined(SDL_MAIN_NEEDED) && !defined(SDL_PLATFORM_IOS)
+ static bool SDL_MainIsReady = false;
+ #else
+ static bool SDL_MainIsReady = true;

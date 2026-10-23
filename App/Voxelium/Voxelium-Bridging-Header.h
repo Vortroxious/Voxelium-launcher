@@ -3,4 +3,5 @@
 #import "Native/VXGLFW.h"
 #if VOXELIUM_ZINK_EXPERIMENT
 #import "Native/ZinkTest.h"
+#import "Native/SDLVulkanTest.h"
 #endif
