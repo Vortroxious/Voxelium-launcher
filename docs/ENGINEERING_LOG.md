@@ -1289,3 +1289,13 @@ Changes:
   - Mellow: ran, then SIGSEGV in `IOGPU` from `mtl_begin_command_buffer`. The allocator-reset patch was withdrawn.
   - A crash when quitting came from a semaphore released below its start value in the presenter. Fixed.
   - Retest on build 202610221303: Mellow played about 3 minutes with no crash and stopped normally, with a footprint plateau of about 2.5 GB. Photon still needs 36,860 bytes of shared memory and is dropped (it fails on the user's MacBook too). Log: `docs/evidence/2026-10-22-zink-game-1.21.11-mellow-build202610221303.log`.
+- **Minecraft 26.3 plan, Stage 1a: KosmicKrisp WSI on iOS + Vulkan loader shim (2026-10-23, branch `stage1/kosmickrisp-wsi`):**
+  - `scripts/build-zink.sh vulkan` builds KosmicKrisp with Mesa's Metal window system for iOS (`build/deps/vulkan-out/kosmickrisp/`). One new patch, 0009: iOS has no `displaySyncEnabled`, so it offers FIFO only.
+  - `scripts/vulkan-shim.c` is a `libvulkan.1.dylib` that exports `vkGetInstanceProcAddr` and the other global entry points for SDL3 and LWJGL.
+  - **Device pass:** iPhone 15 Pro Max, iOS 27, experimental build 202610231136 (confirmed with `devicectl device info apps`), no JIT.
+    - Vulkan 1.4 on "Apple A17 Pro GPU", with `VK_KHR_surface`, `VK_EXT_metal_surface` and `VK_KHR_swapchain`, FIFO, 3 images.
+    - 298 frames in 5 s (59.5 fps) at 1290×2796, then 575 (114.9 fps) at 2796×1290.
+    - Footprint flat at about 196 and 212 MB; `VOXELIUM_VK_SWAPCHAIN_OK` twice.
+  - Mac: 1,815 frames in 30 s at 60.5 fps, flat at about 163 MB. Logs: `docs/evidence/2026-10-23-vulkan-swapchain-kosmickrisp-*.log`.
+  - Build 202610231121's test button did nothing: its `fullScreenCover` hung on an `EmptyView` list row, which SwiftUI drops. Fixed in 202610231136.
+

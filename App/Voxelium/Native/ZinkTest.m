@@ -925,4 +925,91 @@ static BOOL sUsed = NO;
 
 @end
 
+#pragma mark - Vulkan swapchain test (KosmicKrisp WSI, Minecraft 26.3 plan)
+
+#import <QuartzCore/CAMetalLayer.h>
+#include "VXVulkanSwapchain.h"
+
+static NSString *vulkanShimPath(void) {
+    NSString *p = [NSBundle.mainBundle.privateFrameworksPath stringByAppendingPathComponent:@"vulkan/libvulkan.1.dylib"];
+    return [NSFileManager.defaultManager fileExistsAtPath:p] ? p : nil;
+}
+
+BOOL VXVulkanWSIBundled(void) { return vulkanShimPath() != nil; }
+
+@interface VXVulkanLayerView : UIView
+@end
+@implementation VXVulkanLayerView
++ (Class)layerClass { return CAMetalLayer.class; }
+@end
+
+@implementation VXVulkanSwapchainTestViewController {
+    NSMutableString *_report;
+    BOOL _started;
+}
+
+static void vxvkAppLog(void *ctx, const char *line) {
+    VXVulkanSwapchainTestViewController *vc = (__bridge VXVulkanSwapchainTestViewController *)ctx;
+    [vc appendLine:@(line)];
+}
+
+- (void)appendLine:(NSString *)line {
+    NSLog(@"[VulkanSwapchain] %@", line);
+    @synchronized (self) { [_report appendFormat:@"%@\n", line]; }
+    if (!self.logPath) return;
+    NSFileHandle *h = [NSFileHandle fileHandleForWritingAtPath:self.logPath];
+    if (!h) {
+        [NSFileManager.defaultManager createFileAtPath:self.logPath contents:nil attributes:nil];
+        h = [NSFileHandle fileHandleForWritingAtPath:self.logPath];
+    }
+    [h seekToEndOfFile];
+    [h writeData:[[line stringByAppendingString:@"\n"] dataUsingEncoding:NSUTF8StringEncoding]];
+    [h closeFile];
+}
+
+- (void)loadView {
+    VXVulkanLayerView *v = [VXVulkanLayerView new];
+    v.backgroundColor = UIColor.blackColor;
+    v.contentScaleFactor = UIScreen.mainScreen.nativeScale;
+    self.view = v;
+}
+
+- (void)viewDidAppear:(BOOL)animated {
+    [super viewDidAppear:animated];
+    if (_started) return;
+    _started = YES;
+    _report = [NSMutableString string];
+    [self appendLine:[NSString stringWithFormat:@"===== Vulkan swapchain test %@ (%@)",
+                      [[NSISO8601DateFormatter new] stringFromDate:NSDate.date],
+                      NSBundle.mainBundle.infoDictionary[@"CFBundleVersion"]]];
+    NSString *lib = vulkanShimPath();
+    CAMetalLayer *layer = (CAMetalLayer *)self.view.layer;
+    CGSize px = CGSizeMake(self.view.bounds.size.width * self.view.contentScaleFactor,
+                           self.view.bounds.size.height * self.view.contentScaleFactor);
+    __weak typeof(self) weakSelf = self;
+    // From a background thread, as Java will drive Vulkan through SDL3 and LWJGL.
+    [NSThread detachNewThreadWithBlock:^{
+        __strong typeof(weakSelf) me = weakSelf;
+        if (!me) return;
+        int status = 1;
+        if (!lib) {
+            [me appendLine:@"VK_SWAPCHAIN_FAIL Frameworks/vulkan/libvulkan.1.dylib is not bundled"];
+        } else if (!NSProcessInfo.processInfo.isiOSAppOnMac &&
+                   ![NSProcessInfo.processInfo isOperatingSystemAtLeastVersion:(NSOperatingSystemVersion){26, 0, 0}]) {
+            [me appendLine:@"VK_SWAPCHAIN_FAIL KosmicKrisp needs iOS 26 (Metal 4)"];
+        } else {
+            vxvk_logger L = {vxvkAppLog, (__bridge void *)me};
+            status = vxvk_run_swapchain_test(lib.fileSystemRepresentation, (__bridge void *)layer,
+                                             (uint32_t)px.width, (uint32_t)px.height, 5.0, &L);
+        }
+        NSString *report;
+        @synchronized (me) { report = [me->_report copy]; }
+        dispatch_async(dispatch_get_main_queue(), ^{
+            if (me.onFinish) me.onFinish(status == 0, report);
+        });
+    }];
+}
+
+@end
+
 #endif
