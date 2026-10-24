@@ -7,6 +7,8 @@
 
 #import "JVMBridge.h"
 #import "JITSupport.h"
+#import <UIKit/UIKit.h>
+#import <objc/message.h>
 #include <dlfcn.h>
 #include <fcntl.h>
 #include <mach/mach.h>
@@ -19,6 +21,23 @@
 #include "jni/jni.h"
 
 typedef jint (*CreateJavaVM_t)(JavaVM **, void **, void *);
+
+// Called by the JVM instead of exit() (the JNI invocation API's "exit" hook), e.g. when
+// Minecraft calls System.exit(0) after "Stopping!". exit() alone ended the app on the
+// spot, which looked like a crash. Like Amethyst (main_hook.m, hooked_exit, GPL-3.0),
+// first send the app to the Home Screen with UIKit's suspend animation, then exit.
+static void vxJVMExitHook(jint code) {
+    printf("[JVMBridge] Java called exit(%d): closing the app to the Home Screen\n", (int)code);
+    fflush(stdout);
+    fflush(stderr);
+    dispatch_async(dispatch_get_main_queue(), ^{
+        UIApplication *app = UIApplication.sharedApplication;
+        SEL suspend = NSSelectorFromString(@"suspend");
+        if ([app respondsToSelector:suspend]) ((void (*)(id, SEL))objc_msgSend)(app, suspend);
+    });
+    usleep(400 * 1000);   // let the close animation start
+    exit(code);
+}
 
 // The running VM, for VXJVMRequestGC (one VM per process).
 static _Atomic(JavaVM *) gRunningVM;
@@ -101,11 +120,13 @@ static void *jvmThread(void *p) {
         return NULL;
     }
 
-    JavaVMOption *opts = calloc((size_t)run->optionCount, sizeof(JavaVMOption));
+    JavaVMOption *opts = calloc((size_t)run->optionCount + 1, sizeof(JavaVMOption));
     for (int i = 0; i < run->optionCount; i++) opts[i].optionString = run->options[i];
+    opts[run->optionCount].optionString = "exit";
+    opts[run->optionCount].extraInfo = (void *)vxJVMExitHook;
     JavaVMInitArgs vmArgs = {
         .version = JNI_VERSION_1_8,
-        .nOptions = run->optionCount,
+        .nOptions = run->optionCount + 1,
         .options = opts,
         .ignoreUnrecognized = JNI_FALSE,
     };

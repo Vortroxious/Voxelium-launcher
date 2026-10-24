@@ -42,6 +42,13 @@ final class MinecraftLauncher: ObservableObject {
         if case .running = state { return }
         if case .starting = state { return }
 
+        // Java needs JIT. Opened from the Home Screen, ask StikDebug to turn it on for this
+        // running app first; it switches back here when done (opening Voxelium from
+        // StikDebug, as before, skips this).
+        if !VXJITDebuggerAttached() {
+            guard await enableJITThroughStikDebug() else { return }
+        }
+
         // Who plays: the Microsoft account (token refreshed if needed) or the offline profile.
         let identity: LaunchIdentity
         if settings.useMicrosoftAccount, accounts.account != nil {
@@ -393,6 +400,35 @@ final class MinecraftLauncher: ObservableObject {
             throw LaunchError.message("Bundled file missing: \(url.lastPathComponent)")
         }
         return libs
+    }
+
+    /// Opens `stikjit://enable-jit` for this process, as Amethyst does: StikDebug asks the
+    /// player to confirm, attaches, runs UniversalJIT26.js when this iPhone needs it (iOS 26
+    /// with TXM), and switches back. Waits for the debugger, up to two minutes.
+    private func enableJITThroughStikDebug() async -> Bool {
+        let bundleID = Bundle.main.bundleIdentifier ?? "io.github.voxelium.launcher"
+        let script: Data? = VXJITNeedsScript()
+            ? Bundle.main.url(forResource: "UniversalJIT26", withExtension: "js").flatMap { try? Data(contentsOf: $0) }
+            : nil
+        let url = StikDebugJIT.enableJITURL(bundleID: bundleID, pid: getpid(), script: script)
+        state = .starting("Turning on JIT in StikDebug… Confirm there, and StikDebug brings you back.")
+        log.info("launch", "No JIT yet: asking StikDebug (pid \(getpid()), \(script == nil ? "no script" : "UniversalJIT26.js, \(script!.count) bytes"))")
+        guard await UIApplication.shared.open(url) else {
+            state = .finished(ok: false, message: "StikDebug isn't installed, so JIT can't be turned on. Install StikDebug (see the README), or open Voxelium from StikDebug.")
+            log.error("launch", "Could not open StikDebug (stikjit://)")
+            return false
+        }
+        let deadline = Date().addingTimeInterval(120)
+        while Date() < deadline {
+            if VXJITDebuggerAttached() {
+                log.info("launch", "JIT is on (StikDebug attached): \(VXJVMBridge.jitDescription())")
+                return true
+            }
+            try? await Task.sleep(for: .milliseconds(200))
+        }
+        state = .finished(ok: false, message: "JIT wasn't turned on. In StikDebug, check that LocalDevVPN is connected and the pairing file is imported, then tap Play again.")
+        log.error("launch", "Timed out waiting for StikDebug to attach")
+        return false
     }
 
     static func activateAudioSession(log: Logger) {

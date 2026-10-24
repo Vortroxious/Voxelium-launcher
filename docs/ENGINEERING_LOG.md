@@ -1691,3 +1691,42 @@ Requested by the user through the main session, as the candidate for Voxelium 2.
   - **MobileGlues (13:45:02Z):** joined at 13:45:26, stopped at 13:46:13, "returned normally"; peak 2,445 MB.
   - **Vulkan/Zink (13:46:24Z):** joined at 13:46:42, stopped at 13:47:07, "returned normally"; peak 2,503 MB.
   - No exception, FATAL or crash.
+
+## 2026-10-24 — Build folder cleanup (user request)
+- **Deleted 17 GB of rebuildable sources and tools from `build/deps`:** ANGLE's source checkout (its built `out/ios-arm64` frameworks were kept), `depot_tools`, Mesa source and its LLVM tools, LWJGL sources (3.3.3, 3.4.1, 3.4.3), shaderc, SDL3, gl4es, OpenAL Soft and FreeType sources and build folders, debug-symbol copies, Mojang's reference LWJGL natives, the Ant/CMake downloads and libffi tarballs.
+- **Kept:**
+  - everything the IPA build copies: `angle/out/ios-arm64`, `*-out`, `sdl3-vulkan`, `vulkan-out`, `zink-out`, `../runtime`;
+  - the MobileGlues source (`mg-src`, `mg-prefix`) and the downloaded CMake, so another MobileGlues patch can be built without downloads.
+- **Checked:** `scripts/build-ipa.sh` still builds, giving the same 213,459,733 bytes and the same 1,244 files as the 2.1 IPA.
+- **Until sources are fetched again,** `scripts/collect-licenses.sh` cannot regenerate the notices (it reads licence files from those sources). Each `scripts/build-*.sh` re-fetches its own source; ANGLE (`build-angle.sh`) takes about an hour and 12 GB.
+
+## 2026-10-24 — Open Voxelium normally; StikDebug turns on JIT (like Amethyst)
+- **User:** "make like amethyst launcher when you launch the game, it redirects to stikdebug and prompt to enable script, and the voxelium is not opened from stikdebug".
+- **Read from the sources** (cloned read-only into the scratchpad):
+  - **StikDebug (17b1e1d, 2026-10-19, 3.1.15):** `HomeView.handleExternalURL` handles `stikjit://enable-jit?bundle-id=…&pid=…&script-data=<base64url>&script-name=…`.
+    - With `pid`, it attaches to the running process; with `pid` and `bundle-id` it resumes the app afterwards.
+    - `script-data` is the JIT script it runs on TXM devices; without it, the script assigned to the bundle ID is used.
+    - It asks for confirmation (`confirmExternalJITRequests`, on by default).
+  - **Amethyst-iOS (f98c413, `LauncherNavigationController.invokeAfterJITEnabled`):** opens that link with `getpid()` and, on mirrored/TXM devices, `UniversalJIT26.js` as `script-data`; shows "waiting for JIT"; then polls `isJITEnabled` every 200 ms.
+- **Voxelium:**
+  - `StikDebugJIT.enableJITURL` in VoxeliumCore builds the link, encoding the script as base64url without padding. Tests: `StikDebugJITTests` decodes the link the way StikDebug does.
+  - `MinecraftLauncher.launch` first checks `VXJITDebuggerAttached()`. If no debugger is attached, it opens the link (UniversalJIT26.js included when `VXJITNeedsScript()`), shows "Turning on JIT in StikDebug…", and waits up to 2 minutes (200 ms polls), then continues the launch. Opening Voxelium from StikDebug skips this.
+  - Errors: StikDebug not installed (`open` fails), or a timeout (LocalDevVPN, pairing file).
+  - `JITSupport.h` is now in the bridging header.
+- **Docs:** README steps 4–5 (open Voxelium from the Home Screen; Play → StikDebug confirms and switches back; no script to assign; Airplane Mode on mobile data just before Play); troubleshooting; the install guide's intro and limits.
+- `swift test` 123/123; the iOS app builds.
+- **Test IPA:** build 202610241404, SHA-256 `17bb0fa52fa55cbd4697f3d0a21fbf8a2ac2cfd3961cfa64108aa35cb89c350b`, at `build/ipa/Voxelium-2.1-jit-handoff-test-unsigned.ipa`, on branch `feature/stikdebug-jit-handoff`. Not yet run on a device.
+- **Device pass, build 202610241404** (devicectl-confirmed; logs read 2026-10-24 14:11Z):
+  - Voxelium was opened from the Home Screen ("JIT/debugger attached: false" at 14:09:11Z).
+  - At 14:09:20Z Play asked StikDebug (pid 35713, with UniversalJIT26.js, 9,986 bytes). JIT was on **4 s later** (`CS_DEBUGGED=1 debuggerNow=1`), and Fabric 1.21.11 started.
+  - The JIT26 probe: "debugger replied", so the script came through the link. Joined at 14:10:08, stopped at 14:10:31.
+  - The user: "this is what i want from the start".
+- **Closing smoothly after quitting** (user: "when you quit the game, you dont just crash the app instantly … like amethyst"):
+  - Minecraft calls `System.exit(0)` after "Stopping!" (Fabric 1.21.11 at 14:10:31Z: the log ends there with no "returned" line), and the JVM's `exit()` ended the app mid-frame.
+  - `JVMBridge.m` now passes the JNI invocation API's **`exit` hook** (`JavaVMOption` "exit", `extraInfo = vxJVMExitHook`). HotSpot calls it from `VM_Exit` at a safepoint instead of `exit()`.
+  - The hook logs the code, calls UIKit's `suspend` on the main thread (the Home Screen animation, as in Amethyst's `hooked_exit`, GPL-3.0), waits 400 ms, then calls `exit(code)`.
+  - Test IPA with the JIT hand-off: build 202610241415, SHA-256 `ef453b9d88ec08ef7da73fc30a2f8c02fb6b9047ed9863134a8d38c9ec925389`, at `build/ipa/Voxelium-2.1-jit-and-close-test-unsigned.ipa`. Not yet run on a device.
+- **Device pass, build 202610241415** (devicectl-confirmed; logs read 2026-10-24 14:22Z):
+  - Opened from the Home Screen. Play asked StikDebug at 14:20:55Z, JIT was on at 14:20:59Z, and Fabric 1.21.11 started.
+  - After "Stopping!" at 14:21:18, `jvm.log` shows "[JVMBridge] Java called exit(0): closing the app to the Home Screen".
+  - The user: "good enough and i love this update".
