@@ -11,10 +11,10 @@ public enum GameRenderer: String, Codable, Sendable, CaseIterable {
 
 /// Which renderers a version can be started with.
 public enum RendererChoice: Equatable, Sendable {
-    /// One way to start, as before: Minecraft up to 1.16.5 (Java 8, gl4es), and 26.2,
-    /// which the launcher refuses with its reason.
+    /// One way to start, as before: Minecraft up to 1.16.5 (Java 8, gl4es).
     case single
-    /// Minecraft 1.17 – 26.1.2: MobileGlues, or Vulkan through Zink.
+    /// Minecraft 1.17 – 26.2: MobileGlues, or Vulkan through Zink. (26.2 lists
+    /// lwjgl-vulkan but draws with OpenGL through GLFW, like 26.1.2.)
     case mobileGluesOrVulkan
     /// Minecraft 26.3+ (SDL3): its own Vulkan renderer; MobileGlues cannot run it.
     case vulkanOnly
@@ -22,7 +22,6 @@ public enum RendererChoice: Equatable, Sendable {
     public static func of(_ version: VersionInfo) -> RendererChoice {
         let modules = GameRuntime.lwjglArtifacts(of: version)
         if modules.contains("lwjgl-sdl") { return .vulkanOnly }
-        if modules.contains("lwjgl-vulkan") { return .single }
         if GameRuntime.javaMajor(for: version) <= 8 { return .single }
         return .mobileGluesOrVulkan
     }

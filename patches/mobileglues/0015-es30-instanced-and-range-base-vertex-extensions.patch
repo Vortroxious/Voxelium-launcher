@@ -1,0 +1,27 @@
+--- a/src/main/cpp/gles/loader.cpp
++++ b/src/main/cpp/gles/loader.cpp
+@@ -674,6 +674,24 @@
+                 (glDrawElementsBaseVertex_PTR)proc_address(gles, "glDrawElementsBaseVertexEXT");
+         } else {
+             g_gles_func.glDrawElementsBaseVertex = nullptr;
++        }
++        // Voxelium: the instanced and range variants too. Below ES 3.2, ANGLE still returns
++        // the core entry points but rejects every call ("Command requires OpenGL ES 3.2"),
++        // and Minecraft 26.2 draws everything with glDrawElementsInstancedBaseVertex, so it
++        // showed only the clear colour. Use the OES/EXT extension functions instead.
++        if (g_gles_caps.GL_OES_draw_elements_base_vertex) {
++            g_gles_func.glDrawElementsInstancedBaseVertex = (glDrawElementsInstancedBaseVertex_PTR)proc_address(
++                gles, "glDrawElementsInstancedBaseVertexOES");
++            g_gles_func.glDrawRangeElementsBaseVertex = (glDrawRangeElementsBaseVertex_PTR)proc_address(
++                gles, "glDrawRangeElementsBaseVertexOES");
++        } else if (g_gles_caps.GL_EXT_draw_elements_base_vertex) {
++            g_gles_func.glDrawElementsInstancedBaseVertex = (glDrawElementsInstancedBaseVertex_PTR)proc_address(
++                gles, "glDrawElementsInstancedBaseVertexEXT");
++            g_gles_func.glDrawRangeElementsBaseVertex = (glDrawRangeElementsBaseVertex_PTR)proc_address(
++                gles, "glDrawRangeElementsBaseVertexEXT");
++        } else {
++            g_gles_func.glDrawElementsInstancedBaseVertex = nullptr;
++            g_gles_func.glDrawRangeElementsBaseVertex = nullptr;
+         }
+     }
+ }

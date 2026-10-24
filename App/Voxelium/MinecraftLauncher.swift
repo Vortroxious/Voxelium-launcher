@@ -116,11 +116,12 @@ final class MinecraftLauncher: ObservableObject {
             } else {
                 sdlVulkan = nil
             }
-            // Minecraft 26.2 (the first version to list lwjgl-vulkan) starts but draws only a
-            // black screen: its shader programs fail to link on MobileGlues + ANGLE (ES 3.0).
-            // Investigation paused (docs/ENGINEERING_LOG.md, 2026-10-17); refuse it clearly.
+            // Minecraft 26.2 (the first version to list lwjgl-vulkan) draws with OpenGL through
+            // GLFW like 26.1.2. On MobileGlues + ANGLE (ES 3.0) it showed only the clear colour
+            // in 2026-10-17's builds (no shader program linked); being re-tested on both
+            // renderers (docs/ENGINEERING_LOG.md, 2026-10-24).
             if requested.contains("lwjgl-vulkan") && sdlVulkan == nil {
-                throw LaunchError.message("\(versionID) is not supported yet: it starts but shows only a black screen on iOS (its graphics shaders do not work on this phone's OpenGL ES layer). Minecraft up to 26.1.2 works.")
+                log.info("launch", "\(versionID): OpenGL game listing lwjgl-vulkan (26.2), on \(renderer == .vulkan ? "Vulkan (Zink)" : "MobileGlues")")
             }
             let extras = Self.optionalLWJGLModules.filter(requested.contains)
             let modules = sdlVulkan != nil ? GameRuntime.sdlVulkanLWJGLModules

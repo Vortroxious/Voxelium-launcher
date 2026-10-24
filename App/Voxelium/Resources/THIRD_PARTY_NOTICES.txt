@@ -1276,7 +1276,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 
 ================================================================================
-MobileGlues f0fb4d32794a with Voxelium patches 0001-0014 (libmobileglues.dylib)
+MobileGlues f0fb4d32794a with Voxelium patches 0001-0015 (libmobileglues.dylib)
 LGPL-2.1. Dynamically linked; source: github.com/MobileGL-Dev/MobileGlues, our changes in patches/mobileglues/, rebuild with scripts/build-mobileglues.sh.
 
 Copyright (c) 2025 MobileGL-Dev

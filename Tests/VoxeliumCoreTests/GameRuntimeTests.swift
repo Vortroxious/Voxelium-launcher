@@ -59,11 +59,11 @@ import Testing
         #expect(RendererChoice.of(try VersionInfo.decode(Fixture.data("1.20.1"))) == .mobileGluesOrVulkan)
         // 1.12.2 (Java 8): one launch, as before (gl4es).
         #expect(RendererChoice.of(try VersionInfo.decode(Fixture.data("1.12.2"))) == .single)
-        // 26.2: lwjgl-vulkan without SDL, refused by the launcher; one launch with its reason.
+        // 26.2: lwjgl-vulkan without SDL, an OpenGL game on GLFW like 26.1.2: both renderers.
         var json = try JSONSerialization.jsonObject(with: Fixture.data("26.3")) as! [String: Any]
         json["libraries"] = (json["libraries"] as! [[String: Any]]).filter { ($0["name"] as! String).hasPrefix("org.lwjgl:lwjgl-sdl:") == false }
         let v262 = try VersionInfo.decode(JSONSerialization.data(withJSONObject: json))
         #expect(GameRuntime.lwjglArtifacts(of: v262).contains("lwjgl-vulkan"))
-        #expect(RendererChoice.of(v262) == .single)
+        #expect(RendererChoice.of(v262) == .mobileGluesOrVulkan)
     }
 }

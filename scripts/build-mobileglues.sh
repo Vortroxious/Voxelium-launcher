@@ -100,6 +100,10 @@ git -C "$SRC/MobileGlues" apply "$ROOT/patches/mobileglues/0013-sampler-buffer-r
 # And: point only real buffer samplers at the emulated buffer texture, and upload buffer
 # textures in their own format (Sodium 0.9: terrain was not drawn).
 git -C "$SRC/MobileGlues" apply "$ROOT/patches/mobileglues/0014-buffer-sampler-units-and-formats.patch"
+# And: below ES 3.2, draw instanced and range base-vertex calls through ANGLE's OES/EXT
+# functions, as upstream already does for glDrawElementsBaseVertex (Minecraft 26.2 draws
+# everything with glDrawElementsInstancedBaseVertex; ANGLE rejected each call).
+git -C "$SRC/MobileGlues" apply "$ROOT/patches/mobileglues/0015-es30-instanced-and-range-base-vertex-extensions.patch"
 # Submodules at the commits MobileGlues pins (perfetto is only for PROFILING builds).
 MGC="$SRC/MobileGlues/src/main/cpp"
 fetch https://github.com/g-truc/glm.git 2d4c4b4dd31fde06cfffad7915c2b3006402322f "$MGC/3rdparty/glm"
