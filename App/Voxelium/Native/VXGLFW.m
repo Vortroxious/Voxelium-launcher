@@ -564,6 +564,35 @@ static void vxSendChar(VXGLFWWindowObj *w, UTF32Char cp) {
 
 #pragma mark - Game view (touch + hardware keyboard)
 
+#pragma mark - Render scale and Minecraft's interface size
+
+// Requested render scale (VOXELIUM_RENDER_SCALE) and the "Large interface" switch
+// (VOXELIUM_LARGE_INTERFACE=1), read when the window is created.
+static double gRequestedRenderScale = 1.0;
+static BOOL gLargeInterface;
+
+// Minecraft's auto GUI scale is the largest k with framebuffer width/k >= 320 and
+// height/k >= 240. A framebuffer just over a multiple of 240 px tall therefore shows the
+// biggest interface the screen allows; at 50% on an iPhone 15 Pro Max (613 px tall) the
+// GUI is scale 2 and a quarter of the height is unused. With the switch on, use the
+// resolution nearest the requested one at which the height is exactly enough for some
+// scale k >= 3 (never less than k = 3's). Mirrors LauncherSettings.effectiveRenderScale.
+static double vxEffectiveRenderScale(CGFloat widthPt, CGFloat heightPt) {
+    double r = gRequestedRenderScale, native = UIScreen.mainScreen.nativeScale;
+    if (!gLargeInterface || heightPt <= 0) return r;
+    double hNative = heightPt * native, wNative = widthPt * native;
+    double best = r, bestDiff = INFINITY;
+    for (int k = 3; k <= 16; k++) {
+        double rk = (240.0 * k + 1.0) / hNative;   // +1 px so rounding never drops a step
+        if (rk > 1.0) break;
+        if (wNative * rk / k < 320) break;
+        double diff = fabs(rk - r) - (rk >= r ? 1e-6 : 0);   // ties go to the higher resolution
+        if (r <= rk && k == 3) { best = rk; break; }          // below k = 3's: raise to it
+        if (diff < bestDiff) { bestDiff = diff; best = rk; }
+    }
+    return best;
+}
+
 // The CAMetalLayer view the game draws on. Touch gestures and the controls come
 // from VXTouchView; this adds the hardware keyboard and size changes.
 @interface VXGLFWView : VXTouchView
@@ -609,6 +638,14 @@ static void vxSendChar(VXGLFWWindowObj *w, UTF32Char cp) {
     VXGLFWWindowObj *w = self.owner;
     if (!w) return;
     CGSize s = self.bounds.size;
+    // The view's size changes with rotation; so may the scale that gives Minecraft its
+    // largest interface.
+    float scale = (float)(UIScreen.mainScreen.nativeScale * vxEffectiveRenderScale(s.width, s.height));
+    if (fabsf(scale - w->scale) > 0.001f) {
+        w->scale = scale;
+        self.contentScaleFactor = scale;
+        NSLog(@"[VXGLFW] game area %.0fx%.0f pt: render scale now %.3f of native", s.width, s.height, scale / UIScreen.mainScreen.nativeScale);
+    }
     int pw = (int)lround(s.width * w->scale), ph = (int)lround(s.height * w->scale);
     if ((int)s.width != w->width || (int)s.height != w->height) {
         vxPush((VXEvent){.type = VXEventWindowSize, .window = H(w), .a = (int)s.width, .b = (int)s.height});
@@ -959,10 +996,14 @@ VXAPI GLFWwindow *glfwCreateWindow(int width, int height, const char *title, GLF
             view.overlay = overlay;
             [view addSubview:overlay];
             view.backgroundColor = UIColor.blackColor;
-            // Render-resolution scale: VOXELIUM_RENDER_SCALE (default 1.0 = native pixels).
+            // Render-resolution scale: VOXELIUM_RENDER_SCALE (default 1.0 = native pixels),
+            // raised or snapped for Minecraft's largest interface with VOXELIUM_LARGE_INTERFACE=1.
             const char *rs = getenv("VOXELIUM_RENDER_SCALE");
             double renderScale = rs ? atof(rs) : 1.0;
             if (renderScale <= 0.1 || renderScale > 1.0) renderScale = 1.0;
+            gRequestedRenderScale = renderScale;
+            const char *li = getenv("VOXELIUM_LARGE_INTERFACE");
+            gLargeInterface = li && li[0] == '1';
             w->scale = (float)(UIScreen.mainScreen.nativeScale * renderScale);
             view.contentScaleFactor = w->scale;
             VXGLFWViewController *vc = [VXGLFWViewController new];
@@ -986,6 +1027,10 @@ VXAPI GLFWwindow *glfwCreateWindow(int width, int height, const char *title, GLF
             w.uiWindow = uiWindow;
             w.view = view;
             CGSize s = view.bounds.size;
+            w->scale = (float)(UIScreen.mainScreen.nativeScale * vxEffectiveRenderScale(s.width, s.height));
+            view.contentScaleFactor = w->scale;
+            NSLog(@"[VXGLFW] game area %.0fx%.0f pt, render scale %.2f of native (requested %.2f, large interface %d)",
+                  s.width, s.height, w->scale / UIScreen.mainScreen.nativeScale, gRequestedRenderScale, gLargeInterface);
             w->width = (int)s.width;
             w->height = (int)s.height;
             w->fbWidth = (int)lround(s.width * w->scale);

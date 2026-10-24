@@ -294,10 +294,15 @@ struct AccountView: View {
                         Text("Resolution: \(Int((model.settings.renderScale * 100).rounded()))% (\(Self.renderPixels(model.settings.renderScale)))")
                         Slider(value: $model.settings.renderScale, in: LauncherSettings.renderScaleRange, step: 0.05)
                     }
+                    Toggle("Large interface (bigger hotbar)", isOn: $model.settings.largeInterface)
+                    if model.settings.largeInterface {
+                        let used = Self.effectiveRenderScale(model.settings)
+                        LabeledContent("Resolution used", value: "\(Int((used * 100).rounded()))% (\(Self.renderPixels(used)))")
+                    }
                 } header: {
                     Text("Game")
                 } footer: {
-                    Text("Lower resolution runs faster and uses less battery. Memory is capped at 40% of what iOS allows the app. Both apply the next time you launch Minecraft.")
+                    Text("Lower resolution runs faster and uses less battery. Large interface moves the resolution to the nearest step where Minecraft can show its biggest hotbar and menus, and sets Minecraft's GUI Scale to Auto. Memory is capped at 40% of what iOS allows the app. All apply the next time you launch Minecraft.")
                 }
                 if let plan = model.lastPlan {
                     Section("Last launch plan (not executed)") {
@@ -349,8 +354,21 @@ struct AccountView: View {
 
     /// The landscape framebuffer the game will render at, e.g. "1398×645 px".
     static func renderPixels(_ scale: Double) -> String {
-        let s = UIScreen.main.bounds.size, k = UIScreen.main.nativeScale * scale
-        return "\(Int((max(s.width, s.height) * k).rounded()))×\(Int((min(s.width, s.height) * k).rounded())) px"
+        let a = gameArea(), k = UIScreen.main.nativeScale * scale
+        return "\(Int((a.width * k).rounded()))×\(Int((a.height * k).rounded())) px"
+    }
+
+    /// The landscape game area (the whole screen) in points.
+    static func gameArea() -> (width: Double, height: Double) {
+        let s = UIScreen.main.bounds.size
+        return (Double(max(s.width, s.height)), Double(min(s.width, s.height)))
+    }
+
+    static func effectiveRenderScale(_ settings: LauncherSettings) -> Double {
+        let a = gameArea()
+        return LauncherSettings.effectiveRenderScale(requested: settings.renderScale, largeInterface: settings.largeInterface,
+                                                     gameWidth: a.width, gameHeight: a.height,
+                                                     nativeScale: Double(UIScreen.main.nativeScale))
     }
 }
 

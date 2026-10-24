@@ -45,6 +45,17 @@ public struct GameOptions: Sendable, Equatable {
         try options.set(graphicsBackendKey, "\"vulkan\"")
     }
 
+    /// For "Large interface": Minecraft's GUI Scale back to Auto (`guiScale:0`), so it uses
+    /// the biggest interface the resolution allows. A fixed scale (e.g. `guiScale:2`, kept
+    /// from 50%) stops the hotbar from growing (seen on the iPhone, 2026-10-24). Returns
+    /// the scale that was replaced, or nil when it was already Auto or unset.
+    @discardableResult
+    public mutating func useAutoGUIScale() throws -> Int? {
+        guard let old = int("guiScale"), old != 0 else { return nil }
+        try set("guiScale", "0")
+        return old
+    }
+
     static func parse(_ text: String) -> [String: String] {
         var out: [String: String] = [:]
         for line in text.components(separatedBy: .newlines) {

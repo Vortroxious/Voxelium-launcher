@@ -591,6 +591,26 @@ static void vxMemoryNow(uint64_t *footprint, uint64_t *available) {
 #pragma mark - Touch gestures on the game view
 
 // Touch diagnostics, logged when the window is destroyed (stderr ends up in jvm.log).
+// The GUI scale Minecraft uses: its options.txt "guiScale" (0 = auto), clamped to what the
+// framebuffer allows. Re-read at most every 2 s, since the player can change it in game.
+static int vxGuiScale(int fbW, int fbH) {
+    int maxScale = 1;
+    while (maxScale < fbW && maxScale < fbH && fbW / (maxScale + 1) >= 320 && fbH / (maxScale + 1) >= 240) maxScale++;
+    static int setting;
+    static CFTimeInterval lastRead = -10;
+    CFTimeInterval now = CACurrentMediaTime();
+    const char *path = getenv("VOXELIUM_OPTIONS_PATH");
+    if (path && now - lastRead > 2) {
+        lastRead = now;
+        setting = 0;
+        NSString *text = [NSString stringWithContentsOfFile:@(path) encoding:NSUTF8StringEncoding error:nil];
+        for (NSString *line in [text componentsSeparatedByString:@"\n"]) {
+            if ([line hasPrefix:@"guiScale:"]) { setting = [line substringFromIndex:9].intValue; break; }
+        }
+    }
+    return setting > 0 && setting < maxScale ? setting : maxScale;
+}
+
 static int gTouchBegan, gTouchMoved, gTouchMovedAccepted, gTouchEnded, gTouchCancelled, gHotbarSelects;
 
 // Gestures on the game view outside the controls (as Amethyst):
@@ -620,10 +640,10 @@ static const CGFloat kTapSlop = 12;
     id<VXInputSink> w = self.sink;
     CGSize fb = w.vxFramebufferSize;
     if (!w || fb.width <= 0) return -1;
-    int fbW = (int)fb.width, fbH = (int)fb.height, s = 1;
-    while (s < fbW && s < fbH && fbW / (s + 1) >= 320 && fbH / (s + 1) >= 240) s++;
+    int fbW = (int)fb.width, fbH = (int)fb.height, s = vxGuiScale(fbW, fbH);
     CGFloat x = p.x * w.vxPixelsPerPoint, y = p.y * w.vxPixelsPerPoint;
-    CGFloat left = (fbW / s / 2.0 - 91) * s, top = (fbH / s - 22.0) * s;
+    // The touch area reaches 6 GUI pixels above the drawn hotbar, so slots are easier to hit.
+    CGFloat left = (fbW / s / 2.0 - 91) * s, top = (fbH / s - 28.0) * s;
     if (y < top || x < left || x >= left + 182.0 * s) return -1;
     int slot = (int)((x - left) / (20.0 * s));
     return slot >= 0 && slot <= 8 ? slot : -1;

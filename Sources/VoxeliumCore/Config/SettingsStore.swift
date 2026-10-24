@@ -12,10 +12,13 @@ public struct LauncherSettings: Codable, Sendable, Equatable {
     public var renderScale: Double
     /// Launch with the signed-in Microsoft account (when there is one) instead of the offline profile.
     public var useMicrosoftAccount: Bool
+    /// Adjust the render scale so Minecraft shows its largest interface (hotbar); see
+    /// `effectiveRenderScale`. On by default.
+    public var largeInterface: Bool
 
     public static let renderScaleRange: ClosedRange<Double> = 0.25...1.0
 
-    public init(selectedVersion: String? = nil, playerName: String = "Player", maxMemoryMB: Int = 2048, showSnapshots: Bool = false, downloadConcurrency: Int = 8, renderScale: Double = 0.5, useMicrosoftAccount: Bool = true) {
+    public init(selectedVersion: String? = nil, playerName: String = "Player", maxMemoryMB: Int = 2048, showSnapshots: Bool = false, downloadConcurrency: Int = 8, renderScale: Double = 0.5, useMicrosoftAccount: Bool = true, largeInterface: Bool = true) {
         self.selectedVersion = selectedVersion
         self.playerName = playerName
         self.maxMemoryMB = maxMemoryMB
@@ -23,6 +26,7 @@ public struct LauncherSettings: Codable, Sendable, Equatable {
         self.downloadConcurrency = downloadConcurrency
         self.renderScale = renderScale
         self.useMicrosoftAccount = useMicrosoftAccount
+        self.largeInterface = largeInterface
     }
 
     /// Tolerates missing keys so older files keep loading after new fields are added.
@@ -36,6 +40,28 @@ public struct LauncherSettings: Codable, Sendable, Equatable {
         downloadConcurrency = try c.decodeIfPresent(Int.self, forKey: .downloadConcurrency) ?? d.downloadConcurrency
         renderScale = try c.decodeIfPresent(Double.self, forKey: .renderScale) ?? d.renderScale
         useMicrosoftAccount = try c.decodeIfPresent(Bool.self, forKey: .useMicrosoftAccount) ?? d.useMicrosoftAccount
+        largeInterface = try c.decodeIfPresent(Bool.self, forKey: .largeInterface) ?? d.largeInterface
+    }
+
+    /// The render scale the game window really uses (mirrors `vxEffectiveRenderScale` in
+    /// `VXGLFW.m`). Minecraft's auto GUI scale is the largest k with framebuffer height/k
+    /// ≥ 240 (and width/k ≥ 320), so a framebuffer just over a multiple of 240 px tall shows
+    /// the biggest interface the screen allows. With `largeInterface`, the requested scale
+    /// snaps to the nearest such resolution with k ≥ 3, and is never below k = 3's.
+    /// `gameWidth`/`gameHeight` are the game area in points; `nativeScale` is pixels per point.
+    public static func effectiveRenderScale(requested: Double, largeInterface: Bool,
+                                            gameWidth: Double, gameHeight: Double, nativeScale: Double) -> Double {
+        guard largeInterface, gameHeight > 0 else { return requested }
+        let h = gameHeight * nativeScale, w = gameWidth * nativeScale
+        var best = requested, bestDiff = Double.infinity
+        for k in 3...16 {
+            let rk = (240.0 * Double(k) + 1) / h
+            if rk > 1 || w * rk / Double(k) < 320 { break }
+            if k == 3 && requested <= rk { return rk }
+            let diff = abs(rk - requested) - (rk >= requested ? 1e-6 : 0)
+            if diff < bestDiff { bestDiff = diff; best = rk }
+        }
+        return best
     }
 }
 
