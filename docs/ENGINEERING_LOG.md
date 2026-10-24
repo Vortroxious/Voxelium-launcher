@@ -1426,3 +1426,96 @@ Branch `claude/mc263-stage3-07d0ce`, from `mc263/integration` (`dcb7bd7`). Not c
 - **Third Fabric 26.3 world join, build 202610231646** (17:03:57; logs copied about 17:06Z):
   - Vulkan on KosmicKrisp / Apple A17 Pro GPU, world joined at 17:04:11, saved and quit, status 0. Peak 2303 MB (GPU 1025 MB).
   - No 1.21.11 run on MobileGlues and no vanilla 26.3 run were logged, so those two checks are still open.
+
+## 2026-10-24 — 26.3, Stage 4: touch controls on SDL, background pause, render scale
+Same branch, on top of Stage 3 (`1b6f6f6`).
+- **What 26.3 needs, from client.jar `e877b6a0`:**
+  - Key state comes from `SDL_GetKeyboardState` (`InputConstants.isKeyDown`) and `SDL_GetModState`, so pushed events alone wouldn't do; input has to go through SDL's own keyboard and mouse code.
+  - Mouse look uses the motion events' `xrel`/`yrel` while `mouseGrabbed`. Minecraft sets that even when `SDL_SetWindowRelativeMouseMode` fails, which it did on UIKit without a GCMouse: "Failed to enable relative mouse mode: That operation is not supported".
+  - Its window is `SDL_WINDOW_RESIZABLE | SDL_WINDOW_HIGH_PIXEL_DENSITY` (0x2020) plus Vulkan.
+  - Rendering continues while the window is minimized: `isIconified` only skips surface reconfiguration.
+  - Window events go to `Window.handleEvent`; there's no handler for `SDL_EVENT_QUIT`.
+- **`patches/sdl3/0005`:**
+  - `SDL_uikitvoxelium.m` exports `SDL_VoxeliumSendKey`/`SendText`/`SendMouseButton`/`SendMouseMotion`/`SendMouseWheel`. These wrap SDL's internal `SDL_SendKeyboardKey` etc., so state and events match a real keyboard and mouse.
+  - It also exports `SDL_VoxeliumRelativeMouseMode` (has the game captured the mouse?) and `SDL_VoxeliumRequestClose` (a window close request).
+  - UIKit now accepts relative mouse mode without a GCMouse.
+  - High-density Metal views and `SDL_GetWindowSizeInPixels` use the native scale × `VOXELIUM_RENDER_SCALE`.
+  - `build-sdl3.sh` checks the new exports. SDL rebuilt: `libSDL3.dylib` `e84b0f42…` (before: `build/deps/sdl3-out.before-0005`).
+- **Shared controls:**
+  - The overlay, buttons, joystick, keyboard proxy, memory gauge and the touch gestures (look, tap/hold, hotbar, menu pointer) moved from `VXGLFW.m` to `Native/VXTouchControls.{h,m}` unchanged, apart from where input goes. That's now an `id<VXInputSink>` speaking GLFW key codes.
+  - VXGLFW's window implements it with its event queue as before. `VXGLFWView` subclasses `VXTouchView` and keeps the hardware keyboard and size events. Log prefix `[VXControls]`.
+- **`Native/VXSDLControls.m`** (26.3+):
+  - A 20 Hz main-thread poll finds SDL's game window (root view controller `SDL_uikitviewcontroller`) and adds the touch view over it, kept above SDL's Metal view. It shows the game controls while `SDL_VoxeliumRelativeMouseMode()` is on.
+  - The sink maps GLFW keys to SDL scancodes and GLFW buttons to SDL buttons.
+  - Look deltas are scaled to screen pixels, as on the GLFW path, so the sensitivity feels the same.
+  - On resign active, in the world, it sends Escape (pause and save), as VXGLFW does.
+  - On entering the background it calls the shim's `vx_vulkan_set_paused(1)` and holds an 8 s background task; on entering the foreground it resumes.
+  - Low-memory notice in game.
+  - The launcher calls `VXSDLControlsStart` and sets `SDL_IOS_HIDE_HOME_INDICATOR=2`.
+- **`scripts/vulkan-shim.c`:**
+  - `vkQueueSubmit`/`vkQueueSubmit2(KHR)`, `vkAcquireNextImage(2)KHR` and `vkQueuePresentKHR` wait while paused, returned as wrappers from both proc-address queries. `vx_vulkan_set_paused` is exported.
+  - Rebuilt with the build script's compiler flags into `vulkan-out/kosmickrisp{,-mac}` and the `sdl3-vulkan` snapshot (new SHA-256 in its SNAPSHOT.txt; old files kept as `*.before-pause`).
+  - Mac: 26.3 on the new shim loads to the title screen ("Sound engine started") on KosmicKrisp.
+- **Builds:**
+  - The normal app compiles without warnings in the new files.
+  - **Experimental build 202610232310**, SHA-256 `8f5a214e7f29bb697d9ff47f91253b77ead9ddf35f5b2828cd121b857fd6aea4`. `Frameworks/sdl3` has the patched SDL (7 Voxelium exports) and the pausing shim.
+  - Not yet run on the device.
+- **Device, build 202610232310** (devicectl-confirmed; Fabric 26.3; logs copied 2026-10-23 ~23:21Z):
+  - The controls appeared over the game window. Log lines: "[VXSDL] touch controls on the game window: 932x430 pt, framebuffer 1398x645 px (render scale 0.50)" and the user's 18-button layout. They switched to the in-game set when the world was joined, and back on pause.
+  - **Bug, reported by the user:** in menus, taps hit the wrong buttons (Multiplayer opened Singleplayer) and were hard to place.
+    - GPU memory in the world was still about 990 MB, as at full resolution. So the swapchain was 2796×1290, while SDL reported 1398×645 pixels (pixel density 1.5).
+    - Cause: SDL's Metal view set only `layer.contentsScale`, and UIKit resets that to the screen scale when the view joins a window. KosmicKrisp's WSI sizes the swapchain from the layer's bounds × `contentsScale`.
+    - So Minecraft drew its menus for 2796×1290 but converted tap positions with density 1.5: every tap landed at half its position.
+  - **Fix (patch 0005):** the Metal view's `contentScaleFactor` is set too, which UIKit keeps (VXGLFW does the same).
+    - The home-screen pause wasn't exercised in this run.
+    - The touch view attached, detached and re-attached once within 50 ms as SDL set up its window; harmless.
+  - **Build 202610232323** (SHA-256 `f7e8d2170f2846cbca78d1ed729c22988438c84e581d9af8908160aa95170c63`) has the fix. Not yet run on the device.
+- **Device, build 202610232323** (devicectl-confirmed; Fabric 26.3, 23:26–23:27Z): **the user reports that taps now hit the right buttons.**
+  - Controls attached at 932×430 pt, framebuffer 1398×645 px. The first attach caught SDL's window mid-setup (1434×0 pt) and was redone 45 ms later.
+  - World joined, saved, quit (status 0).
+  - **Memory:** 1322 MB on the title screen; 2196–2339 MB in the world (GPU about 992 MB); peak 2504 MB at quit. That's about the same as at full resolution: the swapchain at 2796×1290 was only about 45 MB per image set, so most GPU memory is the world's buffers and textures, not the screen. 26.3 on Vulkan uses more GPU memory than 1.21.11 on Zink (GPU about 600 MB); not investigated.
+  - **Still to check on this build:** the home-screen pause (no "[VXSDL] app …" or "[vulkan-shim]" lines yet) and Fabric 1.21.11's controls after the move to VXTouchControls.
+- **Device, build 202610232323, second round** (devicectl-confirmed; logs copied about 23:34Z):
+  - **Fabric 26.3** (23:30–23:31): Vulkan / A17 Pro, controls attached at 932×430 pt / 1398×645 px. World joined; peak 2397 MB. 37 touches (717 moves) went through the SDL hooks. Saved and quit, status 0.
+  - **Fabric 1.21.11 on MobileGlues** (the Zink switch was off, so this is Voxelium 1.0's renderer path) with the moved controls:
+    - layout loaded, game/menu sets switching with the cursor mode, world joined (23:32:34), paused, Save and Quit.
+    - It then crashed on the title screen in **Iris**'s `FeatureMissingErrorScreen` ("Can only blur once per frame"). The instance's shader pack needs compute shaders: "Shader compilation failed for compute deferred4_a… This PC does not support compute shaders". MobileGlues doesn't have them; Zink does. That's an Iris/shader-pack problem on MobileGlues, not the controls.
+  - **No home-screen trip is in either log:**
+    - no "[VXSDL] app …" or "[vulkan-shim]" lines in 26.3;
+    - no "[VXGLFW] app resigning active" in 1.21.11 (the last ones are from 2026-10-22);
+    - 26.3's 10 s `[VXMEM]` lines run without a gap;
+    - Minecraft didn't pause itself on focus loss.
+    So the app wasn't backgrounded during either game. The background pause is still untested.
+- **Device, build 202610232323, third round** (Fabric 26.3 twice, 23:36–23:37Z): **the user reports that taps miss again** ("can't click Singleplayer").
+  - Both runs attached the controls at 932×430 pt / 1398×645 px, never reached a world, and went to the background on the title screen. Rendering paused there: "[VXSDL] app in background: rendering paused…", "[vulkan-shim] app in background: vkAcquireNextImageKHR waits". Then the user restarted the app, so no resume was logged.
+  - **Cause, from client.jar and SDL:**
+    - 26.3's `Window.width/height` (`getScreenWidth`, used to map mouse positions) change only on `SDL_EVENT_WINDOW_RESIZED`; it never calls `SDL_GetWindowSize`. Its GUI scale comes from `SDL_GetWindowSizeInPixels`.
+    - SDL's UIKit `SetupWindowData` gives a new window the screen's size silently, and the view controller's later RESIZED is dropped when the size is unchanged.
+    - So when the game starts with the phone already in landscape, Minecraft never hears of 932×430 and maps taps with its requested 854×480. Starting in portrait gives a rotation, a RESIZED, and correct taps. That explains why the same build worked in some runs and not in others.
+    - (The input-event flush in `SDLEventHandler.flushInputEvents`, 0x300–0x1307, doesn't touch window events.)
+  - **Fix (patch 0005):** `SetupWindowData` posts `SDL_EVENT_WINDOW_RESIZED` with the real size when it differs from the requested one.
+  - **Build 202610232340** (SHA-256 `e5cbfe3e286f80b318a42f246dc693630af2be7a82ef4b19563d3925907a2d70`). Not yet run on the device.
+- **Device, build 202610232340** (devicectl-confirmed; Fabric 26.3 twice, 23:43–23:45Z, phone sideways at start): **the user reports that taps hit**: Singleplayer was tapped and a world joined.
+  - Run 1: 25 s in the world, 12 touches / 214 moves. Then, within one second (23:44:34): "Saving and pausing", server stop, "Stopping!", JVM returned. The app started fresh at 23:44:44.
+  - Run 2: world joined at 23:45:01, then "Stopping!" at 23:45:09 the same way.
+  - That's how 26.3 quits on `SDL_EVENT_QUIT`, `SDL_EVENT_WINDOW_CLOSE_REQUESTED` (`Window.onQuitRequested`) or `SDL_EVENT_TERMINATING` (`requestClose`), from `Window.handleEvent`'s switch. The world was saved each time, but on returning the app had restarted.
+  - Neither run logged "[VXSDL] app …" or "[vulkan-shim]", although the same handlers logged on the title screen at 23:36–23:37. Cause not proven.
+  - **Correction (user, afterwards):** the user quit the game themself both times; the app didn't leave the screen during either run. So nothing quit on its own, and the missing "[VXSDL] app …" lines are expected. The pause in a world is still untested.
+  - **Diagnostic build 202610232348** (SHA-256 `4264c84c7169d8ac077fee40e5629df412d8f5461894938cab7dd12232db7cef`) logs:
+    - every app state change (resign active, background, foreground, active, terminate);
+    - every SDL app/quit/window event via `SDL_AddEventWatch`, with the calling stack for QUIT, TERMINATING and CLOSE_REQUESTED;
+    - main-thread stalls over 2 s;
+    - the runtime menu's Quit.
+- **Device: home screen and back in a 26.3 world works (2026-10-24, build 202610232340).** devicectl showed 202610232340 installed, not the 202610232348 diagnostic build. Fabric 26.3; logs copied about 00:05Z.
+  - 00:02:44: joined the world.
+  - 07:02:51 local (00:02:51Z): "[VXSDL] app resigning active: sent ESC to pause and save", then "Saving and pausing game..." from Minecraft.
+  - 0.8 s later: "[VXSDL] app in background: rendering paused, holding a background task for 8 s" and "[vulkan-shim] app in background: vkAcquireNextImageKHR waits".
+  - On return: "[vulkan-shim] app in foreground: rendering resumed", and the game carried on (GPU 992 MB, footprint 2246 MB).
+  - Then the user paused, chose Save and Quit and quit ("Stopping!", status 0). No device-lost errors and no crash.
+  - Evidence: `docs/evidence/2026-10-24-minecraft-26.3-controls-background-pause-iphone15promax-ios27-build202610232340.log`.
+  - **Stage 4 device checks:**
+    - touch controls in 26.3 menus and world (taps hit after the two SDL fixes), user-confirmed;
+    - background pause and resume;
+    - render scale applied (1398×645);
+    - 1.21.11 controls on the shared code, on MobileGlues.
+  - **Open:** 26.3 in a world uses 2.2–2.5 GB, GPU about 1 GB, more than 1.21.11 on Zink.

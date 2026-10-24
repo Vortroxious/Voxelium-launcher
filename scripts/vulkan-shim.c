@@ -10,9 +10,15 @@
 //     enable for MoltenVK, and removes it (and its create flag) before the
 //     conformant ICD sees it;
 //   - answers vkGetDeviceProcAddr from the ICD once an instance exists.
+// For the app (Voxelium) it also holds queue submits, image acquires and
+// presents while vx_vulkan_set_paused(1) is in effect: iOS refuses GPU work
+// from apps in the background, and Minecraft 26.3 keeps rendering when its
+// window is minimized. The thread that renders waits there until resumed.
 //
 // Build: clang -dynamiclib vulkan-shim.c -o libvulkan.1.dylib
 //        -install_name @rpath/libvulkan.1.dylib -L<dir> -lvulkan_kosmickrisp
+#include <pthread.h>
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
@@ -25,6 +31,100 @@ extern PFN_vkVoidFunction vk_icdGetInstanceProcAddr(VkInstance instance, const c
 
 static const char kPortabilityEnumeration[] = "VK_KHR_portability_enumeration";
 static PFN_vkGetDeviceProcAddr icd_GetDeviceProcAddr;
+
+// --- Pause while the app is in the background.
+static pthread_mutex_t pause_lock = PTHREAD_MUTEX_INITIALIZER;
+static pthread_cond_t pause_cond = PTHREAD_COND_INITIALIZER;
+static int paused;
+
+SHIM_API void vx_vulkan_set_paused(int value)
+{
+   pthread_mutex_lock(&pause_lock);
+   paused = value != 0;
+   pthread_cond_broadcast(&pause_cond);
+   pthread_mutex_unlock(&pause_lock);
+}
+
+static void wait_while_paused(const char *where)
+{
+   pthread_mutex_lock(&pause_lock);
+   if (paused) {
+      fprintf(stderr, "[vulkan-shim] app in background: %s waits\n", where);
+      while (paused)
+         pthread_cond_wait(&pause_cond, &pause_lock);
+      fprintf(stderr, "[vulkan-shim] app in foreground: rendering resumed\n");
+   }
+   pthread_mutex_unlock(&pause_lock);
+}
+
+// The ICD's entry points behind the wrappers (one device: the game's).
+static PFN_vkQueueSubmit icd_QueueSubmit;
+static PFN_vkQueueSubmit2 icd_QueueSubmit2;
+static PFN_vkQueueSubmit2 icd_QueueSubmit2KHR;
+static PFN_vkAcquireNextImageKHR icd_AcquireNextImageKHR;
+static PFN_vkAcquireNextImage2KHR icd_AcquireNextImage2KHR;
+static PFN_vkQueuePresentKHR icd_QueuePresentKHR;
+
+static VKAPI_ATTR VkResult VKAPI_CALL
+shim_QueueSubmit(VkQueue queue, uint32_t count, const VkSubmitInfo *submits, VkFence fence)
+{
+   wait_while_paused("vkQueueSubmit");
+   return icd_QueueSubmit(queue, count, submits, fence);
+}
+
+static VKAPI_ATTR VkResult VKAPI_CALL
+shim_QueueSubmit2(VkQueue queue, uint32_t count, const VkSubmitInfo2 *submits, VkFence fence)
+{
+   wait_while_paused("vkQueueSubmit2");
+   return icd_QueueSubmit2(queue, count, submits, fence);
+}
+
+static VKAPI_ATTR VkResult VKAPI_CALL
+shim_QueueSubmit2KHR(VkQueue queue, uint32_t count, const VkSubmitInfo2 *submits, VkFence fence)
+{
+   wait_while_paused("vkQueueSubmit2KHR");
+   return icd_QueueSubmit2KHR(queue, count, submits, fence);
+}
+
+static VKAPI_ATTR VkResult VKAPI_CALL
+shim_AcquireNextImageKHR(VkDevice device, VkSwapchainKHR swapchain, uint64_t timeout,
+                         VkSemaphore semaphore, VkFence fence, uint32_t *index)
+{
+   wait_while_paused("vkAcquireNextImageKHR");
+   return icd_AcquireNextImageKHR(device, swapchain, timeout, semaphore, fence, index);
+}
+
+static VKAPI_ATTR VkResult VKAPI_CALL
+shim_AcquireNextImage2KHR(VkDevice device, const VkAcquireNextImageInfoKHR *info, uint32_t *index)
+{
+   wait_while_paused("vkAcquireNextImage2KHR");
+   return icd_AcquireNextImage2KHR(device, info, index);
+}
+
+static VKAPI_ATTR VkResult VKAPI_CALL
+shim_QueuePresentKHR(VkQueue queue, const VkPresentInfoKHR *info)
+{
+   wait_while_paused("vkQueuePresentKHR");
+   return icd_QueuePresentKHR(queue, info);
+}
+
+// Returns the wrapper for a held entry point, keeping the ICD's in `real`,
+// or `real` itself for every other name.
+static PFN_vkVoidFunction wrap(const char *name, PFN_vkVoidFunction real)
+{
+   if (!real)
+      return NULL;
+#define WRAP(fn) \
+   if (!strcmp(name, "vk" #fn)) { icd_##fn = (void *)real; return (PFN_vkVoidFunction)shim_##fn; }
+   WRAP(QueueSubmit)
+   WRAP(QueueSubmit2)
+   WRAP(QueueSubmit2KHR)
+   WRAP(AcquireNextImageKHR)
+   WRAP(AcquireNextImage2KHR)
+   WRAP(QueuePresentKHR)
+#undef WRAP
+   return real;
+}
 
 SHIM_API VKAPI_ATTR PFN_vkVoidFunction VKAPI_CALL vkGetInstanceProcAddr(VkInstance instance, const char *name);
 
@@ -115,7 +215,7 @@ vkCreateInstance(const VkInstanceCreateInfo *info, const VkAllocationCallbacks *
 SHIM_API VKAPI_ATTR PFN_vkVoidFunction VKAPI_CALL
 vkGetDeviceProcAddr(VkDevice device, const char *name)
 {
-   return icd_GetDeviceProcAddr ? icd_GetDeviceProcAddr(device, name) : NULL;
+   return icd_GetDeviceProcAddr && name ? wrap(name, icd_GetDeviceProcAddr(device, name)) : NULL;
 }
 
 SHIM_API VKAPI_ATTR PFN_vkVoidFunction VKAPI_CALL
@@ -135,5 +235,5 @@ vkGetInstanceProcAddr(VkInstance instance, const char *name)
       return (PFN_vkVoidFunction)vkEnumerateInstanceVersion;
    if (!strcmp(name, "vkGetDeviceProcAddr") && instance)
       return (PFN_vkVoidFunction)vkGetDeviceProcAddr;
-   return vk_icdGetInstanceProcAddr(instance, name);
+   return wrap(name, vk_icdGetInstanceProcAddr(instance, name));
 }

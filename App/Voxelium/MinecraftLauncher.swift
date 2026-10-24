@@ -343,7 +343,13 @@ final class MinecraftLauncher: ObservableObject {
         func prepareEnvironment() {
             // What SDL_Vulkan_LoadLibrary(NULL) would load, should anything call it so.
             setenv("SDL_VULKAN_LIBRARY", vulkan.path, 1)
+            // SDL hint: hide the home indicator and defer edge swipes to a second swipe,
+            // as VXGLFW's view controller does (Minecraft sets no value for it).
+            setenv("SDL_IOS_HIDE_HOME_INDICATOR", "2", 1)
             VXStartMemoryLog("in game (SDL)")
+            // Touch controls over SDL's window, background and game pause (VXSDLControls.m).
+            // The render scale (VOXELIUM_RENDER_SCALE) is applied by SDL (patches/sdl3/0005).
+            VXSDLControlsStart(sdl.path, vulkan.path)
         }
     }
 

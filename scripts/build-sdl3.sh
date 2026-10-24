@@ -75,7 +75,10 @@ platform=$(otool -l "$OUT/libSDL3.dylib" | awk '/LC_BUILD_VERSION/{f=1} f&&/plat
 [ "$platform" = "2" ] || { echo "not an iOS binary (platform $platform)" >&2; exit 1; }
 minos=$(otool -l "$OUT/libSDL3.dylib" | awk '/LC_BUILD_VERSION/{f=1} f&&/minos/{print $2; exit}')
 [ "$minos" = "$IOS_MIN" ] || { echo "minos $minos, expected $IOS_MIN" >&2; exit 1; }
-for s in SDL_Init SDL_CreateWindow SDL_Vulkan_LoadLibrary SDL_Vulkan_CreateSurface SDL_PollEvent; do
+# SDL_Voxelium*: patches/sdl3/0005, the touch controls' input hooks.
+for s in SDL_Init SDL_CreateWindow SDL_Vulkan_LoadLibrary SDL_Vulkan_CreateSurface SDL_PollEvent \
+         SDL_VoxeliumSendKey SDL_VoxeliumSendText SDL_VoxeliumSendMouseButton SDL_VoxeliumSendMouseMotion \
+         SDL_VoxeliumSendMouseWheel SDL_VoxeliumRelativeMouseMode SDL_VoxeliumRequestClose; do
   # (grep -c, not -q: with pipefail an early grep exit fails nm with SIGPIPE.)
   [ "$(nm -gU "$OUT/libSDL3.dylib" | grep -c " _$s$")" -gt 0 ] || { echo "libSDL3.dylib does not export $s" >&2; exit 1; }
 done
