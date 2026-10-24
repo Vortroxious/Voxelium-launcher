@@ -2,7 +2,7 @@
 
 An experimental iOS launcher for Minecraft: Java Edition, inspired by [ZalithLauncher2](https://github.com/ZalithLauncher/ZalithLauncher2) 2.6.1.
 
-> **Experimental.** Voxelium runs Minecraft: Java Edition **1.13 – 26.1.2 and 26.3** on an iPhone (tested on an iPhone 15 Pro Max / iOS 27): Java 8/17/21/25 in-process, OpenGL via MobileGlues or gl4es on ANGLE (Metal), or Vulkan (Mesa KosmicKrisp, with Zink for OpenGL versions; iOS 26+), with on-screen touch controls, custom layouts, haptics, sound and Microsoft sign-in. It needs JIT through StikDebug and is sideloaded (no App Store build). Performance is unmeasured; 26.2+ and 1.12.2 and older are not supported yet. See [docs/FINAL_BUILD_REPORT.md](docs/FINAL_BUILD_REPORT.md).
+> **Experimental.** Voxelium runs Minecraft: Java Edition **1.13 – 26.3** on an iPhone (tested on an iPhone 15 Pro Max / iOS 27): Java 8/17/21/25 in-process, OpenGL via MobileGlues or gl4es on ANGLE (Metal), or Vulkan (Mesa KosmicKrisp, with Zink for OpenGL versions; iOS 26+), with on-screen touch controls, custom layouts, haptics, sound and Microsoft sign-in. It needs JIT through StikDebug and is sideloaded (no App Store build). Performance is unmeasured; 26.2+ and 1.12.2 and older are not supported yet. See [docs/FINAL_BUILD_REPORT.md](docs/FINAL_BUILD_REPORT.md).
 
 ## Feature status
 | Feature | Status | Evidence |
@@ -26,7 +26,7 @@ An experimental iOS launcher for Minecraft: Java Edition, inspired by [ZalithLau
 | Shader packs (Iris) | ✅ On device (2026-10-18): BSL and MakeUp Ultra Fast render correctly (water, hand, items, entities) after MobileGlues patches 0009 and 0011; stable at render distance 8 (2.2 GB of the 3.4 GB iOS limit). Packs needing compute shaders (Photon, Noble, Mellow, Visual Vibrance) cannot run on OpenGL ES 3.0 | iPhone has OpenGL ES 3.0 only. The Shader packs tab has a "Shaders in game" switch (Iris `enableShaders`) to recover |
 | Data folder in Files, Worlds screen | ✅ On device (2026-10-18): 0.1.0 data moved to Documents, a world imported and played in Fabric 1.21.11 + BSL | Files → On My iPhone → Voxelium shows `minecraft/`, `logs/` … (moved from the hidden folder on first start). **Play → Worlds…** imports a world folder or `.zip`, shares one as a `.zip`, deletes. [Bringing your worlds](docs/INSTALL.md#bringing-your-worlds) |
 | Microsoft account sign-in | ✅ Works on device (2026-10-17) | login.live.com web sign-in as Amethyst does (or your own approved Azure ID): [docs/MICROSOFT_SIGN_IN.md](docs/MICROSOFT_SIGN_IN.md). Tokens only in the Keychain |
-| Java 8 / 17 / 21 / 25 runtimes, LWJGL 2 (lwjglx), FreeType, LWJGL 3.4.1 | ✅ On device: 1.16.5 (Java 8 + gl4es), 1.20.1 (Java 17), 1.21.11 (Java 21), 26.1 (Java 25 + LWJGL 3.4.1) run | Supported: 1.13 – 26.1.2. 26.2 is refused (black screen: shader link failure, paused); 26.3+ (SDL + Vulkan) refused; ≤1.12.2 not pursued | Covers 1.0 – 26.2 on paper; 26.3+ (SDL + Vulkan) is refused |
+| Java 8 / 17 / 21 / 25 runtimes, LWJGL 2 (lwjglx), FreeType, LWJGL 3.4.1 | ✅ On device: 1.16.5 (Java 8 + gl4es), 1.20.1 (Java 17), 1.21.11 (Java 21), 26.1 (Java 25 + LWJGL 3.4.1) run | Supported: 1.13 – 26.3. 26.2 on MobileGlues needs patch 0015; 26.3 runs on Vulkan (SDL3, LWJGL 3.4.3, iOS 26+); ≤1.12.2 not pursued | Minecraft 26.2 and 26.3 on device: 2026-10-24 |
 | **Launch Minecraft 1.20.1** | ⚠️ **Starts, reaches title screen, creates and joins a world, saves and exits** | `docs/evidence/2026-10-16-minecraft-1.20.1-first-launch.log`; not playable yet |
 
 ## Build kinds — do not confuse
@@ -107,7 +107,7 @@ In **StikDebug**, open **Apps**, touch and hold **Voxelium**, choose **Assign Sc
 
 ### Step 6: Play
 1. **Account** tab: **Sign in with Microsoft**, copy the code and finish signing in on the page that opens.
-2. **Versions** tab: install a version (1.13 – 26.1.2, or 26.3 on iOS 26+). For mods, choose Fabric, Quilt, Forge or NeoForge when installing, or tap **Modpacks**.
+2. **Versions** tab: install a version (1.13 – 26.2, or 26.3 on iOS 26+). For mods, choose Fabric, Quilt, Forge or NeoForge when installing, or tap **Modpacks**.
 3. Under **Installed**, tap **Play → Launch Minecraft**.
 
 ### Troubleshooting
@@ -138,4 +138,5 @@ Design notes: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md). Progress and evidenc
 | Phase 3 | Forge / NeoForge | ✅ NeoForge 1.21.1 and Forge 1.20.1 (with Oculus shaders) work on device; modpacks and more versions to test |
 | Release 1.0 | Forge and NeoForge | ✅ [Published](https://github.com/Vortroxious/Voxelium-launcher/releases/tag/v1.0) 2026-10-21 |
 | Release 2.0 | Vulkan renderer (KosmicKrisp, Zink), Minecraft 26.3 (SDL3), renderer choice, bigger hotbar | ⏳ Being prepared ([release notes](docs/RELEASE_NOTES_2.0.md)) |
-| Later | CurseForge (with your own API key), Minecraft 26.2, game controllers and keyboards on the OpenGL path, launcher update checks | Ideas |
+| 26.2 fix | Minecraft 26.2 on MobileGlues (patch 0015: base-vertex draws through ANGLE's OES/EXT functions) and on Vulkan | ✅ On device (2026-10-24); not yet released |
+| Later | CurseForge (with your own API key), game controllers and keyboards on the OpenGL path, launcher update checks | Ideas |

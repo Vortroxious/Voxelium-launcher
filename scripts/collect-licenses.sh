@@ -65,7 +65,7 @@ section "zlib (in libGLESv2)" "zlib" "$DEPS/angle/third_party/zlib/LICENSE"
 section "LLVM libc++ and libc++abi (in libGLESv2, libEGL)" "Apache-2.0 WITH LLVM-exception" \
   "$DEPS/angle/third_party/libc++/src/LICENSE.TXT"
 section "xxHash (in libGLESv2)" "BSD-2-Clause" "$DEPS/angle/src/common/third_party/xxhash/LICENSE"
-section "MobileGlues f0fb4d32794a with Voxelium patches 0001-0014 (libmobileglues.dylib)" \
+section "MobileGlues f0fb4d32794a with Voxelium patches 0001-0015 (libmobileglues.dylib)" \
   "LGPL-2.1. Dynamically linked; source: github.com/MobileGL-Dev/MobileGlues, our changes in patches/mobileglues/, rebuild with scripts/build-mobileglues.sh." \
   "$DEPS/mg-src/MobileGlues/LICENSE"
 section "glslang 15.0.0 (in libmobileglues)" "BSD-3-Clause and others, see below" "$DEPS/mg-src/glslang/LICENSE.txt"

@@ -1643,3 +1643,41 @@ Requested by the user through the main session, as the candidate for Voxelium 2.
   - No exception, FATAL or hs_err in any run.
   - **An earlier MobileGlues start (04:12:22Z) ended about 5 s in:** the JVM had been created (JIT mapping obtained, G1 started), and then the app was started again at 04:12:28. There was no crash report and no error. Cause unknown; it may have been closed by the user.
   - Memory with Zink at the 56% "Large interface" resolution peaked at 2.85 GB of the roughly 3.4 GB limit, higher than the experimental run (1.40 GB at 03:50). The release notes already say Vulkan uses more memory.
+
+## 2026-10-24 — Minecraft 26.2, again
+- **User:** find and fix 26.2's bug. Plan: one diagnostic phone run on both renderers, then a fix by result.
+- **Read from the jars** (26.2 vs 26.1.2 client.jar):
+  - Both use `#version 330` everywhere, and `GlslPreprocessor`/`ShaderDefines` are the same.
+  - 26.2 renames the text shaders (`text`, `text_background`) and changes `entity.vsh`, `item.vsh/fsh` (a vertex-shader `texelFetch(Sampler1, UV1, 0)` for the overlay), `rendertype_beacon_beam.fsh` (`1.0 / gl_FragCoord.w`), `rendertype_crumbling.vsh` and `post/transparency.fsh`.
+  - The GL calls move from LWJGL's `GL11`/`GL20` classes to `GL33C`. New by name: `glVertexAttribDivisor`, `glDrawBuffers`, `glClearBufferfv`, `glBlendEquationSeparate`, `glQueryCounter` and `glColorMaski`, plus ARB indirect/base-instance draws and `glClipControl`, which sit behind flags MobileGlues reports as absent.
+  - Since every program failed to link on 2026-10-17, the cause looks systemic. 26.2 never ran with MobileGlues patches 0012–0014 (the Sodium 0.9 shader fixes) or on Zink.
+- **Test branch `fix/mc-26.2`:**
+  - `RendererChoice.of` gives 26.2 both renderers (it is OpenGL on GLFW, like 26.1.2), and the launcher's refusal became a log line. `GameRuntimeTests` updated; `swift test` 121/121.
+- **Diagnostic MobileGlues** (`VOXELIUM_MG_CHECK_ERRORS=1`; `[MG-LINK]` shader logs, `[MG-GLERR]`, `[MG-DRAW]`, `[MG-CAPS]`). The release build is kept in `build/deps/mobileglues-out.release` and must be restored before any release.
+- **Test IPA:** build 202610241220, SHA-256 `cf4150e22b2c4882d51b9bfa9334eadec1d7afc091c770e3d4b21de59df0df36`, at `build/ipa/Voxelium-2.0-26.2-test-diagnostic-unsigned.ipa`. It uses the normal bundle ID, since vanilla 26.2 is already installed there. Not yet run.
+- **Device run of build 202610241220** (devicectl-confirmed; logs read 2026-10-24 12:36Z):
+  - **26.2 on Vulkan (Zink), 12:33Z:** it plays. Joined a world at 12:33:47 and stopped at 12:34:12. `[VXMEM]` peak 2,980 MB, against the 3,376 MB limit; the user saw about 2.7 GB on the gauge. That is close to the limit.
+  - **26.2 on MobileGlues, 12:34Z:** red, then black, as before. **Cause found:** every draw fails with ANGLE's `glDrawElementsInstancedBaseVertex: Command requires OpenGL ES 3.2.` (`[MG-GLERR] 0x0502`, 43 logged, including the 500th, 1000th, …). There were no `[MG-LINK]` reports, so the shaders now link; the 2026-10-17 link errors were probably what patch 0012 later fixed.
+    - 26.2 draws through `glDrawElementsInstancedBaseVertex`, where 26.1.2 used `glDrawElementsBaseVertex`. Upstream MobileGlues swaps `glDrawElementsBaseVertex` for ANGLE's OES/EXT function below ES 3.2, but not the instanced or range variants. ANGLE still returns their core entry points and then rejects each call.
+    - ANGLE (ES 3.0) lists `GL_OES_draw_elements_base_vertex` and `GL_EXT_draw_elements_base_vertex`.
+  - **Fix: MobileGlues patch 0015** (`0015-es30-instanced-and-range-base-vertex-extensions.patch`). Below ES 3.2, `glDrawElementsInstancedBaseVertex` and `glDrawRangeElementsBaseVertex` use the `…OES` (else `…EXT`) functions. It is added to `build-mobileglues.sh`, and the notices now say "patches 0001-0015".
+  - Other diagnostics in that run: `glEnable` `0x0500` twice at init (an unsupported cap), and framebuffer 2 incomplete (`0x8CD7`) once.
+- **Test IPA 2 (diagnostic, with 0015):** build 202610241238, SHA-256 `2f24e3a332d2ac1772d1e9c6e357d9e2ded8127c2f81b2ea3e396c476fa2ab6a`, at `build/ipa/Voxelium-2.0-26.2-test2-diagnostic-unsigned.ipa`. Not yet run.
+- **Device run of build 202610241238** (diagnostic MobileGlues with patch 0015; devicectl-confirmed; logs read 2026-10-24 12:49Z):
+  - **26.2 on MobileGlues, 12:46Z: it works.** The user confirmed "mobileglues finally works". Joined a world at 12:46:21 and stopped at 12:46:48; peak 2,221 MB.
+    - Only 2 `[MG-GLERR]` (the two `glEnable` errors at init), 0 `[MG-LINK]`, and no draw errors.
+  - **26.2 on Vulkan (Zink), 12:47Z:** joined at 12:47:28, stopped at 12:47:51; peak 2,608 MB, against 2,980 MB in the first run. Nothing on the Vulkan path changed, so this is run-to-run variation.
+- **Release-ready changes:**
+  - Normal MobileGlues rebuilt with 0015 (no diagnostic strings; `glDrawElementsInstancedBaseVertexOES` present). Notices regenerated ("patches 0001-0015").
+  - README/INSTALL: supported range 1.13 – 26.3, with 26.2 on both renderers.
+  - `swift test` 121/121.
+- **Regression IPA:** build 202610241249, SHA-256 `4ab6d831d50cddf06f783e958148c60f7e2347522ed639552cf82a6f543a3e07`, at `build/ipa/Voxelium-26.2-fix-test-unsigned.ipa`. Patch 0015 changes base-vertex draws for every 1.17+ version on MobileGlues, so it needs Fabric 1.21.11, 26.1.2 and NeoForge 1.21.1 on MobileGlues. Not yet run.
+- **Regression pass, build 202610241249** (normal MobileGlues with 0015; devicectl-confirmed; logs read 2026-10-24 12:59Z). All on MobileGlues, each joined a world and stopped, with no exception or crash:
+
+  | Version | Started | Joined | Stopped | Peak |
+  |---|---|---|---|---|
+  | Fabric 26.1.2 | 12:55:17Z | 12:55:41 | 12:56:04 | 2,390 MB |
+  | Fabric 1.21.11 ("MobileGlues 1.3.3") | 12:56:23Z | 12:56:50 | 12:57:14 | 2,344 MB |
+  | NeoForge 1.21.1 | 12:57:22Z | 12:57:48 | 12:58:27 | 1,681 MB |
+
+  - 26.2 was **not** started on this build. Its MobileGlues pass is from the diagnostic build 202610241238, which has the same patch 0015.
