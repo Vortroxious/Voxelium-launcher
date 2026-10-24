@@ -30,6 +30,21 @@ public struct GameOptions: Sendable, Equatable {
         values[key] = value
     }
 
+    /// Minecraft 26.3+ picks its renderer from this key (`default`, `opengl`, `vulkan`;
+    /// read from client.jar e877b6a0, `PreferredGraphicsApi`). After a start that did
+    /// not finish it switches itself to `opengl`, which cannot work on iOS.
+    public static let graphicsBackendKey = "preferredGraphicsBackend"
+
+    /// Sets the renderer to Vulkan before a 26.3+ launch, written as Minecraft writes
+    /// its string options (JSON, quoted). Minecraft's own datafix resets the key to
+    /// `default` in options from before data version 4892, so the launcher also passes
+    /// `--graphicsBackend vulkan`.
+    public static func forceVulkanBackend(gameDirectory: URL) throws {
+        var options = GameOptions(gameDirectory: gameDirectory)
+        guard options.values[graphicsBackendKey] != "\"vulkan\"" else { return }
+        try options.set(graphicsBackendKey, "\"vulkan\"")
+    }
+
     /// For "Large interface": Minecraft's GUI Scale back to Auto (`guiScale:0`), so it uses
     /// the biggest interface the resolution allows. A fixed scale (e.g. `guiScale:2`, kept
     /// from 50%) stops the hotbar from growing (seen on the iPhone, 2026-10-24). Returns

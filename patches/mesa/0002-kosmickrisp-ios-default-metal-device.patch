@@ -1,0 +1,31 @@
+--- a/src/kosmickrisp/bridge/mtl_device.m	2026-10-22 18:07:55
++++ b/src/kosmickrisp/bridge/mtl_device.m	2026-10-22 18:07:55
+@@ -13,6 +13,7 @@
+ #include <Metal/MTL4Counters.h>
+ #include <Metal/MTLCaptureManager.h>
+ #include <Metal/MTLDevice.h>
++#include <TargetConditionals.h>
+ 
+ /* Device creation */
+ mtl_device *
+@@ -21,6 +22,7 @@
+    mtl_device *device = nil;
+ 
+    @autoreleasepool {
++#if TARGET_OS_OSX
+       NSArray<id<MTLDevice>> *devs = [MTLCopyAllDevices() autorelease];
+       uint32_t device_count = [devs count];
+       
+@@ -30,6 +32,12 @@
+             break;
+          }
+       }
++#else
++      /* iOS has one GPU and no MTLCopyAllDevices(). */
++      id<MTLDevice> dev = [MTLCreateSystemDefaultDevice() autorelease];
++      if (dev && [dev supportsFamily:MTLGPUFamilyMetal4])
++         device = (mtl_device *)[dev retain];
++#endif
+    }
+ 
+    return device;

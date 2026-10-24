@@ -1,0 +1,35 @@
+  frame 100: footprint 250.0 MB
+  frame 200: footprint 358.3 MB
+  frame 300: footprint 467.3 MB
+  frame 400: footprint 575.8 MB
+  frame 500: footprint 680.8 MB
+  frame 600: footprint 787.5 MB
+  frame 700: footprint 889.8 MB
+  frame 800: footprint 995.0 MB
+  frame 900: footprint 1105.0 MB
+  frame 1000: footprint 1213.4 MB
+  frame 1100: footprint 1324.6 MB
+  frame 1200: footprint 1444.8 MB
+  frame 1300: footprint 1565.3 MB
+  frame 1400: footprint 1692.4 MB
+  frame 1500: footprint 1817.2 MB
+  frame 1600: footprint 1939.9 MB
+  frame 1700: footprint 2065.2 MB
+  frame 1800: footprint 2195.1 MB
+  frame 1900: footprint 2318.3 MB
+  frame 2000: footprint 2443.6 MB
+  frame 2100: footprint 2567.4 MB
+  frame 2200: footprint 2688.7 MB
+  frame 2300: footprint 2811.1 MB
+  frame 2400: footprint 2937.1 MB
+  frame 2500: footprint 3060.9 MB
+  frame 2600: footprint 3184.0 MB
+  frame 2700: footprint 3329.4 MB
+  frame 2800: footprint 3447.3 MB
+  frame 2900: footprint 3561.8 MB
+  frame 3000: footprint 3684.1 MB
+flush-only: final glFinish waited 3809.8 ms; footprint 6582.5 MB
+frames: 3000 at 1290x2796, first 12.9 ms, mean 1.82 ms (excluding first: 1.82 ms), centre pixel 128,128,117,255, gl error 0x0
+footprint after frames: 6591.3 MB
+flush-only: 1 s later footprint 6591.3 MB
+flush-only: after 300 more finish-each frames footprint 6628.0 MB

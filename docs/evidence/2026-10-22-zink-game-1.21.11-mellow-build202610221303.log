@@ -1,0 +1,44 @@
+# Excerpt: Minecraft 1.21.11 (Fabric, Sodium, Iris) on Zink/KosmicKrisp, iPhone 15 Pro Max, iOS 27,
+# experimental build 202610221303 (confirmed with devicectl device info apps), 2026-10-22 13:10-13:13Z. No crash report afterwards.
+
+===== Minecraft fabric-loader-0.19.5-1.21.11 2026-10-22T13:10:40Z java=21 heap=1336M flags=0x5 (iOS26=1 mirrored=0 TXM=1) CS_DEBUGGED=1 debuggerNow=1 needsScript=1
+2026-10-22 20:10:47.110 Voxelium[28412:3944326] [VXGLFW] initialised: Mesa Zink (surfaceless) display, screen 2796x1290 @120 Hz
+[13:10:48] [Render thread/INFO]: Using shaderpack: Mellow v3.4.1a.zip
+[13:10:48] [Render thread/INFO]: OpenGL Vendor: Mesa
+[13:10:48] [Render thread/INFO]: OpenGL Renderer: zink Vulkan 1.4(Apple A17 Pro GPU (MESA_KOSMICKRISP))
+[13:10:48] [Render thread/INFO]: OpenGL Version: 4.6 (Core Profile) Mesa 27.0.0-devel (git-9b3209540c)
+2026-10-22 20:10:48.758 Voxelium[28412:3944326] [VXMEM] in game: footprint 964 MB (peak 964 MB; GPU 87 MB, rest 876 MB), iOS allows 2411 MB more (lowest 2411 MB, limit remaining 2411 MB)
+2026-10-22 20:10:58.767 Voxelium[28412:3944326] [VXMEM] in game: footprint 1609 MB (peak 1609 MB; GPU 455 MB, rest 1153 MB), iOS allows 1766 MB more (lowest 1766 MB, limit remaining 1766 MB)
+[13:11:00] [Server thread/INFO]: Vortroxious joined the game
+[13:11:01] [Render thread/INFO]: Stopping worker threads
+2026-10-22 20:11:08.770 Voxelium[28412:3944326] [VXMEM] in game: footprint 1891 MB (peak 1891 MB; GPU 579 MB, rest 1312 MB), iOS allows 1484 MB more (lowest 1484 MB, limit remaining 1484 MB)
+[13:11:13] [Render thread/INFO]: Using shaderpack: photon_v1.4.zip
+[13:11:15] [Render thread/WARN]: Program link log for deferred4_a: error: Too much shared memory used (36860/32768)
+[13:11:15] [Render thread/INFO]: [System] [CHAT] The shaderpack failed to load! Please report the error to the shader developer. Copy Info
+[13:11:15] [Render thread/ERROR]: Failed to create shader rendering pipeline, disabling shaders!
+[13:11:15] [Render thread/INFO]: Stopping worker threads
+2026-10-22 20:11:18.785 Voxelium[28412:3944326] [VXMEM] in game: footprint 2295 MB (peak 2295 MB; GPU 680 MB, rest 1614 MB), iOS allows 1080 MB more (lowest 1080 MB, limit remaining 1080 MB)
+2026-10-22 20:11:28.796 Voxelium[28412:3944326] [VXMEM] in game: footprint 2282 MB (peak 2295 MB; GPU 695 MB, rest 1587 MB), iOS allows 1093 MB more (lowest 1080 MB, limit remaining 1093 MB)
+2026-10-22 20:11:38.806 Voxelium[28412:3944326] [VXMEM] in game: footprint 2280 MB (peak 2295 MB; GPU 678 MB, rest 1601 MB), iOS allows 1095 MB more (lowest 1080 MB, limit remaining 1095 MB)
+2026-10-22 20:11:48.808 Voxelium[28412:3944326] [VXMEM] in game: footprint 2267 MB (peak 2295 MB; GPU 695 MB, rest 1571 MB), iOS allows 1108 MB more (lowest 1080 MB, limit remaining 1108 MB)
+2026-10-22 20:11:58.822 Voxelium[28412:3944326] [VXMEM] in game: footprint 2273 MB (peak 2295 MB; GPU 720 MB, rest 1552 MB), iOS allows 1102 MB more (lowest 1080 MB, limit remaining 1102 MB)
+[13:12:01] [Render thread/INFO]: Using shaderpack: Mellow v3.4.1a.zip
+[13:12:01] [Render thread/INFO]: Stopping worker threads
+[13:12:01] [Render thread/INFO]: Stopping worker threads
+2026-10-22 20:12:08.831 Voxelium[28412:3944326] [VXMEM] in game: footprint 2415 MB (peak 2415 MB; GPU 826 MB, rest 1588 MB), iOS allows 960 MB more (lowest 960 MB, limit remaining 960 MB)
+2026-10-22 20:12:18.856 Voxelium[28412:3944326] [VXMEM] in game: footprint 2519 MB (peak 2519 MB; GPU 926 MB, rest 1592 MB), iOS allows 856 MB more (lowest 856 MB, limit remaining 856 MB)
+2026-10-22 20:12:28.861 Voxelium[28412:3944326] [VXMEM] in game: footprint 2505 MB (peak 2519 MB; GPU 927 MB, rest 1577 MB), iOS allows 870 MB more (lowest 856 MB, limit remaining 870 MB)
+[13:12:36] [Render thread/INFO]: Using shaderpack: Mellow v3.4.1a.zip
+[13:12:38] [Render thread/INFO]: Stopping worker threads
+2026-10-22 20:12:39.190 Voxelium[28412:3944326] [VXMEM] in game: footprint 2426 MB (peak 2519 MB; GPU 756 MB, rest 1670 MB), iOS allows 949 MB more (lowest 856 MB, limit remaining 949 MB)
+2026-10-22 20:12:49.219 Voxelium[28412:3944326] [VXMEM] in game: footprint 2431 MB (peak 2519 MB; GPU 851 MB, rest 1580 MB), iOS allows 944 MB more (lowest 856 MB, limit remaining 944 MB)
+2026-10-22 20:12:59.233 Voxelium[28412:3944326] [VXMEM] in game: footprint 2486 MB (peak 2519 MB; GPU 906 MB, rest 1580 MB), iOS allows 889 MB more (lowest 856 MB, limit remaining 889 MB)
+2026-10-22 20:13:09.234 Voxelium[28412:3944326] [VXMEM] in game: footprint 2499 MB (peak 2519 MB; GPU 915 MB, rest 1583 MB), iOS allows 876 MB more (lowest 856 MB, limit remaining 876 MB)
+2026-10-22 20:13:19.250 Voxelium[28412:3944326] [VXMEM] in game: footprint 2530 MB (peak 2530 MB; GPU 944 MB, rest 1585 MB), iOS allows 845 MB more (lowest 845 MB, limit remaining 845 MB)
+2026-10-22 20:13:29.289 Voxelium[28412:3944326] [VXMEM] in game: footprint 2528 MB (peak 2530 MB; GPU 944 MB, rest 1583 MB), iOS allows 847 MB more (lowest 845 MB, limit remaining 847 MB)
+2026-10-22 20:13:39.306 Voxelium[28412:3944326] [VXMEM] in game: footprint 2530 MB (peak 2530 MB; GPU 944 MB, rest 1586 MB), iOS allows 845 MB more (lowest 845 MB, limit remaining 845 MB)
+[13:13:41] [Server thread/INFO]: Stopping singleplayer server as player logged out
+[13:13:41] [Server thread/INFO]: Stopping server
+[13:13:42] [Render thread/INFO]: Stopping worker threads
+[13:13:44] [Render thread/INFO]: Stopping!
+2026-10-22 20:13:44.388 Voxelium[28412:3944326] [VXGLFW] touches: began=61 moved=1181 movedAccepted=1181 ended=61 cancelled=0 hotbarSelects=0

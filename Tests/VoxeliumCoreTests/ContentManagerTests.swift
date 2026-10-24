@@ -174,6 +174,30 @@ import Testing
     }
 }
 
+@Suite struct GraphicsBackendOptionTests {
+    @Test func forcesVulkanAndKeepsTheRest() throws {
+        let tmp = try TempDir()
+        let game = tmp.paths.root.appendingPathComponent("instance")
+        let file = game.appendingPathComponent("options.txt")
+
+        // No options yet (first launch): the file is created with just the key.
+        try GameOptions.forceVulkanBackend(gameDirectory: game)
+        #expect(try String(contentsOf: file, encoding: .utf8) == "preferredGraphicsBackend:\"vulkan\"\n")
+
+        // Minecraft switched itself to OpenGL after a failed start: back to Vulkan,
+        // every other line as the game wrote it.
+        try "version:5023\npreferredGraphicsBackend:\"opengl\"\nrenderDistance:8\n".write(to: file, atomically: true, encoding: .utf8)
+        try GameOptions.forceVulkanBackend(gameDirectory: game)
+        #expect(try String(contentsOf: file, encoding: .utf8) == "version:5023\npreferredGraphicsBackend:\"vulkan\"\nrenderDistance:8\n")
+        #expect(GameOptions(gameDirectory: game).values["preferredGraphicsBackend"] == "\"vulkan\"")
+
+        // Options from 26.1 have no such key: it is added at the end.
+        try "version:4786\nrenderDistance:12\n".write(to: file, atomically: true, encoding: .utf8)
+        try GameOptions.forceVulkanBackend(gameDirectory: game)
+        #expect(try String(contentsOf: file, encoding: .utf8) == "version:4786\nrenderDistance:12\npreferredGraphicsBackend:\"vulkan\"\n")
+    }
+}
+
 @Suite struct ShaderLaunchAdviceTests {
     @Test func warnsAboutHighRenderDistanceWithShadersAndLowersIt() throws {
         let tmp = try TempDir()

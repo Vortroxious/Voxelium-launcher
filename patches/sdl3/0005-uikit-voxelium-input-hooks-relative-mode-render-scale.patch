@@ -1,0 +1,297 @@
+UIKit: input hooks, relative mouse mode and render scale for Voxelium.
+
+Voxelium draws its own touch controls over SDL's window and turns touches
+into keyboard and mouse input. SDL_Voxelium* (SDL_uikitvoxelium.m) send
+that input through SDL's keyboard and mouse code, so SDL_GetKeyboardState,
+SDL_GetModState and the button state stay in step with the events, as for
+real devices. Minecraft 26.3 reads key state with SDL_GetKeyboardState.
+SDL_VoxeliumRequestClose sends the window a close request (the controls'
+"Quit game"), which Minecraft handles like its window's close button.
+
+Without a GCMouse (and UIApplicationSupportsIndirectInputEvents) UIKit had
+no SetRelativeMouseMode, so Minecraft's SDL_SetWindowRelativeMouseMode
+failed ("That operation is not supported"). Relative mode now always
+succeeds; SDL_VoxeliumRelativeMouseMode tells the app whether the game has
+captured the mouse (in the world) or not (menus).
+
+High-pixel-density windows (Minecraft's) use the screen's native scale
+times VOXELIUM_RENDER_SCALE (0.1 - 1, default 1) for the Metal view and
+SDL_GetWindowSizeInPixels, so the Vulkan swapchain follows the launcher's
+render-resolution setting.
+With VOXELIUM_LARGE_INTERFACE=1 the scale snaps to Minecraft's GUI steps
+as on the launcher's GLFW path (vxEffectiveRenderScale), from the screen's
+landscape size; SDL_VoxeliumRenderScale reports the result.
+The Metal view's scale is set through contentScaleFactor: UIKit resets a
+layer's contentsScale to the screen scale when its view joins a window, so
+the swapchain stayed full size while SDL reported the scaled size, and taps
+landed at half their position (iPhone, build 202610232310).
+
+A new window takes the screen's size without an event, and the later
+resize from the view controller is dropped when the size did not change
+(game started in landscape). Minecraft knows its window size only from
+SDL_EVENT_WINDOW_RESIZED, so it kept its requested 854x480 and taps
+missed; the window now posts a resize when it got another size than asked.
+
+diff --git a/src/video/uikit/SDL_uikitevents.m b/src/video/uikit/SDL_uikitevents.m
+index 64fad44..368f4ff 100644
+--- a/src/video/uikit/SDL_uikitevents.m
++++ b/src/video/uikit/SDL_uikitevents.m
+@@ -312,6 +312,11 @@ static bool SetGCMouseRelativeMode(bool enabled)
+     return true;
+ }
+ 
++static bool SetTouchRelativeMode(bool enabled)
++{
++    return true;
++}
++
+ static void OnGCMouseButtonChanged(SDL_MouseID mouseID, Uint8 button, BOOL pressed)
+ {
+     Uint64 timestamp = SDL_GetTicksNS();
+@@ -430,7 +435,10 @@ void SDL_InitGCMouse(void)
+ 
+                 SDL_GetMouse()->SetRelativeMouseMode = SetGCMouseRelativeMode;
+             } else {
+-                NSLog(@"You need UIApplicationSupportsIndirectInputEvents in your Info.plist for mouse support");
++                /* Voxelium: without a GCMouse there is no pointer to lock, but the
++                 * app's touch controls send relative motion (mouse look), and the
++                 * game must be able to turn relative mode on to capture the mouse. */
++                SDL_GetMouse()->SetRelativeMouseMode = SetTouchRelativeMode;
+             }
+         }
+     }
+diff --git a/src/video/uikit/SDL_uikitmetalview.m b/src/video/uikit/SDL_uikitmetalview.m
+index da0a8ed..0a89f85 100644
+--- a/src/video/uikit/SDL_uikitmetalview.m
++++ b/src/video/uikit/SDL_uikitmetalview.m
+@@ -33,6 +33,7 @@
+ #include "../SDL_sysvideo.h"
+ #include "../../events/SDL_windowevents_c.h"
+ 
++#import "SDL_uikitvideo.h"
+ #import "SDL_uikitwindow.h"
+ #import "SDL_uikitmetalview.h"
+ 
+@@ -49,6 +50,13 @@ - (instancetype)initWithFrame:(CGRect)frame
+ {
+     if ((self = [super initWithFrame:frame])) {
+         self.tag = SDL_METALVIEW_TAG;
++        /* Voxelium: through the view, not only its layer. UIKit gives a view's
++         * layer the screen's scale when the view joins a window unless
++         * contentScaleFactor was set, so with a render scale below 1 the layer
++         * (and the Vulkan swapchain, sized from bounds x contentsScale) went
++         * back to the full screen resolution while SDL reported the scaled
++         * pixel size, and the game's mouse positions came out halved. */
++        self.contentScaleFactor = scale;
+         self.layer.contentsScale = scale;
+         [self updateDrawableSize];
+     }
+@@ -93,7 +101,7 @@ SDL_MetalView UIKit_Metal_CreateView(SDL_VideoDevice *_this, SDL_Window *window)
+              * yielding high resolution on retine displays.
+              */
+ #ifndef SDL_PLATFORM_VISIONOS
+-            scale = data.uiwindow.screen.nativeScale;
++            scale = data.uiwindow.screen.nativeScale * UIKit_VoxeliumRenderScale();
+ #else
+             // VisionOS doesn't use the concept of "nativeScale" like other iOS devices.
+             // We use a fixed scale factor of 2.0 to achieve better pixel density.
+diff --git a/src/video/uikit/SDL_uikitvideo.h b/src/video/uikit/SDL_uikitvideo.h
+index bef6303..8521fad 100644
+--- a/src/video/uikit/SDL_uikitvideo.h
++++ b/src/video/uikit/SDL_uikitvideo.h
+@@ -45,6 +45,9 @@ extern API_AVAILABLE(ios(13.0)) UIWindowScene *UIKit_GetActiveWindowScene(void);
+ 
+ extern void UIKit_SetGameControllerInteraction(bool enabled);
+ 
++// Voxelium (SDL_uikitvoxelium.m): render resolution scale, 0.1 - 1.
++extern float UIKit_VoxeliumRenderScale(void);
++
+ /* Voxelium: SDL runs on a thread of the app's choosing (Minecraft's render
+  * thread, through LWJGL), not necessarily the iOS main thread. Runs the block
+  * on the main thread and waits for it; runs it directly when already there. */
+diff --git a/src/video/uikit/SDL_uikitvoxelium.m b/src/video/uikit/SDL_uikitvoxelium.m
+new file mode 100644
+index 0000000..f9dcad7
+--- /dev/null
++++ b/src/video/uikit/SDL_uikitvoxelium.m
+@@ -0,0 +1,135 @@
++/*
++  Voxelium: input hooks for an app that draws its own touch controls over SDL's
++  window (Minecraft 26.3 inside the Voxelium launcher). The controls turn touches
++  into keyboard and mouse input. Sending it through SDL's own keyboard and mouse
++  code keeps SDL's state (SDL_GetKeyboardState, SDL_GetModState, button state)
++  in step with the events, as for a real keyboard and mouse.
++
++  Call these on the main thread, where UIKit delivers touches and SDL's UIKit
++  backend sends its own input.
++*/
++#include "SDL_internal.h"
++
++#ifdef SDL_VIDEO_DRIVER_UIKIT
++
++#include "../SDL_sysvideo.h"
++#include "../../events/SDL_keyboard_c.h"
++#include "../../events/SDL_mouse_c.h"
++#include "../../events/SDL_windowevents_c.h"
++
++#include "SDL_uikitvideo.h"
++
++// The window input goes to: the focused one, else the first (the game has one).
++static SDL_Window *VX_Window(void)
++{
++    SDL_Window *window = SDL_GetKeyboardFocus();
++    if (!window) {
++        window = SDL_GetMouseFocus();
++    }
++    if (!window) {
++        SDL_VideoDevice *device = SDL_GetVideoDevice();
++        window = device ? device->windows : NULL;
++    }
++    return window;
++}
++
++SDL_DECLSPEC void SDLCALL SDL_VoxeliumSendKey(SDL_Scancode scancode, bool down)
++{
++    SDL_SendKeyboardKey(0, SDL_DEFAULT_KEYBOARD_ID, 0, scancode, down);
++}
++
++SDL_DECLSPEC void SDLCALL SDL_VoxeliumSendText(const char *utf8)
++{
++    SDL_SendKeyboardText(utf8);
++}
++
++SDL_DECLSPEC void SDLCALL SDL_VoxeliumSendMouseButton(Uint8 button, bool down)
++{
++    SDL_SendMouseButton(0, VX_Window(), SDL_DEFAULT_MOUSE_ID, button, down);
++}
++
++// relative: x/y are a delta (mouse look); otherwise a position in window points.
++SDL_DECLSPEC void SDLCALL SDL_VoxeliumSendMouseMotion(bool relative, float x, float y)
++{
++    SDL_SendMouseMotion(0, VX_Window(), SDL_DEFAULT_MOUSE_ID, relative, x, y);
++}
++
++SDL_DECLSPEC void SDLCALL SDL_VoxeliumSendMouseWheel(float x, float y)
++{
++    SDL_SendMouseWheel(0, VX_Window(), SDL_DEFAULT_MOUSE_ID, x, y, SDL_MOUSEWHEEL_NORMAL);
++}
++
++// What the window's close button would do: the game quits and saves.
++SDL_DECLSPEC void SDLCALL SDL_VoxeliumRequestClose(void)
++{
++    SDL_Window *window = VX_Window();
++    if (window) {
++        SDL_SendWindowEvent(window, SDL_EVENT_WINDOW_CLOSE_REQUESTED, 0, 0);
++    }
++}
++
++// Whether the game turned relative mouse mode on, i.e. it captured the mouse
++// (in the world, not in a menu).
++SDL_DECLSPEC bool SDLCALL SDL_VoxeliumRelativeMouseMode(void)
++{
++    return SDL_GetMouse()->relative_mode;
++}
++
++/* Render resolution: the launcher's VOXELIUM_RENDER_SCALE (0.1 - 1, default 1)
++   times the screen's native scale for high-pixel-density windows, so the
++   Vulkan swapchain is that much smaller than the screen.
++
++   With VOXELIUM_LARGE_INTERFACE=1 ("Large interface" in the launcher) the scale
++   snaps to Minecraft's GUI steps, as VXGLFW's vxEffectiveRenderScale does on
++   the GLFW path (mirrored in LauncherSettings.effectiveRenderScale): its auto
++   GUI scale is the largest k with framebuffer height / k >= 240 and width / k
++   >= 320, so a framebuffer one pixel over 240k tall shows the biggest
++   interface. The nearest r_k = (240k + 1) / height with k >= 3 is used, never
++   below k = 3's (iPhone 15 Pro Max: 50% -> 55.9%, 721 px tall, GUI scale 3).
++   SDL's window fills the screen in landscape (the game's only orientation),
++   so the screen's landscape size is the game area, before and after rotation. */
++float UIKit_VoxeliumRenderScale(void)
++{
++    static float scale;
++    if (scale == 0.0f) {
++        const char *s = SDL_getenv("VOXELIUM_RENDER_SCALE");
++        double r = s ? SDL_atof(s) : 1.0;
++        if (!(r > 0.1 && r <= 1.0)) {
++            r = 1.0;
++        }
++        const char *large = SDL_getenv("VOXELIUM_LARGE_INTERFACE");
++        if (large && large[0] == '1') {
++            UIScreen *screen = [UIScreen mainScreen];
++            CGSize pt = screen.bounds.size;
++            double native = screen.nativeScale;
++            double w = SDL_max(pt.width, pt.height) * native, h = SDL_min(pt.width, pt.height) * native;
++            double best = r, bestDiff = INFINITY;
++            for (int k = 3; k <= 16 && h > 0; k++) {
++                double rk = (240.0 * k + 1.0) / h;   // +1 px so rounding never drops a step
++                if (rk > 1.0 || w * rk / k < 320) {
++                    break;
++                }
++                if (k == 3 && r <= rk) {             // below k = 3's: raise to it
++                    best = rk;
++                    break;
++                }
++                double diff = SDL_fabs(rk - r) - (rk >= r ? 1e-6 : 0);   // ties go to the higher resolution
++                if (diff < bestDiff) {
++                    bestDiff = diff;
++                    best = rk;
++                }
++            }
++            r = best;
++        }
++        scale = (float)r;
++    }
++    return scale;
++}
++
++// The render scale in use (1 = native), for the app's touch controls.
++SDL_DECLSPEC float SDLCALL SDL_VoxeliumRenderScale(void)
++{
++    return UIKit_VoxeliumRenderScale();
++}
++
++#endif // SDL_VIDEO_DRIVER_UIKIT
+diff --git a/src/video/uikit/SDL_uikitwindow.m b/src/video/uikit/SDL_uikitwindow.m
+index 3e538f2..d1e95cf 100644
+--- a/src/video/uikit/SDL_uikitwindow.m
++++ b/src/video/uikit/SDL_uikitwindow.m
+@@ -108,6 +108,8 @@ static bool SetupWindowData(SDL_VideoDevice *_this, SDL_Window *window, UIWindow
+     window->x = 0;
+     window->y = 0;
+ #endif
++    // Voxelium: the size the app asked for, to tell it the size it got (below).
++    const int requested_w = window->w, requested_h = window->h;
+     window->w = width;
+     window->h = height;
+ 
+@@ -127,6 +129,22 @@ static bool SetupWindowData(SDL_VideoDevice *_this, SDL_Window *window, UIWindow
+     SDL_SetPointerProperty(props, SDL_PROP_WINDOW_UIKIT_WINDOW_POINTER, (__bridge void *)data.uiwindow);
+     SDL_SetNumberProperty(props, SDL_PROP_WINDOW_UIKIT_METAL_VIEW_TAG_NUMBER, SDL_METALVIEW_TAG);
+ 
++    /* Voxelium: the window takes the screen's size here without an event, and
++     * the view controller's later resize event is dropped when the size is
++     * unchanged (already landscape). Minecraft 26.3 learns its window size
++     * only from SDL_EVENT_WINDOW_RESIZED, so it kept its requested 854x480 and
++     * mapped taps with it: they missed the buttons whenever the game started
++     * with the phone already in landscape. */
++    if (requested_w != width || requested_h != height) {
++        SDL_Event event;
++        SDL_zero(event);
++        event.type = SDL_EVENT_WINDOW_RESIZED;
++        event.window.windowID = window->id;
++        event.window.data1 = width;
++        event.window.data2 = height;
++        SDL_PushEvent(&event);
++    }
++
+     return true;
+ }
+ 
+@@ -399,7 +417,7 @@ void UIKit_GetWindowSizeInPixels(SDL_VideoDevice *_this, SDL_Window *window, int
+ 
+         if (window->flags & SDL_WINDOW_HIGH_PIXEL_DENSITY) {
+ #ifndef SDL_PLATFORM_VISIONOS
+-            scale = windata.uiwindow.screen.nativeScale;
++            scale = windata.uiwindow.screen.nativeScale * UIKit_VoxeliumRenderScale();
+ #else
+             scale = 2.0;
+ #endif

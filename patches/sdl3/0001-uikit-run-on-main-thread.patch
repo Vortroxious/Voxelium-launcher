@@ -1,0 +1,245 @@
+UIKit: run the video driver's entry points on the main thread.
+
+Minecraft 26.3 (LWJGL 3.4.3) calls SDL from its own render thread, which then
+becomes SDL's "main" (video) thread, while UIKit may only be used on the iOS
+main thread. Each UIKit entry point in the device table hops to the main
+thread with dispatch_sync, as VXGLFW.m does for earlier Minecraft versions.
+GL entry points stay on the caller's thread (EAGLContext is per thread).
+PumpEvents does nothing off the main thread: the app's own run loop delivers
+touches, and SDL queues them thread-safely. Message boxes and pointer-lock
+updates also go to the main thread.
+
+diff --git a/src/video/uikit/SDL_uikitevents.m b/src/video/uikit/SDL_uikitevents.m
+index 2a22347..64fad44 100644
+--- a/src/video/uikit/SDL_uikitevents.m
++++ b/src/video/uikit/SDL_uikitevents.m
+@@ -153,6 +153,14 @@ void UIKit_PumpEvents(SDL_VideoDevice *_this)
+         return;
+     }
+ 
++    /* Voxelium: when SDL is driven from a thread other than the iOS main
++     * thread, that thread's run loop has no UIKit sources, and the app's own
++     * main run loop already delivers touches and other UIKit events, which
++     * SDL queues thread-safely. Nothing to pump here. */
++    if (![NSThread isMainThread]) {
++        return;
++    }
++
+     /* Let the run loop run for a short amount of time: long enough for
+        touch events to get processed (which is important to get certain
+        elements of Game Center's GKLeaderboardViewController to respond
+diff --git a/src/video/uikit/SDL_uikitmessagebox.m b/src/video/uikit/SDL_uikitmessagebox.m
+index c38fbd5..98ad78d 100644
+--- a/src/video/uikit/SDL_uikitmessagebox.m
++++ b/src/video/uikit/SDL_uikitmessagebox.m
+@@ -150,9 +150,11 @@ static void SDLCALL UIKit_ShowMessageBoxMainThreadCallback(void *userdata)
+ bool UIKit_ShowMessageBox(const SDL_MessageBoxData *messageboxdata, int *buttonID)
+ {
+     UIKit_ShowMessageBoxData data = { messageboxdata, buttonID, false };
+-    if (!SDL_RunOnMainThread(UIKit_ShowMessageBoxMainThreadCallback, &data, true)) {
+-        return false;
+-    } else if (!data.result) {
++    /* Voxelium: SDL_RunOnMainThread() means the thread that initialised SDL's
++     * video, which here is not the iOS main thread UIKit needs. */
++    UIKit_ShowMessageBoxData *pdata = &data;
++    UIKit_RunOnMainThreadSync(^{ UIKit_ShowMessageBoxMainThreadCallback(pdata); });
++    if (!data.result) {
+         return SDL_SetError("Could not show message box.");
+     }
+     return true;
+diff --git a/src/video/uikit/SDL_uikitvideo.h b/src/video/uikit/SDL_uikitvideo.h
+index 3db7f9b..bef6303 100644
+--- a/src/video/uikit/SDL_uikitvideo.h
++++ b/src/video/uikit/SDL_uikitvideo.h
+@@ -44,6 +44,11 @@ extern CGRect UIKit_ComputeViewFrame(SDL_Window *window, UIScreen *screen);
+ extern API_AVAILABLE(ios(13.0)) UIWindowScene *UIKit_GetActiveWindowScene(void);
+ 
+ extern void UIKit_SetGameControllerInteraction(bool enabled);
++
++/* Voxelium: SDL runs on a thread of the app's choosing (Minecraft's render
++ * thread, through LWJGL), not necessarily the iOS main thread. Runs the block
++ * on the main thread and waits for it; runs it directly when already there. */
++extern void UIKit_RunOnMainThreadSync(dispatch_block_t block);
+ extern void UIKit_SetViewGameControllerInteraction(UIView *view, bool enabled);
+ 
+ #endif // __OBJC__
+diff --git a/src/video/uikit/SDL_uikitvideo.m b/src/video/uikit/SDL_uikitvideo.m
+index 97aeb94..4b90727 100644
+--- a/src/video/uikit/SDL_uikitvideo.m
++++ b/src/video/uikit/SDL_uikitvideo.m
+@@ -50,6 +50,66 @@ @implementation SDL_UIKitVideoData
+ static bool UIKit_VideoInit(SDL_VideoDevice *_this);
+ static void UIKit_VideoQuit(SDL_VideoDevice *_this);
+ 
++void UIKit_RunOnMainThreadSync(dispatch_block_t block)
++{
++    if ([NSThread isMainThread]) {
++        block();
++    } else {
++        dispatch_sync(dispatch_get_main_queue(), block);
++    }
++}
++
++/* Voxelium: the driver's entry points touch UIKit, which must only be used on
++ * the main thread. When SDL is driven from another thread, each one runs on
++ * the main thread and the caller waits, so SDL behaves as if it were called
++ * there. GL entry points stay on the caller's thread: an EAGLContext is
++ * current per thread. PumpEvents is handled in SDL_uikitevents.m. */
++#define UIKIT_ON_MAIN(type, name, params, args)                  \
++    static type UIKitMain_##name params                          \
++    {                                                            \
++        __block type result;                                     \
++        UIKit_RunOnMainThreadSync(^{ result = UIKit_##name args; }); \
++        return result;                                           \
++    }
++#define UIKIT_ON_MAIN_VOID(name, params, args)                   \
++    static void UIKitMain_##name params                          \
++    {                                                            \
++        UIKit_RunOnMainThreadSync(^{ UIKit_##name args; });      \
++    }
++
++UIKIT_ON_MAIN(bool, VideoInit, (SDL_VideoDevice *_this), (_this))
++UIKIT_ON_MAIN_VOID(VideoQuit, (SDL_VideoDevice *_this), (_this))
++UIKIT_ON_MAIN(bool, GetDisplayModes, (SDL_VideoDevice *_this, SDL_VideoDisplay *display), (_this, display))
++UIKIT_ON_MAIN(bool, SetDisplayMode, (SDL_VideoDevice *_this, SDL_VideoDisplay *display, SDL_DisplayMode *mode), (_this, display, mode))
++UIKIT_ON_MAIN(bool, SuspendScreenSaver, (SDL_VideoDevice *_this), (_this))
++UIKIT_ON_MAIN(bool, CreateWindow, (SDL_VideoDevice *_this, SDL_Window *window, SDL_PropertiesID create_props), (_this, window, create_props))
++UIKIT_ON_MAIN_VOID(SetWindowTitle, (SDL_VideoDevice *_this, SDL_Window *window), (_this, window))
++UIKIT_ON_MAIN_VOID(SetWindowSize, (SDL_VideoDevice *_this, SDL_Window *window), (_this, window))
++UIKIT_ON_MAIN_VOID(ShowWindow, (SDL_VideoDevice *_this, SDL_Window *window), (_this, window))
++UIKIT_ON_MAIN_VOID(HideWindow, (SDL_VideoDevice *_this, SDL_Window *window), (_this, window))
++UIKIT_ON_MAIN_VOID(SetWindowBordered, (SDL_VideoDevice *_this, SDL_Window *window, bool bordered), (_this, window, bordered))
++UIKIT_ON_MAIN(SDL_FullscreenResult, SetWindowFullscreen, (SDL_VideoDevice *_this, SDL_Window *window, SDL_VideoDisplay *display, SDL_FullscreenOp fullscreen), (_this, window, display, fullscreen))
++UIKIT_ON_MAIN_VOID(DestroyWindow, (SDL_VideoDevice *_this, SDL_Window *window), (_this, window))
++UIKIT_ON_MAIN(bool, GetDisplayUsableBounds, (SDL_VideoDevice *_this, SDL_VideoDisplay *display, SDL_Rect *rect), (_this, display, rect))
++UIKIT_ON_MAIN_VOID(GetWindowSizeInPixels, (SDL_VideoDevice *_this, SDL_Window *window, int *w, int *h), (_this, window, w, h))
++#ifdef SDL_IPHONE_KEYBOARD
++UIKIT_ON_MAIN(bool, HasScreenKeyboardSupport, (SDL_VideoDevice *_this), (_this))
++UIKIT_ON_MAIN(bool, StartTextInput, (SDL_VideoDevice *_this, SDL_Window *window, SDL_PropertiesID props), (_this, window, props))
++UIKIT_ON_MAIN(bool, StopTextInput, (SDL_VideoDevice *_this, SDL_Window *window), (_this, window))
++UIKIT_ON_MAIN_VOID(SetTextInputProperties, (SDL_VideoDevice *_this, SDL_Window *window, SDL_PropertiesID props), (_this, window, props))
++UIKIT_ON_MAIN(bool, UpdateTextInputArea, (SDL_VideoDevice *_this, SDL_Window *window), (_this, window))
++#endif
++UIKIT_ON_MAIN(bool, SetClipboardText, (SDL_VideoDevice *_this, const char *text), (_this, text))
++UIKIT_ON_MAIN(char *, GetClipboardText, (SDL_VideoDevice *_this), (_this))
++UIKIT_ON_MAIN(bool, HasClipboardText, (SDL_VideoDevice *_this), (_this))
++#ifdef SDL_VIDEO_VULKAN
++UIKIT_ON_MAIN(bool, Vulkan_CreateSurface, (SDL_VideoDevice *_this, SDL_Window *window, VkInstance instance, const struct VkAllocationCallbacks *allocator, VkSurfaceKHR *surface), (_this, window, instance, allocator, surface))
++#endif
++#ifdef SDL_VIDEO_METAL
++UIKIT_ON_MAIN(SDL_MetalView, Metal_CreateView, (SDL_VideoDevice *_this, SDL_Window *window), (_this, window))
++UIKIT_ON_MAIN_VOID(Metal_DestroyView, (SDL_VideoDevice *_this, SDL_MetalView view), (_this, view))
++#endif
++
+ // DUMMY driver bootstrap functions
+ 
+ static void UIKit_DeleteDevice(SDL_VideoDevice *device)
+@@ -77,38 +137,40 @@ static void UIKit_DeleteDevice(SDL_VideoDevice *device)
+         data = [SDL_UIKitVideoData new];
+ 
+         device->internal = (SDL_VideoData *)CFBridgingRetain(data);
+-        device->system_theme = UIKit_GetSystemTheme();
++        __block SDL_SystemTheme theme = SDL_SYSTEM_THEME_UNKNOWN;
++        UIKit_RunOnMainThreadSync(^{ theme = UIKit_GetSystemTheme(); });
++        device->system_theme = theme;
+ 
+         // Set the function pointers
+-        device->VideoInit = UIKit_VideoInit;
+-        device->VideoQuit = UIKit_VideoQuit;
+-        device->GetDisplayModes = UIKit_GetDisplayModes;
+-        device->SetDisplayMode = UIKit_SetDisplayMode;
++        device->VideoInit = UIKitMain_VideoInit;
++        device->VideoQuit = UIKitMain_VideoQuit;
++        device->GetDisplayModes = UIKitMain_GetDisplayModes;
++        device->SetDisplayMode = UIKitMain_SetDisplayMode;
+         device->PumpEvents = UIKit_PumpEvents;
+-        device->SuspendScreenSaver = UIKit_SuspendScreenSaver;
+-        device->CreateSDLWindow = UIKit_CreateWindow;
+-        device->SetWindowTitle = UIKit_SetWindowTitle;
+-        device->SetWindowSize = UIKit_SetWindowSize;
+-        device->ShowWindow = UIKit_ShowWindow;
+-        device->HideWindow = UIKit_HideWindow;
++        device->SuspendScreenSaver = UIKitMain_SuspendScreenSaver;
++        device->CreateSDLWindow = UIKitMain_CreateWindow;
++        device->SetWindowTitle = UIKitMain_SetWindowTitle;
++        device->SetWindowSize = UIKitMain_SetWindowSize;
++        device->ShowWindow = UIKitMain_ShowWindow;
++        device->HideWindow = UIKitMain_HideWindow;
+         device->RaiseWindow = UIKit_RaiseWindow;
+-        device->SetWindowBordered = UIKit_SetWindowBordered;
+-        device->SetWindowFullscreen = UIKit_SetWindowFullscreen;
+-        device->DestroyWindow = UIKit_DestroyWindow;
+-        device->GetDisplayUsableBounds = UIKit_GetDisplayUsableBounds;
+-        device->GetWindowSizeInPixels = UIKit_GetWindowSizeInPixels;
++        device->SetWindowBordered = UIKitMain_SetWindowBordered;
++        device->SetWindowFullscreen = UIKitMain_SetWindowFullscreen;
++        device->DestroyWindow = UIKitMain_DestroyWindow;
++        device->GetDisplayUsableBounds = UIKitMain_GetDisplayUsableBounds;
++        device->GetWindowSizeInPixels = UIKitMain_GetWindowSizeInPixels;
+ 
+ #ifdef SDL_IPHONE_KEYBOARD
+-        device->HasScreenKeyboardSupport = UIKit_HasScreenKeyboardSupport;
+-        device->StartTextInput = UIKit_StartTextInput;
+-        device->StopTextInput = UIKit_StopTextInput;
+-        device->SetTextInputProperties = UIKit_SetTextInputProperties;
+-        device->UpdateTextInputArea = UIKit_UpdateTextInputArea;
++        device->HasScreenKeyboardSupport = UIKitMain_HasScreenKeyboardSupport;
++        device->StartTextInput = UIKitMain_StartTextInput;
++        device->StopTextInput = UIKitMain_StopTextInput;
++        device->SetTextInputProperties = UIKitMain_SetTextInputProperties;
++        device->UpdateTextInputArea = UIKitMain_UpdateTextInputArea;
+ #endif
+ 
+-        device->SetClipboardText = UIKit_SetClipboardText;
+-        device->GetClipboardText = UIKit_GetClipboardText;
+-        device->HasClipboardText = UIKit_HasClipboardText;
++        device->SetClipboardText = UIKitMain_SetClipboardText;
++        device->GetClipboardText = UIKitMain_GetClipboardText;
++        device->HasClipboardText = UIKitMain_HasClipboardText;
+ 
+         // OpenGL (ES) functions
+ #if defined(SDL_VIDEO_OPENGL_ES) || defined(SDL_VIDEO_OPENGL_ES2)
+@@ -125,13 +187,13 @@ static void UIKit_DeleteDevice(SDL_VideoDevice *device)
+         device->Vulkan_LoadLibrary = UIKit_Vulkan_LoadLibrary;
+         device->Vulkan_UnloadLibrary = UIKit_Vulkan_UnloadLibrary;
+         device->Vulkan_GetInstanceExtensions = UIKit_Vulkan_GetInstanceExtensions;
+-        device->Vulkan_CreateSurface = UIKit_Vulkan_CreateSurface;
++        device->Vulkan_CreateSurface = UIKitMain_Vulkan_CreateSurface;
+         device->Vulkan_DestroySurface = UIKit_Vulkan_DestroySurface;
+ #endif
+ 
+ #ifdef SDL_VIDEO_METAL
+-        device->Metal_CreateView = UIKit_Metal_CreateView;
+-        device->Metal_DestroyView = UIKit_Metal_DestroyView;
++        device->Metal_CreateView = UIKitMain_Metal_CreateView;
++        device->Metal_DestroyView = UIKitMain_Metal_DestroyView;
+         device->Metal_GetLayer = UIKit_Metal_GetLayer;
+ #endif
+ 
+diff --git a/src/video/uikit/SDL_uikitwindow.m b/src/video/uikit/SDL_uikitwindow.m
+index 0ee7364..4ec90a8 100644
+--- a/src/video/uikit/SDL_uikitwindow.m
++++ b/src/video/uikit/SDL_uikitwindow.m
+@@ -323,13 +323,16 @@ SDL_FullscreenResult UIKit_SetWindowFullscreen(SDL_VideoDevice *_this, SDL_Windo
+ void UIKit_UpdatePointerLock(SDL_VideoDevice *_this, SDL_Window *window)
+ {
+ #ifndef SDL_PLATFORM_TVOS
+-    @autoreleasepool {
+-        SDL_UIKitWindowData *data = (__bridge SDL_UIKitWindowData *)window->internal;
+-        SDL_uikitviewcontroller *viewcontroller = data.viewcontroller;
+-        if (@available(iOS 14.0, *)) {
+-            [viewcontroller setNeedsUpdateOfPrefersPointerLocked];
++    // Voxelium: called from SDL's thread and GameController queues; UIKit wants main.
++    UIKit_RunOnMainThreadSync(^{
++        @autoreleasepool {
++            SDL_UIKitWindowData *data = (__bridge SDL_UIKitWindowData *)window->internal;
++            SDL_uikitviewcontroller *viewcontroller = data.viewcontroller;
++            if (@available(iOS 14.0, *)) {
++                [viewcontroller setNeedsUpdateOfPrefersPointerLocked];
++            }
+         }
+-    }
++    });
+ #endif // !SDL_PLATFORM_TVOS
+ }
+ 

@@ -1,0 +1,115 @@
+diff --git a/src/mesa/glapi/darwin-libgl/gen_all_gl_symbols.py b/src/mesa/glapi/darwin-libgl/gen_all_gl_symbols.py
+new file mode 100644
+index 0000000..2d36862
+--- /dev/null
++++ b/src/mesa/glapi/darwin-libgl/gen_all_gl_symbols.py
+@@ -0,0 +1,17 @@
++# Copyright 2026 Voxelium contributors
++# SPDX-License-Identifier: MIT
++#
++# Prints every entry point in a GLAPI XML file, one "glName" per line, in the
++# format of src/glx/libgl-symbols.txt. That file is the frozen Linux libGL ABI
++# (no GL 4.5 DSA, no 4.6); an iOS libGL has no such ABI to keep, and LWJGL
++# reports a GL version as supported only when all of its functions resolve.
++import sys, os
++sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'glapi', 'gen'))
++import gl_XML, glX_XML
++
++api = gl_XML.parse_GL_API(sys.argv[1], glX_XML.glx_item_factory())
++names = set()
++for func in api.functionIterateByOffset():
++    names.update(func.entry_points)
++for name in sorted(names):
++    print('gl' + name)
+diff --git a/src/mesa/glapi/darwin-libgl/libgl_darwin_public.c b/src/mesa/glapi/darwin-libgl/libgl_darwin_public.c
+new file mode 100644
+index 0000000..fc1bd11
+--- /dev/null
++++ b/src/mesa/glapi/darwin-libgl/libgl_darwin_public.c
+@@ -0,0 +1,25 @@
++/* Copyright 2026 Voxelium contributors
++ * SPDX-License-Identifier: MIT
++ *
++ * libgl_public.c's C public entries, built from darwin_glapi_mapi_tmp.h (every
++ * GL entry point Mesa dispatches). There is no assembly entry code for this
++ * architecture, so the C stubs below are used.
++ */
++
++/* Mesa's XML gives these four GLintptr for `indirect` where glext.h has
++ * const void *; same ABI on 64-bit, but the C prototypes conflict. Keep
++ * glext.h's declarations out of the way under other names. */
++#define glMultiDrawArraysIndirectCount glext_glMultiDrawArraysIndirectCount
++#define glMultiDrawArraysIndirectCountARB glext_glMultiDrawArraysIndirectCountARB
++#define glMultiDrawElementsIndirectCount glext_glMultiDrawElementsIndirectCount
++#define glMultiDrawElementsIndirectCountARB glext_glMultiDrawElementsIndirectCountARB
++#include "util/glheader.h"
++#include "glapi/glapi_priv.h"
++#undef glMultiDrawArraysIndirectCount
++#undef glMultiDrawArraysIndirectCountARB
++#undef glMultiDrawElementsIndirectCount
++#undef glMultiDrawElementsIndirectCountARB
++
++#define MAPI_TMP_DEFINES
++#define MAPI_TMP_PUBLIC_ENTRIES_NO_HIDDEN
++#include "darwin_glapi_mapi_tmp.h"
+diff --git a/src/mesa/glapi/darwin-libgl/meson.build b/src/mesa/glapi/darwin-libgl/meson.build
+new file mode 100644
+index 0000000..ca84a07
+--- /dev/null
++++ b/src/mesa/glapi/darwin-libgl/meson.build
+@@ -0,0 +1,39 @@
++# Copyright 2026 Voxelium contributors
++# SPDX-License-Identifier: MIT
++
++# A libGL for Apple platforms without GLX (iOS): the public GL entry points,
++# dispatching through libgallium's glapi to whatever context EGL made current.
++# No GLX, no window system. Unlike GLX's libGL it exports every entry point
++# Mesa knows (gen_all_gl_symbols.py), including GL 4.5 and 4.6.
++darwin_gl_symbols_txt = custom_target(
++  'darwin-gl-symbols.txt',
++  input : ['gen_all_gl_symbols.py', '../glapi/gen/gl_and_es_API.xml'],
++  output : 'darwin-gl-symbols.txt',
++  command : [prog_python, '@INPUT0@', '@INPUT1@'],
++  depend_files : glapi_xml_py_deps,
++  capture : true,
++)
++
++darwin_glapi_mapi_tmp_h = custom_target(
++  'darwin_glapi_mapi_tmp.h',
++  input : ['../mapi_abi.py', '../glapi/gen/gl_and_es_API.xml', darwin_gl_symbols_txt],
++  output : 'darwin_glapi_mapi_tmp.h',
++  command : [prog_python, '@INPUT0@', '--printer', 'glapi', '--gl_symbols', '@INPUT2@', '@INPUT1@'],
++  depend_files : glapi_xml_py_deps,
++  capture : true,
++)
++
++libgl_darwin = shared_library(
++  'GL',
++  ['libgl_darwin_public.c', darwin_glapi_mapi_tmp_h],
++  include_directories : [inc_mesa, inc_include, inc_src, inc_gallium],
++  c_args : [gcc_lto_quirk],
++  link_with : shared_glapi_lib,
++  link_args : [ld_args_gc_sections],
++  dependencies : [dep_thread, idep_mesautil],
++  gnu_symbol_visibility : 'hidden',
++  soversion : '1',
++  version : '1.2.0',
++  darwin_versions : '1.2.0',
++  install : true,
++)
+diff --git a/src/meson.build b/src/meson.build
+index c4dece9..e2738d7 100644
+--- a/src/meson.build
++++ b/src/meson.build
+@@ -138,6 +138,11 @@ if with_gallium and (with_glx != 'disabled' or with_egl)
+   if with_gles2 and not with_glvnd
+     subdir('mesa/glapi/es2api')
+   endif
++  # Apple platforms without GLX (iOS): a libGL that exports the GL entry points,
++  # for apps that look GL functions up by name in "the GL library" (LWJGL).
++  if host_machine.system() == 'darwin' and with_glx == 'disabled' and with_opengl and not with_glvnd
++    subdir('mesa/glapi/darwin-libgl')
++  endif
+   if with_tests
+     subdir('mesa/main/tests')
+     subdir('mesa/state_tracker/tests')

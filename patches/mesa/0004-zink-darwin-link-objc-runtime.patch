@@ -1,0 +1,14 @@
+diff --git a/src/gallium/drivers/zink/meson.build b/src/gallium/drivers/zink/meson.build
+index 0862038..c7b1115 100644
+--- a/src/gallium/drivers/zink/meson.build
++++ b/src/gallium/drivers/zink/meson.build
+@@ -82,6 +82,9 @@ if host_machine.system() == 'darwin'
+ 
+   zink_c_args += ['-x','objective-c'] # Put compiler into objective-C mode to allow for MacOS types, like IOSurface and CAMetalLayer
+   zink_c_args += ['-iframework' , 'Foundation']
++  # Objective-C objects need the ObjC runtime even when no window-system
++  # platform (which would bring Foundation) is built, as with iOS surfaceless.
++  zink_link_args += ['-lobjc']
+ 
+   # zink dlopen()s the Vulkan loader (libvulkan.1.dylib) via a bare
+   # "@rpath/..." path at runtime (see VK_LIBNAME in zink_screen.c).  This linker

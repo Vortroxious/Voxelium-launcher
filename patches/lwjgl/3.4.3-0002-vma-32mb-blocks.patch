@@ -1,0 +1,26 @@
+VMA: 32 MB default blocks on large heaps (iOS build).
+
+Minecraft 26.3 creates its VMA allocator with the default block size. VMA
+grows blocks 32, 64, 128 MB up to 256 MB, and each block is one Metal
+allocation on KosmicKrisp, counted in full against the app's footprint
+whatever is used inside it. Measured on the Mac with the Vulkan shim's
+accounting: 736 MB allocated for 528 MB of buffers and images in a world
+(992 MB on the iPhone, where iOS limits the app to about 3.3 GB). With
+32 MB blocks, allocations bigger than 16 MB get memory of their own and the
+rest share small blocks: 801 MB allocated for 772 MB used, with the slack
+down from 200-450 MB to about 30 MB.
+
+diff --git a/modules/lwjgl/vma/src/main/c/vk_mem_alloc.h b/modules/lwjgl/vma/src/main/c/vk_mem_alloc.h
+--- a/modules/lwjgl/vma/src/main/c/vk_mem_alloc.h
++++ b/modules/lwjgl/vma/src/main/c/vk_mem_alloc.h
+@@ -3548,7 +3548,9 @@
+
+ #ifndef VMA_DEFAULT_LARGE_HEAP_BLOCK_SIZE
+    /// Default size of a block allocated as single VkDeviceMemory from a "large" heap.
+-   #define VMA_DEFAULT_LARGE_HEAP_BLOCK_SIZE (256ULL * 1024 * 1024)
++   /* Voxelium (iOS): 32 MB instead of 256 MB, so partly filled blocks don't
++    * hold hundreds of MB of the app's memory (patches/lwjgl/3.4.3-0002). */
++   #define VMA_DEFAULT_LARGE_HEAP_BLOCK_SIZE (32ULL * 1024 * 1024)
+ #endif
+
+ /*

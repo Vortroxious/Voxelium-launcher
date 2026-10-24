@@ -1,0 +1,106 @@
+===== Zink test (GL 4.6 override) 2026-10-22T11:33:37Z
+phys_footprint before init: 38.5 MB
+Vulkan driver: KosmicKrisp (libvulkan_kosmickrisp.dylib)
+Vulkan probe: entry point vk_icdGetInstanceProcAddr
+Vulkan instance version 1.3.363
+vkCreateInstance OK in 0.6 ms
+Vulkan physical devices: 1
+[0] Apple A17 Pro GPU apiVersion=1.4.363 driverID=28 driver=KosmicKrisp (Mesa 27.0.0-devel (git-9b3209540c)) vendor=0x106B type=1
+[0] 137 device extensions; transform_feedback absent, robustness2 advertised
+[0] geometryShader=0 tessellationShader=1 transformFeedback=0 geometryStreams=0 robustBufferAccess2=1 robustImageAccess2=1 nullDescriptor=1
+env GALLIUM_DRIVER=zink
+env MESA_LOADER_DRIVER_OVERRIDE=zink
+env ZINK_VULKAN_LIBRARY=/private/var/containers/Bundle/Application/1503C477-60CC-46C4-B245-50F0D20B879B/Voxelium.app/Frameworks/zink/libvulkan_kosmickrisp.dylib
+env MESA_LOG_FILE=/var/mobile/Containers/Data/Application/61310DF7-96CD-4F89-A1A4-6EE9E92BE9A7/Documents/logs/zink-mesa.log
+env MESA_DEBUG=1
+env MESA_SHADER_CACHE_DIR=/var/mobile/Containers/Data/Application/61310DF7-96CD-4F89-A1A4-6EE9E92BE9A7/Library/Caches/mesa_shader_cache_gl46override
+env MESA_GL_VERSION_OVERRIDE=4.6
+env MESA_GLSL_VERSION_OVERRIDE=460
+loaded zink/libEGL_mesa.dylib
+EGL 1.5 vendor=Mesa Project version=1.5
+EGL client APIs: OpenGL OpenGL_ES 
+EGL extensions: EGL_ANDROID_blob_cache EGL_ANDROID_native_fence_sync EGL_EXT_config_select_group EGL_EXT_create_context_robustness EGL_EXT_query_reset_notification_strategy EGL_EXT_surface_compression EGL_KHR_cl_event2 EGL_KHR_config_attribs EGL_KHR_context_flush_control EGL_KHR_create_context EGL_KHR_create_context_no_error EGL_KHR_fence_sync EGL_KHR_get_all_proc_addresses EGL_KHR_gl_colorspace EGL_KHR_gl_renderbuffer_image EGL_KHR_gl_texture_2D_image EGL_KHR_gl_texture_3D_image EGL_KHR_gl_texture_cubemap_image EGL_KHR_image_base EGL_KHR_no_config_context EGL_KHR_partial_update EGL_KHR_reusable_sync EGL_KHR_surfaceless_context EGL_EXT_pixel_format_float EGL_KHR_wait_sync EGL_MESA_configless_context EGL_MESA_gl_interop EGL_MESA_query_driver EGL_MESA_x11_native_visual_id 
+created OpenGL 4.3 core context
+EGL + context ready in 1415.1 ms
+phys_footprint after context creation: 48.4 MB
+GL_VENDOR=Mesa
+GL_RENDERER=zink Vulkan 1.4(Apple A17 Pro GPU (MESA_KOSMICKRISP))
+GL_VERSION=4.6 (Core Profile) Mesa 27.0.0-devel (git-9b3209540c)
+GL_SHADING_LANGUAGE_VERSION=4.60
+context 4.6, profile core
+217 extensions
+GL_ARB_compute_shader: yes
+GL_ARB_shader_storage_buffer_object: yes
+GL_ARB_shader_image_load_store: yes
+GL_ARB_geometry_shader4: no
+GL_ARB_tessellation_shader: yes
+GL_ARB_transform_feedback3: no
+GL_ARB_multi_draw_indirect: yes
+GL_ARB_gpu_shader5: yes
+GL_MAX_COMPUTE_WORK_GROUP_COUNT=(2147483646, 65535, 65535)
+GL_MAX_COMPUTE_WORK_GROUP_SIZE=(1024, 1024, 1024) invocations=1024
+compute shader compiled and linked in 10.4 ms
+dispatch(16,1,1) + barrier + finish 26.56 ms, map/read-back 0.02 ms, glError=0x0
+VOXELIUM_ZINK_COMPUTE_OK
+phys_footprint after the dispatch: 83.8 MB
+draw shaders compiled and linked in 1.0 ms
+1290x2796 full-screen quad: first frame 51.82 ms, then 299 frames 160.2 ms (0.536 ms/frame, 1866.0 fps)
+read-back centre=(128,128,64,255) glError=0x0 OK
+phys_footprint after the frames: 611.3 MB
+tearing down EGL
+EGL torn down
+VOXELIUM_ZINK_OK
+===== Zink test (native version) 2026-10-22T11:33:55Z
+phys_footprint before init: 39.2 MB
+Vulkan driver: KosmicKrisp (libvulkan_kosmickrisp.dylib)
+Vulkan probe: entry point vk_icdGetInstanceProcAddr
+Vulkan instance version 1.3.363
+vkCreateInstance OK in 0.1 ms
+Vulkan physical devices: 1
+[0] Apple A17 Pro GPU apiVersion=1.4.363 driverID=28 driver=KosmicKrisp (Mesa 27.0.0-devel (git-9b3209540c)) vendor=0x106B type=1
+[0] 137 device extensions; transform_feedback absent, robustness2 advertised
+[0] geometryShader=0 tessellationShader=1 transformFeedback=0 geometryStreams=0 robustBufferAccess2=1 robustImageAccess2=1 nullDescriptor=1
+env GALLIUM_DRIVER=zink
+env MESA_LOADER_DRIVER_OVERRIDE=zink
+env ZINK_VULKAN_LIBRARY=/private/var/containers/Bundle/Application/1503C477-60CC-46C4-B245-50F0D20B879B/Voxelium.app/Frameworks/zink/libvulkan_kosmickrisp.dylib
+env MESA_LOG_FILE=/var/mobile/Containers/Data/Application/61310DF7-96CD-4F89-A1A4-6EE9E92BE9A7/Documents/logs/zink-mesa.log
+env MESA_DEBUG=1
+env MESA_SHADER_CACHE_DIR=/var/mobile/Containers/Data/Application/61310DF7-96CD-4F89-A1A4-6EE9E92BE9A7/Library/Caches/mesa_shader_cache_native
+loaded zink/libEGL_mesa.dylib
+EGL 1.5 vendor=Mesa Project version=1.5
+EGL client APIs: OpenGL OpenGL_ES 
+EGL extensions: EGL_ANDROID_blob_cache EGL_ANDROID_native_fence_sync EGL_EXT_config_select_group EGL_EXT_create_context_robustness EGL_EXT_query_reset_notification_strategy EGL_EXT_surface_compression EGL_KHR_cl_event2 EGL_KHR_config_attribs EGL_KHR_context_flush_control EGL_KHR_create_context EGL_KHR_create_context_no_error EGL_KHR_fence_sync EGL_KHR_get_all_proc_addresses EGL_KHR_gl_colorspace EGL_KHR_gl_renderbuffer_image EGL_KHR_gl_texture_2D_image EGL_KHR_gl_texture_3D_image EGL_KHR_gl_texture_cubemap_image EGL_KHR_image_base EGL_KHR_no_config_context EGL_KHR_partial_update EGL_KHR_reusable_sync EGL_KHR_surfaceless_context EGL_EXT_pixel_format_float EGL_KHR_wait_sync EGL_MESA_configless_context EGL_MESA_gl_interop EGL_MESA_query_driver EGL_MESA_x11_native_visual_id 
+OpenGL 4.3 core context refused: 0x3009
+OpenGL 4.2 core context refused: 0x3009
+OpenGL 4.1 core context refused: 0x3009
+OpenGL 4.0 core context refused: 0x3009
+OpenGL 3.3 core context refused: 0x3009
+OpenGL 3.2 core context refused: 0x3009
+created default (compatibility) OpenGL context
+EGL + context ready in 10.9 ms
+phys_footprint after context creation: 48.9 MB
+GL_VENDOR=Mesa
+GL_RENDERER=zink Vulkan 1.4(Apple A17 Pro GPU (MESA_KOSMICKRISP))
+GL_VERSION=2.1 Mesa 27.0.0-devel (git-9b3209540c)
+GL_SHADING_LANGUAGE_VERSION=1.20
+context 2.1, profile none (pre-3.2)
+287 extensions
+GL_ARB_compute_shader: yes
+GL_ARB_shader_storage_buffer_object: yes
+GL_ARB_shader_image_load_store: yes
+GL_ARB_geometry_shader4: no
+GL_ARB_tessellation_shader: yes
+GL_ARB_transform_feedback3: no
+GL_ARB_multi_draw_indirect: yes
+GL_ARB_gpu_shader5: yes
+GL_MAX_COMPUTE_WORK_GROUP_COUNT=(2147483646, 65535, 65535)
+GL_MAX_COMPUTE_WORK_GROUP_SIZE=(1024, 1024, 1024) invocations=1024
+compute skipped: GL 2.1, GLSL 1.20 (use the GL 4.6 override)
+draw shaders compiled and linked in 2.7 ms
+1290x2796 full-screen quad: first frame 42.29 ms, then 299 frames 114.5 ms (0.383 ms/frame, 2610.9 fps)
+read-back centre=(128,128,64,255) glError=0x0 OK
+phys_footprint after the frames: 868.1 MB
+VOXELIUM_ZINK_NATIVE_GL2.1_DRAW_OK (no compute at this version)
+tearing down EGL
+EGL torn down
+VOXELIUM_ZINK_OK

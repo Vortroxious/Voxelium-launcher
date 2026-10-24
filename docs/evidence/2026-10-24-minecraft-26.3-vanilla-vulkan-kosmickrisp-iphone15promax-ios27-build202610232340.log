@@ -1,0 +1,190 @@
+# Vanilla Minecraft 26.3 on iPhone 15 Pro Max, iOS 27, experimental build 202610232340 (devicectl-confirmed),
+# Vulkan on KosmicKrisp with the Stage 4 touch controls; logs copied 2026-10-24 ~00:14Z.
+# launcher.log:
+2026-10-24T00:11:20Z [ERROR] launch: Could not start 26.2: 26.2 is not supported yet: it starts but shows only a black screen on iOS (its graphics shaders do not work on this phone's OpenGL ES layer). Minecraft up to 26.1.2 works.
+2026-10-24T00:11:24Z [INFO] launch: Starting Minecraft 26.3 as Vortroxious (msa): Java 25 (asks 25), LWJGL 3.4.3 for 3.4.3, SDL3 + Vulkan (KosmicKrisp), heap 1336 MB, render scale 50%, 57 classpath entries, 34 JVM options
+2026-10-24T00:12:12Z [INFO] launch: Minecraft returned (status 0): net/minecraft/client/main/Main.main returned normally
+# jvm.log (this run; JNA stack traces and GC lines left out):
+===== Minecraft 26.3 2026-10-24T00:11:24Z java=25 heap=1336M flags=0x5 (iOS26=1 mirrored=0 TXM=1) CS_DEBUGGED=1 debuggerNow=1 needsScript=1
+[JVMBridge] flags=0x5 (iOS26=1 mirrored=0 TXM=1) CS_DEBUGGED=1 debuggerNow=1 needsScript=1
+[JVMBridge] JIT26 probe: debugger replied (x0=0xcccccccc690000e0)
+[JVMBridge] JIT26 extension sent; debugger will detach after the JVM's mapping request
+[JVMBridge] JNI_CreateJavaVM with 35 options
+[JVMBridge]   -Djava.io.tmpdir=/private/var/mobile/Containers/Data/Application/1A188C02-22E9-4D9A-8019-28EE8BFE2CFF/tmp/
+[JVMBridge]   -Duser.home=/var/mobile/Containers/Data/Application/1A188C02-22E9-4D9A-8019-28EE8BFE2CFF/Documents
+[JVMBridge]   -XX:ErrorFile=/var/mobile/Containers/Data/Application/1A188C02-22E9-4D9A-8019-28EE8BFE2CFF/Documents/logs/hs_err_pid%p.log
+[JVMBridge]   -XX:+UnlockExperimentalVMOptions
+[JVMBridge]   -XX:+DisablePrimordialThreadGuardPages
+[JVMBridge]   -XX:-UseCompressedClassPointers
+[JVMBridge]   -XX:+MirrorMappedCodeCache
+[JVMBridge]   -XX:+IgnoreUnrecognizedVMOptions
+[JVMBridge]   -Xms256M
+[JVMBridge]   -Xmx1336M
+[JVMBridge]   -Djava.awt.headless=true
+[JVMBridge]   -Dlog4j2.formatMsgNoLookups=true
+[JVMBridge]   -Dsodium.checks.issue2561=false
+[JVMBridge]   -Dorg.lwjgl.librarypath=/private/var/containers/Bundle/Application/2FF5FA16-BE13-437B-B1B9-EDE2CC295472/Voxelium.app/java/lwjgl-3.4.3
+[JVMBridge]   -Dorg.lwjgl.sdl.libname=/private/var/containers/Bundle/Application/2FF5FA16-BE13-437B-B1B9-EDE2CC295472/Voxelium.app/Frameworks/sdl3/libSDL3.dylib
+[JVMBridge]   -Dorg.lwjgl.vulkan.libname=/private/var/containers/Bundle/Application/2FF5FA16-BE13-437B-B1B9-EDE2CC295472/Voxelium.app/Frameworks/sdl3/libvulkan.1.dylib
+[JVMBridge]   -Dorg.lwjgl.shaderc.libname=/private/var/containers/Bundle/Application/2FF5FA16-BE13-437B-B1B9-EDE2CC295472/Voxelium.app/java/lwjgl-3.4.3/libshaderc_shared.dylib
+[JVMBridge]   -Dorg.lwjgl.spvc.libname=/private/var/containers/Bundle/Application/2FF5FA16-BE13-437B-B1B9-EDE2CC295472/Voxelium.app/java/lwjgl-3.4.3/libspirv-cross.dylib
+[JVMBridge]   -Dorg.lwjgl.opengl.libname=/private/var/containers/Bundle/Application/2FF5FA16-BE13-437B-B1B9-EDE2CC295472/Voxelium.app/Voxelium
+[JVMBridge]   -Dorg.lwjgl.system.allocator=system
+[JVMBridge]   -Duser.dir=/var/mobile/Containers/Data/Application/1A188C02-22E9-4D9A-8019-28EE8BFE2CFF/Documents/minecraft
+[JVMBridge]   -XX:MinHeapFreeRatio=10
+[JVMBridge]   -XX:MaxHeapFreeRatio=30
+[JVMBridge]   -XX:G1PeriodicGCInterval=15000
+[JVMBridge]   -Xlog:gc:stdout
+[JVMBridge]   -XX:StackShadowPages=32
+[JVMBridge]   --enable-native-access=ALL-UNNAMED
+[JVMBridge]   --add-exports=java.base/jdk.internal.misc=ALL-UNNAMED
+[JVMBridge]   -Djava.library.path=/var/mobile/Containers/Data/Application/1A188C02-22E9-4D9A-8019-28EE8BFE2CFF/Documents/minecraft/versions/26.3/natives/java
+[JVMBridge]   -Djna.tmpdir=/var/mobile/Containers/Data/Application/1A188C02-22E9-4D9A-8019-28EE8BFE2CFF/Documents/minecraft/versions/26.3/natives/jna
+[JVMBridge]   -Dorg.lwjgl.system.SharedLibraryExtractPath=/var/mobile/Containers/Data/Application/1A188C02-22E9-4D9A-8019-28EE8BFE2CFF/Documents/minecraft/versions/26.3/natives/lwjgl
+[JVMBridge]   -Dio.netty.native.workdir=/var/mobile/Containers/Data/Application/1A188C02-22E9-4D9A-8019-28EE8BFE2CFF/Documents/minecraft/versions/26.3/natives/netty
+[JVMBridge]   -Dminecraft.launcher.brand=Voxelium
+[JVMBridge]   -Dminecraft.launcher.version=1.0
+[JVMBridge]   -Djava.class.path=/private/var/containers/Bundle/Application/2FF5FA16-BE13-437B-B1B9-EDE2CC295472/Voxelium.app/java/lwjgl-3.4.3/lwjgl.jar:/private/var/containers/Bundle/Application/2FF5FA16-BE13-437B-B1B9-EDE2CC295472/Voxelium.app/java/lwjgl-3.4.3/lwjgl-sdl.jar:/private/var/containers/Bundle/Application/2FF5FA16-BE13-437B-B1B9-EDE2CC295472/Voxelium.app/java/lwjgl-3.4.3/lwjgl-vulkan.jar:/private/var/containers/Bundle/Application/2FF5FA16-BE13-437B-B1B9-EDE2CC295472/Voxelium.app/java/lwjgl-3.4.3/lwjgl-shaderc.jar:/private/var/containers/Bundle/Application/2FF5FA16-BE13-437B-B1B9-EDE2CC295472/Voxelium.app/java/lwjgl-3.4.3/lwjgl-spvc.jar:/private/var/containers/Bundle/Application/2FF5FA16-BE13-437B-B1B9-EDE2CC295472/Voxelium.app/java/lwjgl-3.4.3/lwjgl-vma.jar:/private/var/containers/Bundle/Application/2FF5FA16-BE13-437B-B1B9-EDE2CC295472/Voxelium.app/java/lwjgl-3.4.3/lwjgl-freetype.jar:/private/var/containers/Bundle/Application/2FF5FA16-BE13-437B-B1B9-EDE2CC295472/Voxelium.app/java/lwjgl-3.4.3/lwjgl-jemalloc.jar:/private/var/containers/Bundle/Application/2FF5FA16-BE13-437B-B1B9-EDE2CC295472/Voxelium.app/java/lwjgl-3.4.3/lwjgl-openal.jar:/private/var/containers/Bundle/Application/2FF5FA16-BE13-437B-B1B9-EDE2CC295472/Voxelium.app/java/lwjgl-3.4.3/lwjgl-opengl.jar:/private/var/containers/Bundle/Application/2FF5FA16-BE13-437B-B1B9-EDE2CC295472/Voxelium.app/java/lwjgl-3.4.3/lwjgl-stb.jar:/private/var/containers/Bundle/Application/2FF5FA16-BE13-437B-B1B9-EDE2CC295472/Voxelium.app/java/voxelium-ios-compat.jar:/var/mobile/Containers/Data/Application/1A188C02-22E9-4D9A-8019-28EE8BFE2CFF/Documents/minecraft/libraries/at/yawk/lz4/lz4-java/1.10.1/lz4-java-1.10.1.jar:/var/mobile/Containers/Data/Application/1A188C02-22E9-4D9A-8019-28EE8BFE2CFF/Documents/minecraft/libraries/com/azure/azure-json/1.4.0/azure-json-1.4.0.jar:/var/mobile/Containers/Data/Application/1A188C02-22E9-4D9A-8019-28EE8BFE2CFF/Documents/minecraft/libraries/com/github/oshi/oshi-core/6.9.0/oshi-core-6.9.0.jar:/var/mobile/Containers/Data/Application/1A188C02-22E9-4D9A-8019-28EE8BFE2CFF/Documents/minecraft/libraries/com/google/code/gson/gson/2.14.0/gson-2.14.0.jar:/var/mobile/Containers/Data/Application/1A188C02-22E9-4D9A-8019-28EE8BFE2CFF/Documents/minecraft/libraries/com/google/guava/failureaccess/1.0.3/failureaccess-1.0.3.jar:/var/mobile/Containers/Data/Application/1A188C02-22E9-4D9A-8019-28EE8BFE2CFF/Documents/minecraft/libraries/com/google/guava/guava/33.6.0-jre/guava-33.6.0-jre.jar:/var/mobile/Containers/Data/Application/1A188C02-22E9-4D9A-8019-28EE8BFE2CFF/Documents/minecraft/libraries/com/ibm/icu/icu4j/78.3/icu4j-78.3.jar:/var/mobile/Containers/Data/Application/1A188C02-22E9-4D9A-8019-28EE8BFE2CFF/Documents/minecraft/libraries/com/microsoft/azure/msal4j/1.24.1/msal4j-1.24.1.jar:/var/mobile/Containers/Data/Application/1A188C02-22E9-4D9A-8019-28EE8BFE2CFF/Documents/minecraft/libraries/com/mojang/authlib/10.0.77/authlib-10.0.77.jar:/var/mobile/Containers/Data/Application/1A188C02-22E9-4D9A-8019-28EE8BFE2CFF/Documents/minecraft/libraries/com/mojang/blocklist/1.0.10/blocklist-1.0.10.jar:/var/mobile/Containers/Data/Application/1A188C02-22E9-4D9A-8019-28EE8BFE2CFF/Documents/minecraft/libraries/com/mojang/brigadier/1.3.11/brigadier-1.3.11.jar:/var/mobile/Containers/Data/Application/1A188C02-22E9-4D9A-8019-28EE8BFE2CFF/Documents/minecraft/libraries/com/mojang/datafixerupper/10.0.21/datafixerupper-10.0.21.jar:/var/mobile/Containers/Data/Application/1A188C02-22E9-4D9A-8019-28EE8BFE2CFF/Documents/minecraft/libraries/com/mojang/jtracy/1.14.38/jtracy-1.14.38.jar:/var/mobile/Containers/Data/Application/1A188C02-22E9-4D9A-8019-28EE8BFE2CFF/Documents/minecraft/libraries/com/mojang/logging/1.7.12/logging-1.7.12.jar:/var/mobile/Containers/Data/Application/1A188C02-22E9-4D9A-8019-28EE8BFE2CFF/Documents/minecraft/libraries/com/mojang/patchy/2.2.10/patchy-2.2.10.jar:/var/mobile/Containers/Data/Application/1A188C02-22E9-4D9A-8019-28EE8BFE2CFF/Documents/minecraft/libraries/com/mojang/text2speech/1.19.12/text2speech-1.19.12.jar:/var/mobile/Containers/Data/Application/1A188C02-22E9-4D9A-8019-28EE8BFE2CFF/Documents/minecraft/libraries/commons-codec/commons-codec/1.22.0/commons-codec-1.22.0.jar:/var/mobile/Containers/Data/Application/1A188C02-22E9-4D9A-8019-28EE8BFE2CFF/Documents/minecraft/libraries/commons-io/commons-io/2.20.0/commons-io-2.20.0.jar:/var/mobile/Containers/Data/Application/1A188C02-22E9-4D9A-8019-28EE8BFE2CFF/Documents/minecraft/libraries/io/netty/netty-buffer/4.2.16.Final/netty-buffer-4.2.16.Final.jar:/var/mobile/Containers/Data/Application/1A188C02-22E9-4D9A-8019-28EE8BFE2CFF/Documents/minecraft/libraries/io/netty/netty-codec-base/4.2.16.Final/netty-codec-base-4.2.16.Final.jar:/var/mobile/Containers/Data/Application/1A188C02-22E9-4D9A-8019-28EE8BFE2CFF/Documents/minecraft/libraries/io/netty/netty-codec-compression/4.2.16.Final/netty-codec-compression-4.2.16.Final.jar:/var/mobile/Containers/Data/Application/1A188C02-22E9-4D9A-8019-28EE8BFE2CFF/Documents/minecraft/libraries/io/netty/netty-codec-http/4.2.16.Final/netty-codec-http-4.2.16.Final.jar:/var/mobile/Containers/Data/Application/1A188C02-22E9-4D9A-8019-28EE8BFE2CFF/Documents/minecraft/libraries/io/netty/netty-common/4.2.16.Final/netty-common-4.2.16.Final.jar:/var/mobile/Containers/Data/Application/1A188C02-22E9-4D9A-8019-28EE8BFE2CFF/Documents/minecraft/libraries/io/netty/netty-handler/4.2.16.Final/netty-handler-4.2.16.Final.jar:/var/mobile/Containers/Data/Application/1A188C02-22E9-4D9A-8019-28EE8BFE2CFF/Documents/minecraft/libraries/io/netty/netty-resolver/4.2.16.Final/netty-resolver-4.2.16.Final.jar:/var/mobile/Containers/Data/Application/1A188C02-22E9-4D9A-8019-28EE8BFE2CFF/Documents/minecraft/libraries/io/netty/netty-transport-classes-epoll/4.2.16.Final/netty-transport-classes-epoll-4.2.16.Final.jar:/var/mobile/Containers/Data/Application/1A188C02-22E9-4D9A-8019-28EE8BFE2CFF/Documents/minecraft/libraries/io/netty/netty-transport-classes-kqueue/4.2.16.Final/netty-transport-classes-kqueue-4.2.16.Final.jar:/var/mobile/Containers/Data/Application/1A188C02-22E9-4D9A-8019-28EE8BFE2CFF/Documents/minecraft/libraries/io/netty/netty-transport-native-epoll/4.2.16.Final/netty-transport-native-epoll-4.2.16.Final-linux-aarch_64.jar:/var/mobile/Containers/Data/Application/1A188C02-22E9-4D9A-8019-28EE8BFE2CFF/Documents/minecraft/libraries/io/netty/netty-transport-native-epoll/4.2.16.Final/netty-transport-native-epoll-4.2.16.Final-linux-x86_64.jar:/var/mobile/Containers/Data/Application/1A188C02-22E9-4D9A-8019-28EE8BFE2CFF/Documents/minecraft/libraries/io/netty/netty-transport-native-unix-common/4.2.16.Final/netty-transport-native-unix-common-4.2.16.Final.jar:/var/mobile/Containers/Data/Application/1A188C02-22E9-4D9A-8019-28EE8BFE2CFF/Documents/minecraft/libraries/io/netty/netty-transport/4.2.16.Final/netty-transport-4.2.16.Final.jar:/var/mobile/Containers/Data/Application/1A188C02-22E9-4D9A-8019-28EE8BFE2CFF/Documents/minecraft/libraries/it/unimi/dsi/fastutil/8.5.18/fastutil-8.5.18.jar:/var/mobile/Containers/Data/Application/1A188C02-22E9-4D9A-8019-28EE8BFE2CFF/Documents/minecraft/libraries/net/java/dev/jna/jna-platform/5.17.0/jna-platform-5.17.0.jar:/var/mobile/Containers/Data/Application/1A188C02-22E9-4D9A-8019-28EE8BFE2CFF/Documents/minecraft/libraries/net/java/dev/jna/jna/5.17.0/jna-5.17.0.jar:/var/mobile/Containers/Data/Application/1A188C02-22E9-4D9A-8019-28EE8BFE2CFF/Documents/minecraft/libraries/net/sf/jopt-simple/jopt-simple/5.0.4/jopt-simple-5.0.4.jar:/var/mobile/Containers/Data/Application/1A188C02-22E9-4D9A-8019-28EE8BFE2CFF/Documents/minecraft/libraries/org/apache/commons/commons-compress/1.28.0/commons-compress-1.28.0.jar:/var/mobile/Containers/Data/Application/1A188C02-22E9-4D9A-8019-28EE8BFE2CFF/Documents/minecraft/libraries/org/apache/commons/commons-lang3/3.20.0/commons-lang3-3.20.0.jar:/var/mobile/Containers/Data/Application/1A188C02-22E9-4D9A-8019-28EE8BFE2CFF/Documents/minecraft/libraries/org/apache/logging/log4j/log4j-api/2.26.0/log4j-api-2.26.0.jar:/var/mobile/Containers/Data/Application/1A188C02-22E9-4D9A-8019-28EE8BFE2CFF/Documents/minecraft/libraries/org/apache/logging/log4j/log4j-core/2.26.0/log4j-core-2.26.0.jar:/var/mobile/Containers/Data/Application/1A188C02-22E9-4D9A-8019-28EE8BFE2CFF/Documents/minecraft/libraries/org/apache/logging/log4j/log4j-slf4j2-impl/2.26.0/log4j-slf4j2-impl-2.26.0.jar:/var/mobile/Containers/Data/Application/1A188C02-22E9-4D9A-8019-28EE8BFE2CFF/Documents/minecraft/libraries/org/jcraft/jorbis/0.0.17/jorbis-0.0.17.jar:/var/mobile/Containers/Data/Application/1A188C02-22E9-4D9A-8019-28EE8BFE2CFF/Documents/minecraft/libraries/org/joml/joml/1.10.9/joml-1.10.9.jar:/var/mobile/Containers/Data/Application/1A188C02-22E9-4D9A-8019-28EE8BFE2CFF/Documents/minecraft/libraries/org/jspecify/jspecify/1.0.0/jspecify-1.0.0.jar:/var/mobile/Containers/Data/Application/1A188C02-22E9-4D9A-8019-28EE8BFE2CFF/Documents/minecraft/libraries/org/slf4j/slf4j-api/2.0.17/slf4j-api-2.0.17.jar:/var/mobile/Containers/Data/Application/1A188C02-22E9-4D9A-8019-28EE8BFE2CFF/Documents/minecraft/versions/26.3/26.3.jar
+OpenJDK 64-Bit Server VM warning: Option UseCompressedClassPointers was deprecated in version 25.0 and will likely be removed in a future release.
+[JIT26] Requesting 240 MB for JIT mapping
+[JIT26] Got JIT mapping 0x121dcc000 from debugger
+[JIT26] mapping at RW=0x130dd0000, RX=0x121dcc000
+WARNING: A terminally deprecated method in sun.misc.Unsafe has been called
+WARNING: sun.misc.Unsafe::objectFieldOffset has been called by org.lwjgl.system.MemoryBackendUnsafeLegacy (file:/private/var/containers/Bundle/Application/2FF5FA16-BE13-437B-B1B9-EDE2CC295472/Voxelium.app/java/lwjgl-3.4.3/lwjgl.jar)
+WARNING: Please consider reporting this to the maintainers of class org.lwjgl.system.MemoryBackendUnsafeLegacy
+WARNING: sun.misc.Unsafe::objectFieldOffset will be removed in a future release
+[00:11:26] [main/WARN]: Failed retrieving info for group processor
+java.lang.UnsatisfiedLinkError: /private/var/mobile/Containers/Data/Application/1A188C02-22E9-4D9A-8019-28EE8BFE2CFF/Documents/minecraft/versions/26.3/natives/jna/jna7389656814742387720.tmp: dlopen(/private/var/mobile/Containers/Data/Application/1A188C02-22E9-4D9A-8019-28EE8BFE2CFF/Documents/minecraft/versions/26.3/natives/jna/jna7389656814742387720.tmp, 0x0001): tried: '/private/var/mobile/Containers/Data/Application/1A188C02-22E9-4D9A-8019-28EE8BFE2CFF/Documents/minecraft/versions/26.3/natives/jna/jna7389656814742387720.tmp' (mach-o file (/private/var/mobile/Containers/Data/Application/1A188C02-22E9-4D9A-8019-28EE8BFE2CFF/Documents/minecraft/versions/26.3/natives/jna/jna7389656814742387720.tmp), but incompatible platform (have 'macOS', need 'iOS')), '/private/preboot/Cryptexes/OS/private/var/mobile/Containers/Data/Application/1A188C02-22E9-4D9A-8019-28EE8BFE2CFF/Documents/minecraft/versions/26.3/natives/jna/jna7389656814742387720.tmp' (no such file), '/private/var/mobile/Containers/Data/Application/1A188C02-22E9-4D9A-8019-28EE8BFE2CFF/Do
+[00:11:26] [main/WARN]: Failed to get system info for Virtual memory max (MiB)
+java.lang.NoClassDefFoundError: Could not initialize class com.sun.jna.platform.mac.SystemB
+Caused by: java.lang.ExceptionInInitializerError: Exception java.lang.UnsatisfiedLinkError: /private/var/mobile/Containers/Data/Application/1A188C02-22E9-4D9A-8019-28EE8BFE2CFF/Documents/minecraft/versions/26.3/natives/jna/jna7389656814742387720.tmp: dlopen(/private/var/mobile/Containers/Data/Application/1A188C02-22E9-4D9A-8019-28EE8BFE2CFF/Documents/minecraft/versions/26.3/natives/jna/jna7389656814742387720.tmp, 0x0001): tried: '/private/var/mobile/Containers/Data/Application/1A188C02-22E9-4D9A-8019-28EE8BFE2CFF/Documents/minecraft/versions/26.3/natives/jna/jna7389656814742387720.tmp' (mach-o file (/private/var/mobile/Containers/Data/Application/1A188C02-22E9-4D9A-8019-28EE8BFE2CFF/Documents/minecraft/versions/26.3/natives/jna/jna7389656814742387720.tmp), but incompatible platform (have 'macOS', need 'iOS')), '/private/preboot/Cryptexes/OS/private/var/mobile/Containers/Data/Application/1A188C02-22E9-4D9A-8019-28EE8BFE2CFF/Documents/minecraft/versions/26.3/natives/jna/jna7389656814742387720.tmp' (no such file), '/private/var/mobile/Containers/Data/Application/1A188C02-22E9-4D9A-8019-28EE8BFE2CFF/Do [in thread "main"]
+[00:11:26] [main/WARN]: Failed to get system info for Virtual memory used (MiB)
+java.lang.NoClassDefFoundError: Could not initialize class com.sun.jna.platform.mac.SystemB
+Caused by: java.lang.ExceptionInInitializerError: Exception java.lang.UnsatisfiedLinkError: /private/var/mobile/Containers/Data/Application/1A188C02-22E9-4D9A-8019-28EE8BFE2CFF/Documents/minecraft/versions/26.3/natives/jna/jna7389656814742387720.tmp: dlopen(/private/var/mobile/Containers/Data/Application/1A188C02-22E9-4D9A-8019-28EE8BFE2CFF/Documents/minecraft/versions/26.3/natives/jna/jna7389656814742387720.tmp, 0x0001): tried: '/private/var/mobile/Containers/Data/Application/1A188C02-22E9-4D9A-8019-28EE8BFE2CFF/Documents/minecraft/versions/26.3/natives/jna/jna7389656814742387720.tmp' (mach-o file (/private/var/mobile/Containers/Data/Application/1A188C02-22E9-4D9A-8019-28EE8BFE2CFF/Documents/minecraft/versions/26.3/natives/jna/jna7389656814742387720.tmp), but incompatible platform (have 'macOS', need 'iOS')), '/private/preboot/Cryptexes/OS/private/var/mobile/Containers/Data/Application/1A188C02-22E9-4D9A-8019-28EE8BFE2CFF/Documents/minecraft/versions/26.3/natives/jna/jna7389656814742387720.tmp' (no such file), '/private/var/mobile/Containers/Data/Application/1A188C02-22E9-4D9A-8019-28EE8BFE2CFF/Do [in thread "main"]
+[00:11:26] [main/WARN]: Failed to get system info for Swap memory total (MiB)
+java.lang.NoClassDefFoundError: Could not initialize class com.sun.jna.Native
+Caused by: java.lang.ExceptionInInitializerError: Exception java.lang.UnsatisfiedLinkError: /private/var/mobile/Containers/Data/Application/1A188C02-22E9-4D9A-8019-28EE8BFE2CFF/Documents/minecraft/versions/26.3/natives/jna/jna7389656814742387720.tmp: dlopen(/private/var/mobile/Containers/Data/Application/1A188C02-22E9-4D9A-8019-28EE8BFE2CFF/Documents/minecraft/versions/26.3/natives/jna/jna7389656814742387720.tmp, 0x0001): tried: '/private/var/mobile/Containers/Data/Application/1A188C02-22E9-4D9A-8019-28EE8BFE2CFF/Documents/minecraft/versions/26.3/natives/jna/jna7389656814742387720.tmp' (mach-o file (/private/var/mobile/Containers/Data/Application/1A188C02-22E9-4D9A-8019-28EE8BFE2CFF/Documents/minecraft/versions/26.3/natives/jna/jna7389656814742387720.tmp), but incompatible platform (have 'macOS', need 'iOS')), '/private/preboot/Cryptexes/OS/private/var/mobile/Containers/Data/Application/1A188C02-22E9-4D9A-8019-28EE8BFE2CFF/Documents/minecraft/versions/26.3/natives/jna/jna7389656814742387720.tmp' (no such file), '/private/var/mobile/Containers/Data/Application/1A188C02-22E9-4D9A-8019-28EE8BFE2CFF/Do [in thread "main"]
+[00:11:26] [main/WARN]: Failed to get system info for Swap memory used (MiB)
+java.lang.NoClassDefFoundError: Could not initialize class com.sun.jna.Native
+Caused by: java.lang.ExceptionInInitializerError: Exception java.lang.UnsatisfiedLinkError: /private/var/mobile/Containers/Data/Application/1A188C02-22E9-4D9A-8019-28EE8BFE2CFF/Documents/minecraft/versions/26.3/natives/jna/jna7389656814742387720.tmp: dlopen(/private/var/mobile/Containers/Data/Application/1A188C02-22E9-4D9A-8019-28EE8BFE2CFF/Documents/minecraft/versions/26.3/natives/jna/jna7389656814742387720.tmp, 0x0001): tried: '/private/var/mobile/Containers/Data/Application/1A188C02-22E9-4D9A-8019-28EE8BFE2CFF/Documents/minecraft/versions/26.3/natives/jna/jna7389656814742387720.tmp' (mach-o file (/private/var/mobile/Containers/Data/Application/1A188C02-22E9-4D9A-8019-28EE8BFE2CFF/Documents/minecraft/versions/26.3/natives/jna/jna7389656814742387720.tmp), but incompatible platform (have 'macOS', need 'iOS')), '/private/preboot/Cryptexes/OS/private/var/mobile/Containers/Data/Application/1A188C02-22E9-4D9A-8019-28EE8BFE2CFF/Documents/minecraft/versions/26.3/natives/jna/jna7389656814742387720.tmp' (no such file), '/private/var/mobile/Containers/Data/Application/1A188C02-22E9-4D9A-8019-28EE8BFE2CFF/Do [in thread "main"]
+[00:11:26] [main/WARN]: Failed retrieving info for group software
+java.lang.NoClassDefFoundError: Could not initialize class com.sun.jna.Native
+Caused by: java.lang.ExceptionInInitializerError: Exception java.lang.UnsatisfiedLinkError: /private/var/mobile/Containers/Data/Application/1A188C02-22E9-4D9A-8019-28EE8BFE2CFF/Documents/minecraft/versions/26.3/natives/jna/jna7389656814742387720.tmp: dlopen(/private/var/mobile/Containers/Data/Application/1A188C02-22E9-4D9A-8019-28EE8BFE2CFF/Documents/minecraft/versions/26.3/natives/jna/jna7389656814742387720.tmp, 0x0001): tried: '/private/var/mobile/Containers/Data/Application/1A188C02-22E9-4D9A-8019-28EE8BFE2CFF/Documents/minecraft/versions/26.3/natives/jna/jna7389656814742387720.tmp' (mach-o file (/private/var/mobile/Containers/Data/Application/1A188C02-22E9-4D9A-8019-28EE8BFE2CFF/Documents/minecraft/versions/26.3/natives/jna/jna7389656814742387720.tmp), but incompatible platform (have 'macOS', need 'iOS')), '/private/preboot/Cryptexes/OS/private/var/mobile/Containers/Data/Application/1A188C02-22E9-4D9A-8019-28EE8BFE2CFF/Documents/minecraft/versions/26.3/natives/jna/jna7389656814742387720.tmp' (no such file), '/private/var/mobile/Containers/Data/Application/1A188C02-22E9-4D9A-8019-28EE8BFE2CFF/Do [in thread "main"]
+[00:11:27] [Datafixer Bootstrap #0/INFO]: 307 Datafixer optimizations took 261 milliseconds
+[00:11:29] [Render thread/INFO]: Environment: Environment[discoveryUrl=https://discovery.minecraftservices.com/minecraft/client, name=PROD]
+[00:11:29] [Render thread/INFO]: Setting user: Vortroxious
+[00:11:29] [Render thread/INFO]: Backend library: LWJGL version 3.4.3-snapshot+SNAPSHOT
+[00:11:29] [Render thread/INFO]: SDL [SYSTEM]: App name: Minecraft
+[00:11:29] [Render thread/INFO]: SDL [SYSTEM]: App version: 26.3
+[00:11:29] [Render thread/INFO]: SDL [SYSTEM]: App ID: com.mojang.minecraft
+[00:11:29] [Render thread/INFO]: SDL [SYSTEM]: SDL revision: SDL-3.4.14-147a8ee
+[00:11:29] [Render thread/WARN]: Graphics backend forced to vulkan by launch argument, in-game preferred graphics backend setting is ignored
+[00:11:29] [Render thread/INFO]: Enabling optional FeatureSet [EXT MultiDraw]
+[00:11:29] [Render thread/INFO]: Optional FeatureSet [NV Diagnostic Checkpoint] not supported
+[00:11:29] [Render thread/INFO]: Enabling optional FeatureSet [Calibrated Timestamps]
+[00:11:29] [Render thread/INFO]: Enabling optional FeatureSet [AMD Buffer Marker]
+[00:11:29] [Render thread/INFO]: Optional FeatureSet [Wireframe] not supported
+[00:11:29] [Render thread/INFO]: Using graphics backend Vulkan, using drivers: 1.4.363 KosmicKrisp Mesa 27.0.0-devel (git-9b3209540c)
+[00:11:29] [Render thread/INFO]: Using graphics device: Apple A17 Pro GPU (APPLE)
+[00:11:29] [Render thread/INFO]: Using graphics device extensions: VK_EXT_calibrated_timestamps (D), VK_KHR_synchronization2 (D), VK_EXT_metal_surface (I), VK_EXT_multi_draw (D), VK_AMD_buffer_marker (D), VK_EXT_vertex_attribute_divisor (D), VK_KHR_portability_enumeration (I), VK_KHR_swapchain (D), VK_KHR_surface (I), VK_KHR_push_descriptor (D), VK_EXT_debug_utils (I), VK_KHR_dynamic_rendering (D)
+[00:11:29] [Render thread/INFO]: Created window using SDL video driver: uikit
+2026-10-24 07:11:29.596 Voxelium[32687:4572399] [VXControls] controls: 18 buttons from /var/mobile/Containers/Data/Application/1A188C02-22E9-4D9A-8019-28EE8BFE2CFF/Documents/controls/active.json
+2026-10-24 07:11:29.597 Voxelium[32687:4572399] [VXSDL] touch controls on the game window: 932x430 pt, framebuffer 1398x645 px (render scale 0.50)
+2026-10-24 07:11:29.597 Voxelium[32687:4572399] [VXControls] controls 932x430 pt, inGame=0: [Jump 815,205 hidden] [Shift 815,134] [Sprint 743,134 hidden] [Right Click 746,282] [Left Click 653,284] [Middle Click 709,222] [Inventory 818,282 hidden] [Runtime Menu 756,0] [Hide GUI 862,0] [Pause 649,0 hidden] [Exit Menu 649,0] [More 0,0]
+[00:11:29] [Render thread/WARN]: Failed to set window icon: That operation is not supported
+2026-10-24 07:11:29.614 Voxelium[32687:4572399] Unbalanced calls to begin/end appearance transitions for <SDL_uikitviewcontroller: 0x154ed6800>.
+2026-10-24 07:11:29.643 Voxelium[32687:4572399] [VXSDL] game window gone; touches: began=0 moved=0 movedAccepted=0 ended=0 cancelled=0 hotbarSelects=0
+2026-10-24 07:11:29.646 Voxelium[32687:4572399] [VXControls] controls: 18 buttons from /var/mobile/Containers/Data/Application/1A188C02-22E9-4D9A-8019-28EE8BFE2CFF/Documents/controls/active.json
+2026-10-24 07:11:29.647 Voxelium[32687:4572399] [VXSDL] touch controls on the game window: 932x430 pt, framebuffer 1398x645 px (render scale 0.50)
+2026-10-24 07:11:29.647 Voxelium[32687:4572399] [VXControls] controls 932x430 pt, inGame=0: [Jump 815,205 hidden] [Shift 815,134] [Sprint 743,134 hidden] [Right Click 746,282] [Left Click 653,284] [Middle Click 709,222] [Inventory 818,282 hidden] [Runtime Menu 756,0] [Hide GUI 862,0] [Pause 649,0 hidden] [Exit Menu 649,0] [More 0,0]
+[00:11:31] [Render thread/ERROR]: Error while loading the narrator
+java.lang.NoSuchMethodError: 'com.sun.jna.Pointer ca.weblite.objc.Proxy.getPeer()'
+[00:11:31] [Render thread/INFO]: Reloading ResourceManager: vanilla, vanilla
+[00:11:31] [Worker-Main-2/INFO]: Found unifont_all_no_pua-17.0.01.hex, loading
+[00:11:31] [Worker-Main-1/INFO]: Found unifont_pua-17.0.01.hex, loading
+[00:11:31] [Worker-Main-2/INFO]: Found unifont_jp_patch-17.0.01.hex, loading
+[00:11:31] [Render thread/ERROR]: Pipeline minecraft:pipeline/wireframe uses WIREFRAME fill mode, not supported by device
+[00:11:31] [Render thread/ERROR]: Pipeline minecraft:pipeline/wireframe_multidraw uses WIREFRAME fill mode, not supported by device
+[00:11:32] [Render thread/WARN]: Failed to load optional shader programs:
+ - minecraft:pipeline/wireframe
+ - minecraft:pipeline/wireframe_multidraw
+[00:11:32] [Render thread/INFO]: OpenAL initialized on device CoreAudio Default
+[00:11:32] [Render thread/INFO]: Sound engine started
+[00:11:32] [Render thread/INFO]: Created: 512x256x0 minecraft:textures/atlas/particles.png-atlas
+[00:11:32] [Render thread/INFO]: Created: 256x128x0 minecraft:textures/atlas/celestials.png-atlas
+[00:11:32] [Render thread/INFO]: Created: 128x128x0 minecraft:textures/atlas/decorated_pot.png-atlas
+[00:11:32] [Render thread/INFO]: Created: 512x256x0 minecraft:textures/atlas/paintings.png-atlas
+[00:11:32] [Render thread/INFO]: Created: 1024x512x0 minecraft:textures/atlas/shield_patterns.png-atlas
+[00:11:32] [Render thread/INFO]: Created: 1024x512x0 minecraft:textures/atlas/banner_patterns.png-atlas
+[00:11:32] [Render thread/INFO]: Created: 2048x2048x4 minecraft:textures/atlas/blocks.png-atlas
+[00:11:32] [Render thread/INFO]: Created: 1024x512x0 minecraft:textures/atlas/items.png-atlas
+[00:11:32] [Render thread/INFO]: Created: 1024x1024x0 minecraft:textures/atlas/gui.png-atlas
+[00:11:32] [Render thread/INFO]: Created: 128x64x0 minecraft:textures/atlas/map_decorations.png-atlas
+[00:11:32] [Render thread/INFO]: Created: 512x512x0 minecraft:textures/atlas/chest.png-atlas
+[00:11:32] [Render thread/INFO]: Created: 512x512x0 minecraft:textures/atlas/shulker_boxes.png-atlas
+2026-10-24 07:11:34.650 Voxelium[32687:4572427] [VXMEM] in game (SDL): footprint 1338 MB (peak 1338 MB; GPU 347 MB, rest 991 MB), iOS allows 2037 MB more (lowest 2037 MB, limit remaining 2037 MB)
+[00:11:38] [Worker-Main-5/INFO]: Loaded 1866 advancements
+[00:11:43] [Server thread/INFO]: Starting integrated minecraft server version 26.3
+[00:11:43] [Server thread/INFO]: Generating keypair
+[00:11:43] [Server thread/INFO]: Selecting global world spawn...
+2026-10-24 07:11:44.287 Voxelium[32687:4572419] [VXMEM] in game (SDL): footprint 1330 MB (peak 1338 MB; GPU 348 MB, rest 981 MB), iOS allows 2045 MB more (lowest 2037 MB, limit remaining 2045 MB)
+[00:11:45] [Server thread/INFO]: Loading 0 persistent chunks...
+[00:11:45] [Server thread/INFO]: Preparing spawn area: 16%
+[00:11:45] [Server thread/INFO]: Saving chunks for level 'ServerLevel[New World]'/minecraft:overworld
+[00:11:45] [Server thread/INFO]: Saving chunks for level 'ServerLevel[New World]'/minecraft:the_nether
+[00:11:45] [Server thread/INFO]: Saving chunks for level 'ServerLevel[New World]'/minecraft:the_end
+[00:11:46] [Server thread/INFO]: Loading 48 chunks for player spawn...
+[00:11:46] [Server thread/INFO]: Preparing spawn area: 16%
+[00:11:46] [Server thread/INFO]: Preparing spawn area: 16%
+[00:11:46] [Server thread/INFO]: Preparing spawn area: 16%
+[00:11:46] [Server thread/INFO]: Preparing spawn area: 16%
+[00:11:46] [Server thread/INFO]: Preparing spawn area: 16%
+[00:11:46] [Server thread/INFO]: Preparing spawn area: 30%
+[00:11:47] [Server thread/INFO]: Preparing spawn area: 44%
+[00:11:47] [Server thread/INFO]: Preparing spawn area: 86%
+[00:11:48] [Server thread/INFO]: Time elapsed: 4095 ms
+[00:11:48] [Server thread/INFO]: Vortroxious[local:E:e959c7e8] logged in with entity id 18 at (88.5, 72.0, -105.5)
+[00:11:48] [Server thread/INFO]: System chat: Vortroxious joined the game
+[00:11:48] [Render thread/INFO]: Loaded 2 advancements
+[00:11:48] [Server thread/INFO]: Changing view distance to 12, from 10
+[00:11:48] [Server thread/INFO]: Changing simulation distance to 12, from 0
+[00:11:48] [Render thread/WARN]: Requested post effect does not exist: minecraft:end_of_frame
+[00:11:48] [Render thread/INFO]: Resizing Dynamic Transforms UBO, capacity limit of 2 reached during a single frame. New capacity will be 4.
+[00:11:48] [Render thread/INFO]: Resizing Dynamic Transforms UBO, capacity limit of 4 reached during a single frame. New capacity will be 8.
+[00:11:48] [Render thread/INFO]: Resizing Dynamic Transforms UBO, capacity limit of 8 reached during a single frame. New capacity will be 16.
+[00:11:48] [Render thread/INFO]: Resizing Chunk Sections Command Buffer, capacity limit of 2 reached during a single frame. New capacity will be 8.
+[00:11:48] [Render thread/INFO]: Resizing Chunk Sections Instanced, capacity limit of 2 reached during a single frame. New capacity will be 4.
+[00:11:49] [Render thread/INFO]: Resizing Chunk Sections Command Buffer, capacity limit of 8 reached during a single frame. New capacity will be 16.
+[00:11:49] [Render thread/INFO]: Resizing Chunk Sections Instanced, capacity limit of 4 reached during a single frame. New capacity will be 8.
+[00:11:49] [Render thread/INFO]: Resizing Chunk Sections Command Buffer, capacity limit of 16 reached during a single frame. New capacity will be 32.
+[00:11:49] [Render thread/INFO]: Resizing Chunk Sections Instanced, capacity limit of 8 reached during a single frame. New capacity will be 16.
+[00:11:49] [Render thread/INFO]: Resizing Chunk Sections Command Buffer, capacity limit of 32 reached during a single frame. New capacity will be 64.
+[00:11:49] [Render thread/INFO]: Resizing Chunk Sections Instanced, capacity limit of 16 reached during a single frame. New capacity will be 32.
+[00:11:49] [Render thread/INFO]: Resizing Chunk Sections Command Buffer, capacity limit of 64 reached during a single frame. New capacity will be 128.
+[00:11:49] [Render thread/INFO]: Resizing Chunk Sections Instanced, capacity limit of 32 reached during a single frame. New capacity will be 64.
+2026-10-24 07:11:49.643 Voxelium[32687:4572399] [VXControls] controls 932x430 pt, inGame=1: [Jump 815,205] [Shift 815,134] [Sprint 743,134] [Right Click 746,282] [Left Click 653,284] [Middle Click 709,222] [Inventory 818,282] [Runtime Menu 756,0] [Hide GUI 862,0] [Pause 649,0] [Exit Menu 649,0 hidden] [More 0,0]
+[00:11:50] [Render thread/INFO]: Resizing Chunk Sections Instanced, capacity limit of 64 reached during a single frame. New capacity will be 128.
+[00:11:50] [Render thread/INFO]: Resizing Chunk Sections Command Buffer, capacity limit of 128 reached during a single frame. New capacity will be 256.
+[00:11:51] [Render thread/INFO]: Resizing Chunk Sections Instanced, capacity limit of 128 reached during a single frame. New capacity will be 256.
+[00:11:52] [Render thread/INFO]: Resizing Chunk Sections Command Buffer, capacity limit of 256 reached during a single frame. New capacity will be 512.
+[00:11:54] [Render thread/INFO]: Resizing Chunk Sections Instanced, capacity limit of 256 reached during a single frame. New capacity will be 512.
+2026-10-24 07:11:54.685 Voxelium[32687:4572746] [VXMEM] in game (SDL): footprint 2324 MB (peak 2324 MB; GPU 994 MB, rest 1329 MB), iOS allows 1051 MB more (lowest 1051 MB, limit remaining 1051 MB)
+[00:11:55] [Render thread/INFO]: Resizing Chunk Sections Command Buffer, capacity limit of 512 reached during a single frame. New capacity will be 1024.
+[00:12:02] [Render thread/INFO]: Resizing Chunk Sections Instanced, capacity limit of 512 reached during a single frame. New capacity will be 1024.
+2026-10-24 07:12:04.656 Voxelium[32687:4572423] [VXMEM] in game (SDL): footprint 2359 MB (peak 2359 MB; GPU 995 MB, rest 1364 MB), iOS allows 1016 MB more (lowest 1016 MB, limit remaining 1016 MB)
+[00:12:07] [Server thread/INFO]: Saving and pausing game...
+[00:12:07] [Server thread/INFO]: Saving chunks for level 'ServerLevel[New World]'/minecraft:overworld
+2026-10-24 07:12:07.193 Voxelium[32687:4572399] [VXControls] controls 932x430 pt, inGame=0: [Jump 815,205 hidden] [Shift 815,134] [Sprint 743,134 hidden] [Right Click 746,282] [Left Click 653,284] [Middle Click 709,222] [Inventory 818,282 hidden] [Runtime Menu 756,0] [Hide GUI 862,0] [Pause 649,0 hidden] [Exit Menu 649,0] [More 0,0]
+[00:12:07] [Server thread/INFO]: Saving chunks for level 'ServerLevel[New World]'/minecraft:the_nether
+[00:12:07] [Server thread/INFO]: Saving chunks for level 'ServerLevel[New World]'/minecraft:the_end
+[00:12:07] [Server thread/INFO]: Stopping server
+[00:12:07] [Server thread/INFO]: Saving players
+[00:12:07] [Server thread/INFO]: Vortroxious lost connection: Disconnected
+[00:12:07] [Server thread/INFO]: System chat: Vortroxious left the game
+[00:12:07] [Server thread/INFO]: Stopping singleplayer server as player logged out
+[00:12:07] [Server thread/INFO]: Saving worlds
+[00:12:08] [Server thread/INFO]: Saving chunks for level 'ServerLevel[New World]'/minecraft:overworld
+[00:12:08] [Server thread/INFO]: Saving chunks for level 'ServerLevel[New World]'/minecraft:the_nether
+[00:12:08] [Server thread/INFO]: Saving chunks for level 'ServerLevel[New World]'/minecraft:the_end
+[00:12:12] [Render thread/INFO]: Stopping!
+2026-10-24 07:12:12.335 Voxelium[32687:4572421] [JVMBridge] net/minecraft/client/main/Main.main returned normally

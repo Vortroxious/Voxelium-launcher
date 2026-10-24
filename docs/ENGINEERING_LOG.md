@@ -1275,6 +1275,281 @@ Changes:
   - For Forge, the **shader warning was shown** ("BSL_v10.1.8.zip at render distance 12", 16:39:33Z) and the user chose "Play anyway". That confirms the Oculus settings fallback.
   - A second delete: "Deleted version Landscapes Reimagined Genesis 3.2 3.2" (16:38:21Z).
   - The `jna…tmp: dlopen` UnsatisfiedLinkError lines are Minecraft's hardware-info warnings, the same as in every Fabric run.
+- **Compute-shader spike: Zink on KosmicKrisp (2026-10-22, branch `spike/zink-compute`; report in `docs/COMPUTE_SHADERS_RESEARCH.md`).**
+  - Mesa 9b32095 (27.0.0-devel) was built for iOS arm64 by `scripts/build-zink.sh`. It needed six patches in `patches/mesa/`, which port KosmicKrisp to iOS and let Zink load a bare ICD with no Vulkan loader.
+  - **Device pass:** iPhone 15 Pro Max, iOS 27, experimental IPA build 202610221127 (separate bundle ID `io.github.voxelium.launcher.zinkexp`), no JIT attached. Logs in `docs/evidence/2026-10-22-zink-kosmickrisp-iphone15promax-ios27.log`.
+    - Override run (`MESA_GL_VERSION_OVERRIDE=4.6`): Vulkan 1.4 on "Apple A17 Pro GPU". Zink gave `4.6 (Core Profile)`, GLSL 4.60, and the compute SSBO read-back passed (`VOXELIUM_ZINK_COMPUTE_OK`).
+    - Native run: GL 2.1, because KosmicKrisp has no geometry shaders or transform feedback.
+  - **Memory, resolved as a leak question (12:17Z, build 202610221143):** over 3000 frames the footprint is flat once frames wait for the GPU (0.0000–0.0001 MB/frame after frame 300, in both modes). The earlier growth came from flush-only frames: nothing throttles the CPU, so a GPU backlog builds up (Mac: 1.2 MB per queued frame, 3.7 GB at frame 3000, final `glFinish` waited 3.8 s). The backlog's pool is kept, 0.7–1.1 GB on the phone, until EGL teardown, which brings it back to 79–120 MB within 1 s. A renderer must throttle to about 2 frames in flight.
+  - An allocator-reset patch for KosmicKrisp's Metal 4 command allocators (Mac steady state 154 → 141 MB) was withdrawn after the Mellow crash in `beginCommandBufferWithAllocator` (see the in-game entry below).
+- **Minecraft 1.21.11 on Zink, in game (2026-10-22, experimental build 202610221237; `docs/evidence/2026-10-22-zink-game-1.21.11-iris-build202610221237.log`):**
+  - Minecraft reported GL 4.6 core on `zink Vulkan 1.4(Apple A17 Pro GPU (MESA_KOSMICKRISP))`, and the world rendered with Fabric, Sodium and Iris. This used new Mesa patch 0007 (a libGL for LWJGL) and the Metal read-back presenter, with at most 2 frames in flight.
+  - Photon: `deferred4_a` needs 36,860 of 32,768 bytes of shared memory, because Zink hid subgroups (no fp64). Patch 0008 fixes that; Mac check passes.
+  - Camellia: geometry shaders, which KosmicKrisp does not have. The process ended after a 2.8 GB memory warning.
+  - Mellow: ran, then SIGSEGV in `IOGPU` from `mtl_begin_command_buffer`. The allocator-reset patch was withdrawn.
+  - A crash when quitting came from a semaphore released below its start value in the presenter. Fixed.
+  - Retest on build 202610221303: Mellow played about 3 minutes with no crash and stopped normally, with a footprint plateau of about 2.5 GB. Photon still needs 36,860 bytes of shared memory and is dropped (it fails on the user's MacBook too). Log: `docs/evidence/2026-10-22-zink-game-1.21.11-mellow-build202610221303.log`.
+- **Minecraft 26.3 Stage 1b: SDL3 on iOS, window from a background thread (2026-10-23, branch `claude/suspicious-zhukovsky-b51a73`, based on `spike/zink-compute` 6fa7f31).**
+  - Read from 26.3's `client.jar`: `RenderSystem` sets hints, then calls `SDL_Init(0x20)` (video only) and never `SDL_SetMainReady`. `VulkanBackend` calls `VK.create()`, then `SDL_Vulkan_LoadLibrary(<LWJGL's Vulkan library path>)`, then `SDL_CreateWindow(…, flags | SDL_WINDOW_VULKAN)`. `SDLEventHandler` calls `SDL_PumpEvents` and `SDL_PollEvent` on Minecraft's own thread.
+  - `scripts/build-sdl3.sh` builds SDL `release-3.4.14` (`147a8ee32dbf9ac02f3794964490687b6bbda1bc`, checked by the script) for iOS arm64 as `libSDL3.dylib` (minimum iOS 26.0, audio off: Minecraft uses OpenAL). Output goes to `build/deps/sdl3-out/`, with SDL's and its bundled Vulkan headers for the test. Three clean builds gave the same SHA-256, `158929325c8fb15f3fc37b559fdccd57bbcda2aa1a359f8de9c3f2d00c8186cf`. SDL's licence is zlib; `scripts/collect-licenses.sh` adds it with `WITH_SDL3=YES`, and the experimental IPA carries it in `Frameworks/sdl3/LICENSES/`.
+  - `patches/sdl3/`:
+    - 0001: the UIKit driver's entry points run on the main thread (`dispatch_sync`, as in `VXGLFW.m`), and `PumpEvents` does nothing off the main thread. Message boxes and pointer lock also go to the main thread. GL entry points stay on the caller's thread.
+    - 0002: SDL's window gets level `UIWindowLevelNormal + 1` and asks its scene for landscape (the default when `SDL_IOS_ORIENTATIONS` is unset).
+    - 0003: on iOS, SDL starts ready without `SDL_main`. **`SDL_SetMainReady()` alone would be enough** (SDL's app delegate is not needed), but Minecraft never calls it, so `SDL_Init` would fail with "Application didn't initialize properly…".
+  - The experimental IPA has a new opt-in "Bundle SDL3 (experimental)" phase (`VOXELIUM_SDL3=YES` → `Frameworks/sdl3/`). It also has the "SDL + Vulkan test" (`Native/SDLVulkanTest.m`), with buttons beside the Zink test. `build-ipa-zink-experimental.sh` takes `DERIVED=`/`IPA_NAME=`, so this work built `build/ipa-experimental/Voxelium-sdl3-experimental-unsigned.ipa` (build 202610231125, SHA-256 `7ccc6ef31c146c6da47df0f8b4ea1d0deda2d92ae3aeadbefdbae81737b9ed7c`). The 1.0 IPA is unchanged (`ee9564c2…416f`, checked by the script).
+  - **Device pass (iPhone 15 Pro Max, iOS 27, build 202610231125 confirmed with `devicectl device info apps`, logs read 2026-10-23 ~11:45Z; `docs/evidence/2026-10-23-sdl3-uikit-iphone15promax-ios27-build202610231125.log`):**
+    - From the thread `VoxeliumSDLTest` (not the main thread), `SDL_Init(VIDEO)` worked without `SDL_SetMainReady` (16 ms, driver `uikit`), and so did `SDL_CreateWindow` (8 ms). The window was shown above the launcher in landscape: 932×430 points, 2796×1290 pixels, density 3.00.
+    - SDL's Metal renderer, driven from that thread, presented 312 frames in 5 s (about 60 fps, since the app does not opt into ProMotion). Then `SDL_DestroyWindow` and `SDL_Quit` ran cleanly. A second run in the same launch (`SDL_Init` after `SDL_Quit`) passed too: 335 frames.
+    - **Touches arrive as SDL events**, through the app's own run loop. Run 1: `FINGER_DOWN` 1, `FINGER_MOTION` 197, and touch-synthesized `MOUSE_BUTTON_DOWN` 1 and `MOUSE_MOTION` 198 (`which=SDL_TOUCH_MOUSEID`). Run 2: `FINGER_DOWN` 1 and `FINGER_MOTION` 194. Window events seen: shown, focus, pixel size 2796×1290, Metal view resized, safe area.
+    - **Not covered:** in both runs one finger stayed down until the window closed, so a finger lift (`FINGER_UP`) and multi-touch were not seen. Run 2 had no synthesized mouse events. The cause is upstream: `SDL_touch.c` keeps the tracked finger in a static (`finger_touching`) that `SDL_QuitTouch` does not reset. It only matters for more than one SDL session per process.
+    - Footprint: 36 MB before, a peak of about 150 MB with the renderer at 2796×1290, and 87 MB after teardown.
+  - **Vulkan blocker (waiting on Stage 1a):** `SDL_Vulkan_LoadLibrary(libvulkan_kosmickrisp.dylib)` failed with "Failed to find vkGetInstanceProcAddr in either executable or linked Vulkan Portability library: (null)". The bare ICD only exports `vk_icdGetInstanceProcAddr`. SDL also requires `VK_KHR_surface` and `VK_EXT_metal_surface`. The test picks up `Frameworks/zink/libvulkan.1.dylib` (the Stage 1a shim) automatically once the Zink bundle contains it. The swapchain part (5 s of cycling clear colours, FIFO, at most 2 frames in flight) is written but has not run anywhere yet.
+- **Stage 1 go/no-go: GO. SDL3 + Vulkan on KosmicKrisp shows coloured swapchain frames on the iPhone (2026-10-23, build 202610231552).**
+  - The experimental IPA now bundles, in `Frameworks/sdl3/` next to `libSDL3.dylib`, Stage 1a's loader shim `libvulkan.1.dylib` and KosmicKrisp built with Metal WSI. Both were copied from `build/deps/vulkan-out/kosmickrisp/` (branch `stage1/kosmickrisp-wsi` a73120c, not merged) to the snapshot `build/deps/sdl3-vulkan/`; SHA-256 `a561fd63…eabf` and `83541ca6…7a2c`, recorded in `Frameworks/sdl3/LICENSES/kosmickrisp/SNAPSHOT.txt`. The test hands the shim to `SDL_Vulkan_LoadLibrary`.
+  - New SDL patch 0004 resets the finger that drives touch-to-mouse in `SDL_QuitTouch`. `libSDL3.dylib` is now `44791172088bafb19c4326bff5e85bcdbf8dce22dbc6ccfb8b38cdbb649e38d7`.
+  - **Device pass** (iPhone 15 Pro Max, iOS 27; build confirmed with `devicectl device info apps`; logs read about 16:00Z; `docs/evidence/2026-10-23-sdl3-vulkan-kosmickrisp-iphone15promax-ios27-build202610231552.log`). Two runs of the SDL + Vulkan test, with an app relaunch between them. From the background thread, in both:
+    - `SDL_Vulkan_LoadLibrary(libvulkan.1.dylib)` worked. dyld loaded `sdl3/libvulkan.1.dylib` and `sdl3/libvulkan_kosmickrisp.dylib`, not the WSI-less driver in `Frameworks/zink`.
+    - The instance is Vulkan 1.3.363, with 15 instance extensions including `VK_KHR_surface`, `VK_EXT_metal_surface` and the shim's `VK_KHR_portability_enumeration`. `SDL_Vulkan_GetInstanceExtensions` gave `VK_KHR_surface VK_EXT_metal_surface`.
+    - `SDL_Vulkan_CreateSurface` took 5–6 ms. Device: `Apple A17 Pro GPU`, Vulkan 1.4.363, driver KosmicKrisp (Mesa 27.0.0-devel, git-9b3209540c).
+    - Swapchain: 2796×1290, 3 images, `VK_FORMAT_B8G8R8A8_UNORM`, FIFO (the only present mode). It was recreated once at start, after `SDL_EVENT_WINDOW_METAL_VIEW_RESIZED`.
+    - **333 and 305 frames presented in 5 s** (66.6 and 61.0 fps), with at most 2 frames in flight. The user saw the colours cycle.
+    - Footprint was flat during rendering at about 196–202 MB (peaks 218 and 198 MB), and 86–87 MB after teardown. `SDL_DestroyWindow` and `SDL_Quit` were clean.
+  - **Touch is now fully covered.** Taps give `FINGER_DOWN`/`FINGER_UP` pairs and synthesized `MOUSE_BUTTON_DOWN`/`UP` (`which=SDL_TOUCH_MOUSEID`, double and triple clicks counted). Up to three finger IDs were down at once.
+    - Run 1: finger 9 down / 7 up, mouse 5 down / 4 up. The missing ups are fingers still down when the window closed.
+    - Run 2: 9 down / 9 up, mouse 6 down / 6 up.
+  - **Not covered on this build:** a second `SDL_Init` after `SDL_Quit` in the same launch, so patch 0004 is untested on the device. The SDL-only test was not run (it passed on build 202610231125).
+- **Minecraft 26.3 plan, Stage 1a: KosmicKrisp WSI on iOS + Vulkan loader shim (2026-10-23, branch `stage1/kosmickrisp-wsi`):**
+  - `scripts/build-zink.sh vulkan` builds KosmicKrisp with Mesa's Metal window system for iOS (`build/deps/vulkan-out/kosmickrisp/`). One new patch, 0009: iOS has no `displaySyncEnabled`, so it offers FIFO only.
+  - `scripts/vulkan-shim.c` is a `libvulkan.1.dylib` that exports `vkGetInstanceProcAddr` and the other global entry points for SDL3 and LWJGL.
+  - **Device pass:** iPhone 15 Pro Max, iOS 27, experimental build 202610231136 (confirmed with `devicectl device info apps`), no JIT.
+    - Vulkan 1.4 on "Apple A17 Pro GPU", with `VK_KHR_surface`, `VK_EXT_metal_surface` and `VK_KHR_swapchain`, FIFO, 3 images.
+    - 298 frames in 5 s (59.5 fps) at 1290×2796, then 575 (114.9 fps) at 2796×1290.
+    - Footprint flat at about 196 and 212 MB; `VOXELIUM_VK_SWAPCHAIN_OK` twice.
+  - Mac: 1,815 frames in 30 s at 60.5 fps, flat at about 163 MB. Logs: `docs/evidence/2026-10-23-vulkan-swapchain-kosmickrisp-*.log`.
+  - Build 202610231121's test button did nothing: its `fullScreenCover` hung on an `EmptyView` list row, which SwiftUI drops. Fixed in 202610231136.
+
+
+## 2026-10-23 — 26.3, Stage 2: iOS LWJGL 3.4.3, shaderc and SPIRV-Cross
+Stage 2 of the 26.3 plan (SDL3 + Vulkan on KosmicKrisp): the LWJGL 3.4.3 natives and jars Minecraft 26.3 lists (read from its version JSON, `61fff131`), built for iOS arm64. Nothing launches 26.3 yet (Stage 3).
+- **LWJGL 3.4.3:** `LWJGL_SERIES=3.4.3 scripts/build-lwjgl.sh` → `build/deps/lwjgl-out-3.4.3`. It's built from **upstream** tag `3.4.3` (`30fac9b9`), since AngelAuraMC's fork stops at `wip/rebase_3.4.1`.
+  - **Carried over from the fork:** the iOS build changes, found by diffing `wip/rebase_3.4.1` against upstream 3.4.1. They're in `patches/lwjgl/3.4.3-0001-ios-build.patch`:
+    - `config/macos/build.xml` compiles and links against the iPhoneOS SDK with `-miphoneos-version-min`, and without `-Werror`;
+    - `update-dependency` keeps an existing `libffi.a` (`skipexisting`), so ours is not replaced by LWJGL's macOS one;
+    - `<objc/runtime.h>` replaces `<objc/objc-runtime.h>`, which the iOS SDK lacks (template and generated C);
+    - VMA rounds sub-pointer alignments up to `sizeof(void*)`; Apple's aligned allocation rejects them.
+  - **Left out (Android, Linux or Pojav-specific):** miniz, `VK.tryCreateFromEnv`, `Library.createFromHandle`, loading `AngelAuraAmethyst`, `RTLD_GLOBAL`, `Checks` returning true, and the no-abort `functionMissingAbort`. Our 3.4.1 `GL.java` patch is for the GL path, which 26.3 doesn't use here.
+  - **libffi 3.8.0:** 3.4.3's core calls libffi's new call-plan API (`ffi_call_plan_alloc/invoke/free/size`). With 3.5.2 the link failed with those four undefined. libffi 3.8.0's Darwin generator names every 64-bit target `*64_platform`, and its `config.sub` rejects `x86_64-apple-ios-simulator`. So for 3.8.0 the script keeps only `ios_device_arm64_platform` and stubs the x86_64 headers the Xcode project copies.
+  - **Other build changes:** `JAVA_HOME` is exported, since 3.4.3 compiles its Java 25 classes with `--system "${env.JAVA_HOME}"`. The release step runs with `-Dbuild.offline=true`: online, it downloads every platform's official natives for jars we discard, and one failed download (`linux/ppc64le/libshaderc.so`) failed a run. `lwjgl-unsafe.jar`, new in 3.4.3, is not copied.
+  - **Output:**
+    - natives `liblwjgl`, `liblwjgl_opengl`, `liblwjgl_stb` and `liblwjgl_vma`. These are the four JNI libraries Mojang's macOS 26.3 natives have; FreeType, jemalloc, OpenAL, SDL, shaderc, SPIRV-Cross and MoltenVK there are third-party libraries.
+    - jars `lwjgl, -freetype, -jemalloc, -openal, -opengl, -sdl, -shaderc, -spvc, -stb, -vma, -vulkan`.
+    - As for 3.4.1, the jars lose `META-INF/versions/25` (FFM upcalls hit the JIT-protected code cache on iOS) and their `.sha1` files.
+  - **Checks:** `voxelium-cli check-macho`: all four natives are arm64/iOS and device-loadable. Three runs, one from a fresh clone with libffi rebuilt, gave byte-identical natives.
+- **shaderc and SPIRV-Cross:** `scripts/build-shaderc.sh` → `build/deps/shaderc-out`, using the same CMake 4.4.4 and source fetching as MobileGlues.
+  - **`libshaderc_shared.dylib`** is shaderc v2026.3 from `LWJGL-CI/shaderc` tag `LWJGL-3.4.3` (`b85bc9ae`), i.e. what LWJGL ships, with glslang 16.4.0, SPIRV-Tools v2026.3 and SPIRV-Headers `29981f65` as its DEPS pins.
+    - LWJGL's CMake change folds glslang and SPIRV-Tools in and exports their C APIs: lwjgl-shaderc's `GLSLang`, `SPV` and `SPVOptimizer` classes look their functions up in the shaderc library.
+    - Its `-force_load`ed archives aren't dependencies of `shaderc_shared`, so the script builds them first.
+    - LWJGL's default file name is `libshaderc.dylib`, so Stage 3 sets `-Dorg.lwjgl.shaderc.libname`.
+  - **`libspirv-cross.dylib`** is SPIRV-Cross `vulkan-sdk-1.4.357.0` (`6c09849f`, C API 0.68), the upstream commit under `LWJGL-CI/SPIRV-Cross` tag `LWJGL-3.4.3`.
+    - Its file name is LWJGL's default, and its install name is `@rpath/libspirv-cross.dylib`. SPIRV-Cross itself (and Mojang's macOS build) uses `@rpath/libspirv-cross-c-shared.0.dylib`, the install name of MobileGlues' C API 0.64 copy.
+  - Both are stripped as LWJGL's CI does (`strip -u -r`) and ad-hoc re-signed. Check exports with `dyld_info -exports`: `nm` no longer lists them after the strip.
+- **Bundling:** the Xcode copy phase copies `lwjgl-out-3.4.3` (jars and natives), OpenAL, FreeType and `shaderc-out` into `java/lwjgl-3.4.3/`. It does nothing when 3.4.3 isn't built.
+  - `scripts/collect-licenses.sh` adds LWJGL 3.4.3, libffi 3.8.0, VMA (MIT, from its header), shaderc, glslang 16.4.0, SPIRV-Tools, SPIRV-Headers and SPIRV-Cross, again only when 3.4.3 is built. The `THIRD_PARTY_NOTICES.txt` files are regenerated with them.
+- **Mac check:** `scripts/check-lwjgl-3.4.3.sh`, on JDK 26 on an M4 Mac. It fetches Mojang's 26.3 LWJGL jars and macOS arm64 natives, each checked against its SHA-1 in the version JSON.
+  - **Smoke test** (`JavaTest/lwjgl343/.../Lwjgl343SmokeTest.java`): passed both with Mojang's jars and with **ours**, each against Mojang's macOS natives. Our natives are iOS binaries and don't load on macOS. The steps:
+    - core memory and jemalloc;
+    - SDL 3.4.14, with a log callback (a native-to-Java upcall through a libffi closure);
+    - stb image loading, FreeType 2.14.3, and loading OpenAL and OpenGL;
+    - shaderc compiling a Vulkan 1.2 vertex shader (1,304 bytes of SPIR-V; glslang 16.4.0 through its C API);
+    - spvc 0.68 cross-compiling that SPIR-V to GLSL 330 and MSL;
+    - a Vulkan 1.2 instance and device on MoltenVK (Apple M4), then a VMA allocator and a mapped 64 KiB buffer.
+  - With our jars, that's LWJGL's JNI/libffi path (no FFM classes) against a real 3.4.3 `liblwjgl`. Our build reports version `3.4.3-snapshot+SNAPSHOT`, as our 3.4.1 does.
+  - **JNI surface** (`JniSurfaceCheck.java`, which reads the jars' `native` methods with the JDK's class-file API):
+    - All 4,853 native methods in our 11 jars were checked. The 305 without a symbol in our natives are exactly those missing from Mojang's macOS natives too: Windows (WGL, VMA Win32 handles), Linux (incl. liburing) and FreeBSD.
+    - Our `Java_*` exports equal Mojang's (4,548 each), apart from Mojang's 8 JAWT natives. Those belong to `lwjgl-jawt`, which isn't a Minecraft library and is off in our build.
+  - **C exports:** our shaderc (174) and SPIRV-Cross (169) export exactly the C symbols of Mojang's macOS builds.
+- **IPA:** `scripts/build-ipa.sh` still builds, run in this worktree with a private `build/` so the shared IPAs weren't overwritten.
+  - Build 202610231555 from `29ca4ca` plus these changes: 201,707,215 bytes, SHA-256 `798c3c150b8ba758cb66ac84f83dd1ef2ba0e4d307a9e185182c5d7c221f1aef`, arm64/iOS, iOS 16.0 minimum.
+  - `java/lwjgl-3.4.3/` holds the 11 jars, the 4 natives, OpenAL, FreeType, `libshaderc_shared` and `libspirv-cross` (about 17 MB more than 1.0). `java/lwjgl` and `java/lwjgl-3.4.1` are as before.
+  - Not installed on a device; nothing uses 3.4.3 until Stage 3.
+
+## 2026-10-23 — 26.3, Stage 3: launching 26.3 on SDL3 + Vulkan (KosmicKrisp)
+Branch `claude/mc263-stage3-07d0ce`, from `mc263/integration` (`dcb7bd7`). Not committed yet.
+- **Launcher:**
+  - `GameRuntime.LWJGLBuild.v343` for LWJGL ≥ 3.4.3, plus `sdlVulkanLWJGLModules`, the 11 modules of 26.3's version JSON (no GLFW or tinyfd). Tests use the 26.3 JSON (`61fff131`) as a fixture.
+  - `MinecraftLauncher`:
+    - A version listing `lwjgl-sdl` now launches on iOS 26+ when the build bundles `Frameworks/sdl3/{libSDL3,libvulkan.1,libvulkan_kosmickrisp}.dylib`. Only the experimental IPA does so far. Otherwise it's refused, with the reason (iOS < 26: KosmicKrisp needs Metal 4).
+    - 26.2 (`lwjgl-vulkan` without SDL) stays refused.
+    - The 1.13–26.1.2 path is unchanged.
+    - The 26.3 path skips VXGLFW, MobileGlues and Zink. It sets `org.lwjgl.{sdl,vulkan,shaderc,spvc,opengl}.libname` (Vulkan: the loader shim) and `SDL_VULKAN_LIBRARY`, and starts a 10 s `[VXMEM]` timer (`VXStartMemoryLog`), since glfwSwapBuffers no longer logs memory.
+  - **Backend choice, from client.jar `e877b6a0`:**
+    - `PreferredGraphicsApi` `default`/`opengl` try GL first, then Vulkan; `vulkan` tries Vulkan first.
+    - After a start that didn't finish, Minecraft switches `default` to `opengl`.
+    - `OptionsForceDefaultGraphicsApiFix` (data version 4892) resets the key to `default` in older options files.
+    - The launch argument `--graphicsBackend vulkan` overrides all of these ("Graphics backend forced to vulkan by launch argument"), so the launcher passes it. It also writes `preferredGraphicsBackend:"vulkan"` (`GameOptions.forceVulkanBackend`, tested), quoted as Minecraft writes it.
+  - **iOS objc stubs:** 26.3's `MacosUtil.disableCloseWindowMenuItem` calls `Proxy.sendProxy`, `sendInt` and `sendRaw`, which the stubs lacked. Checked on the Mac against 26.3's real `MacosUtil`: `NoSuchMethodError` with the old stubs, ok with the new ones (an empty menu, so it does nothing).
+- **Mac first** (Apple M4, JDK 26, Mojang's macOS LWJGL 3.4.3 / SDL 3.4.14, `vulkan-out/kosmickrisp-mac`, `--quickPlaySingleplayer` on a copy of an existing world):
+  - "Using graphics backend Vulkan, using drivers: 1.4.363 KosmicKrisp Mesa 27.0.0-devel (git-9b3209540c)", device "Apple M4".
+  - It upgraded and joined the world, rendered chunks, saved, and quit to the title screen and out (exit 0). MoltenVK behaved the same.
+  - The only unsupported feature is wireframe fill (two optional debug pipelines).
+  - The 30–40 s pause before quick play is Minecraft's Realms check with the offline token, not the driver. Evidence: `docs/evidence/2026-10-23-minecraft-26.3-vulkan-kosmickrisp-mac-world.log`.
+- **Device, build 202610231638** (experimental IPA, devicectl-confirmed; Fabric 26.3 started twice, logs copied 16:44Z):
+  - Both starts crashed in Minecraft's eager library loading. The order was spvc, SDL and shaderc (all ok), then OpenGL: "There is no OpenGL context management API available".
+  - LWJGL's `GL.create()` on "Mac OS X" loads `OpenGL.framework`, which iOS doesn't have. The Mac has it, so the Mac run couldn't show this.
+  - SDL reported "SDL Platform: iOS". JNA/oshi warnings as on 26.1. Evidence: `docs/evidence/2026-10-23-minecraft-26.3-fabric-iphone15promax-ios27-build202610231638-opengl-crash.log`.
+  - **Fix:** `-Dorg.lwjgl.opengl.libname=<the app executable>`, a library that's already loaded; nothing draws through it on Vulkan.
+    - Checked on the Mac with a library without any GL functions (libSDL3) as LWJGL's OpenGL: Vulkan was still chosen, and the world was joined.
+    - **Build 202610231646** (SHA-256 `ee622e53162254884ff972b29a66faa139739bbf49897bba12d5a4126309230e`). Not yet run on the device.
+- **Device, build 202610231646: Fabric 26.3 runs on Vulkan on the iPhone** (devicectl-confirmed; fabric-loader 0.19.5 with no mods; logs copied 2026-10-23 16:52Z):
+  - "Using graphics backend Vulkan, using drivers: 1.4.363 KosmicKrisp Mesa 27.0.0-devel (git-9b3209540c)", "Using graphics device: Apple A17 Pro GPU (APPLE)", "Created window using SDL video driver: uikit".
+  - It reached the title screen, created world "Test", and joined it ("Vortroxious joined the game", spawn prepared in 4 s, chunks rendering). It then saved, quit to the title screen and out, with taps as mouse clicks. Minecraft returned status 0.
+  - **`[VXMEM]`:** 1177 MB during resource loading, 1381 MB on the title screen, and 2333–2428 MB in the world (GPU about 1027 MB). The peak was **2691 MB** at quit (684 MB left before the limit).
+    - Render scale isn't applied on the SDL path yet, so this is the full 2796×1290 swapchain; it's Stage 4 work.
+    - Java heap after the last GC: 611 MB of 886 MB.
+  - **Expected warnings:**
+    - UIKit doesn't support the window icon or relative mouse mode;
+    - "Error while loading the narrator" (objc stub);
+    - the wireframe pipelines;
+    - UIKit's "UIApplicationSupportsIndirectInputEvents" note about mouse support;
+    - JNA/oshi system-info warnings, as on 26.1.
+  - Evidence: `docs/evidence/2026-10-23-minecraft-26.3-fabric-vulkan-kosmickrisp-iphone15promax-ios27-build202610231646.log`.
+  - **Still to check on this build:** vanilla 26.3, and the 1.21.11 Fabric, NeoForge 1.21.1 and Forge 1.20.1 regressions.
+- **Regression round, build 202610231646** (devicectl-confirmed; logs copied 2026-10-23 ~17:03Z). The experimental app's "Play with Zink (experimental)" switch was on (its default), so the 1.17+ versions rendered with **Zink**, not MobileGlues:
+  - **Fabric 26.3** (16:55): Vulkan on KosmicKrisp / Apple A17 Pro GPU again. It reached the title screen (1387 MB), and the user quit after 12 s.
+  - **Fabric 1.21.11** (16:55): Zink, joined the world, peak 1897 MB, quit.
+  - **NeoForge 21.1.264 / 1.21.1** (installed in the app at 16:57):
+    - The first start (16:57:11) wrote only the jvm.log header and the JIT flags line, with no JIT probe. The app was then relaunched. That's before any Minecraft code; cause not proven (StikDebug/JIT handshake?).
+    - The second start ran the 6 installer steps, loaded NeoForge 21.1.264 on Zink, joined the world (peak 1991 MB) and quit.
+  - **Forge 47.4.28 / 1.20.1** (installed at 17:00): Zink, joined the world, peak 2440 MB, quit.
+  - The "Can't Find Class" lines are Forge/NeoForge transformer output, as before.
+  - **Not covered:** the MobileGlues path that Voxelium 1.0 ships, because the Zink switch was on, and vanilla 26.3.
+- **Third Fabric 26.3 world join, build 202610231646** (17:03:57; logs copied about 17:06Z):
+  - Vulkan on KosmicKrisp / Apple A17 Pro GPU, world joined at 17:04:11, saved and quit, status 0. Peak 2303 MB (GPU 1025 MB).
+  - No 1.21.11 run on MobileGlues and no vanilla 26.3 run were logged, so those two checks are still open.
+
+## 2026-10-24 — 26.3, Stage 4: touch controls on SDL, background pause, render scale
+Same branch, on top of Stage 3 (`1b6f6f6`).
+- **What 26.3 needs, from client.jar `e877b6a0`:**
+  - Key state comes from `SDL_GetKeyboardState` (`InputConstants.isKeyDown`) and `SDL_GetModState`, so pushed events alone wouldn't do; input has to go through SDL's own keyboard and mouse code.
+  - Mouse look uses the motion events' `xrel`/`yrel` while `mouseGrabbed`. Minecraft sets that even when `SDL_SetWindowRelativeMouseMode` fails, which it did on UIKit without a GCMouse: "Failed to enable relative mouse mode: That operation is not supported".
+  - Its window is `SDL_WINDOW_RESIZABLE | SDL_WINDOW_HIGH_PIXEL_DENSITY` (0x2020) plus Vulkan.
+  - Rendering continues while the window is minimized: `isIconified` only skips surface reconfiguration.
+  - Window events go to `Window.handleEvent`; there's no handler for `SDL_EVENT_QUIT`.
+- **`patches/sdl3/0005`:**
+  - `SDL_uikitvoxelium.m` exports `SDL_VoxeliumSendKey`/`SendText`/`SendMouseButton`/`SendMouseMotion`/`SendMouseWheel`. These wrap SDL's internal `SDL_SendKeyboardKey` etc., so state and events match a real keyboard and mouse.
+  - It also exports `SDL_VoxeliumRelativeMouseMode` (has the game captured the mouse?) and `SDL_VoxeliumRequestClose` (a window close request).
+  - UIKit now accepts relative mouse mode without a GCMouse.
+  - High-density Metal views and `SDL_GetWindowSizeInPixels` use the native scale × `VOXELIUM_RENDER_SCALE`.
+  - `build-sdl3.sh` checks the new exports. SDL rebuilt: `libSDL3.dylib` `e84b0f42…` (before: `build/deps/sdl3-out.before-0005`).
+- **Shared controls:**
+  - The overlay, buttons, joystick, keyboard proxy, memory gauge and the touch gestures (look, tap/hold, hotbar, menu pointer) moved from `VXGLFW.m` to `Native/VXTouchControls.{h,m}` unchanged, apart from where input goes. That's now an `id<VXInputSink>` speaking GLFW key codes.
+  - VXGLFW's window implements it with its event queue as before. `VXGLFWView` subclasses `VXTouchView` and keeps the hardware keyboard and size events. Log prefix `[VXControls]`.
+- **`Native/VXSDLControls.m`** (26.3+):
+  - A 20 Hz main-thread poll finds SDL's game window (root view controller `SDL_uikitviewcontroller`) and adds the touch view over it, kept above SDL's Metal view. It shows the game controls while `SDL_VoxeliumRelativeMouseMode()` is on.
+  - The sink maps GLFW keys to SDL scancodes and GLFW buttons to SDL buttons.
+  - Look deltas are scaled to screen pixels, as on the GLFW path, so the sensitivity feels the same.
+  - On resign active, in the world, it sends Escape (pause and save), as VXGLFW does.
+  - On entering the background it calls the shim's `vx_vulkan_set_paused(1)` and holds an 8 s background task; on entering the foreground it resumes.
+  - Low-memory notice in game.
+  - The launcher calls `VXSDLControlsStart` and sets `SDL_IOS_HIDE_HOME_INDICATOR=2`.
+- **`scripts/vulkan-shim.c`:**
+  - `vkQueueSubmit`/`vkQueueSubmit2(KHR)`, `vkAcquireNextImage(2)KHR` and `vkQueuePresentKHR` wait while paused, returned as wrappers from both proc-address queries. `vx_vulkan_set_paused` is exported.
+  - Rebuilt with the build script's compiler flags into `vulkan-out/kosmickrisp{,-mac}` and the `sdl3-vulkan` snapshot (new SHA-256 in its SNAPSHOT.txt; old files kept as `*.before-pause`).
+  - Mac: 26.3 on the new shim loads to the title screen ("Sound engine started") on KosmicKrisp.
+- **Builds:**
+  - The normal app compiles without warnings in the new files.
+  - **Experimental build 202610232310**, SHA-256 `8f5a214e7f29bb697d9ff47f91253b77ead9ddf35f5b2828cd121b857fd6aea4`. `Frameworks/sdl3` has the patched SDL (7 Voxelium exports) and the pausing shim.
+  - Not yet run on the device.
+- **Device, build 202610232310** (devicectl-confirmed; Fabric 26.3; logs copied 2026-10-23 ~23:21Z):
+  - The controls appeared over the game window. Log lines: "[VXSDL] touch controls on the game window: 932x430 pt, framebuffer 1398x645 px (render scale 0.50)" and the user's 18-button layout. They switched to the in-game set when the world was joined, and back on pause.
+  - **Bug, reported by the user:** in menus, taps hit the wrong buttons (Multiplayer opened Singleplayer) and were hard to place.
+    - GPU memory in the world was still about 990 MB, as at full resolution. So the swapchain was 2796×1290, while SDL reported 1398×645 pixels (pixel density 1.5).
+    - Cause: SDL's Metal view set only `layer.contentsScale`, and UIKit resets that to the screen scale when the view joins a window. KosmicKrisp's WSI sizes the swapchain from the layer's bounds × `contentsScale`.
+    - So Minecraft drew its menus for 2796×1290 but converted tap positions with density 1.5: every tap landed at half its position.
+  - **Fix (patch 0005):** the Metal view's `contentScaleFactor` is set too, which UIKit keeps (VXGLFW does the same).
+    - The home-screen pause wasn't exercised in this run.
+    - The touch view attached, detached and re-attached once within 50 ms as SDL set up its window; harmless.
+  - **Build 202610232323** (SHA-256 `f7e8d2170f2846cbca78d1ed729c22988438c84e581d9af8908160aa95170c63`) has the fix. Not yet run on the device.
+- **Device, build 202610232323** (devicectl-confirmed; Fabric 26.3, 23:26–23:27Z): **the user reports that taps now hit the right buttons.**
+  - Controls attached at 932×430 pt, framebuffer 1398×645 px. The first attach caught SDL's window mid-setup (1434×0 pt) and was redone 45 ms later.
+  - World joined, saved, quit (status 0).
+  - **Memory:** 1322 MB on the title screen; 2196–2339 MB in the world (GPU about 992 MB); peak 2504 MB at quit. That's about the same as at full resolution: the swapchain at 2796×1290 was only about 45 MB per image set, so most GPU memory is the world's buffers and textures, not the screen. 26.3 on Vulkan uses more GPU memory than 1.21.11 on Zink (GPU about 600 MB); not investigated.
+  - **Still to check on this build:** the home-screen pause (no "[VXSDL] app …" or "[vulkan-shim]" lines yet) and Fabric 1.21.11's controls after the move to VXTouchControls.
+- **Device, build 202610232323, second round** (devicectl-confirmed; logs copied about 23:34Z):
+  - **Fabric 26.3** (23:30–23:31): Vulkan / A17 Pro, controls attached at 932×430 pt / 1398×645 px. World joined; peak 2397 MB. 37 touches (717 moves) went through the SDL hooks. Saved and quit, status 0.
+  - **Fabric 1.21.11 on MobileGlues** (the Zink switch was off, so this is Voxelium 1.0's renderer path) with the moved controls:
+    - layout loaded, game/menu sets switching with the cursor mode, world joined (23:32:34), paused, Save and Quit.
+    - It then crashed on the title screen in **Iris**'s `FeatureMissingErrorScreen` ("Can only blur once per frame"). The instance's shader pack needs compute shaders: "Shader compilation failed for compute deferred4_a… This PC does not support compute shaders". MobileGlues doesn't have them; Zink does. That's an Iris/shader-pack problem on MobileGlues, not the controls.
+  - **No home-screen trip is in either log:**
+    - no "[VXSDL] app …" or "[vulkan-shim]" lines in 26.3;
+    - no "[VXGLFW] app resigning active" in 1.21.11 (the last ones are from 2026-10-22);
+    - 26.3's 10 s `[VXMEM]` lines run without a gap;
+    - Minecraft didn't pause itself on focus loss.
+    So the app wasn't backgrounded during either game. The background pause is still untested.
+- **Device, build 202610232323, third round** (Fabric 26.3 twice, 23:36–23:37Z): **the user reports that taps miss again** ("can't click Singleplayer").
+  - Both runs attached the controls at 932×430 pt / 1398×645 px, never reached a world, and went to the background on the title screen. Rendering paused there: "[VXSDL] app in background: rendering paused…", "[vulkan-shim] app in background: vkAcquireNextImageKHR waits". Then the user restarted the app, so no resume was logged.
+  - **Cause, from client.jar and SDL:**
+    - 26.3's `Window.width/height` (`getScreenWidth`, used to map mouse positions) change only on `SDL_EVENT_WINDOW_RESIZED`; it never calls `SDL_GetWindowSize`. Its GUI scale comes from `SDL_GetWindowSizeInPixels`.
+    - SDL's UIKit `SetupWindowData` gives a new window the screen's size silently, and the view controller's later RESIZED is dropped when the size is unchanged.
+    - So when the game starts with the phone already in landscape, Minecraft never hears of 932×430 and maps taps with its requested 854×480. Starting in portrait gives a rotation, a RESIZED, and correct taps. That explains why the same build worked in some runs and not in others.
+    - (The input-event flush in `SDLEventHandler.flushInputEvents`, 0x300–0x1307, doesn't touch window events.)
+  - **Fix (patch 0005):** `SetupWindowData` posts `SDL_EVENT_WINDOW_RESIZED` with the real size when it differs from the requested one.
+  - **Build 202610232340** (SHA-256 `e5cbfe3e286f80b318a42f246dc693630af2be7a82ef4b19563d3925907a2d70`). Not yet run on the device.
+- **Device, build 202610232340** (devicectl-confirmed; Fabric 26.3 twice, 23:43–23:45Z, phone sideways at start): **the user reports that taps hit**: Singleplayer was tapped and a world joined.
+  - Run 1: 25 s in the world, 12 touches / 214 moves. Then, within one second (23:44:34): "Saving and pausing", server stop, "Stopping!", JVM returned. The app started fresh at 23:44:44.
+  - Run 2: world joined at 23:45:01, then "Stopping!" at 23:45:09 the same way.
+  - That's how 26.3 quits on `SDL_EVENT_QUIT`, `SDL_EVENT_WINDOW_CLOSE_REQUESTED` (`Window.onQuitRequested`) or `SDL_EVENT_TERMINATING` (`requestClose`), from `Window.handleEvent`'s switch. The world was saved each time, but on returning the app had restarted.
+  - Neither run logged "[VXSDL] app …" or "[vulkan-shim]", although the same handlers logged on the title screen at 23:36–23:37. Cause not proven.
+  - **Correction (user, afterwards):** the user quit the game themself both times; the app didn't leave the screen during either run. So nothing quit on its own, and the missing "[VXSDL] app …" lines are expected. The pause in a world is still untested.
+  - **Diagnostic build 202610232348** (SHA-256 `4264c84c7169d8ac077fee40e5629df412d8f5461894938cab7dd12232db7cef`) logs:
+    - every app state change (resign active, background, foreground, active, terminate);
+    - every SDL app/quit/window event via `SDL_AddEventWatch`, with the calling stack for QUIT, TERMINATING and CLOSE_REQUESTED;
+    - main-thread stalls over 2 s;
+    - the runtime menu's Quit.
+- **Device: home screen and back in a 26.3 world works (2026-10-24, build 202610232340).** devicectl showed 202610232340 installed, not the 202610232348 diagnostic build. Fabric 26.3; logs copied about 00:05Z.
+  - 00:02:44: joined the world.
+  - 07:02:51 local (00:02:51Z): "[VXSDL] app resigning active: sent ESC to pause and save", then "Saving and pausing game..." from Minecraft.
+  - 0.8 s later: "[VXSDL] app in background: rendering paused, holding a background task for 8 s" and "[vulkan-shim] app in background: vkAcquireNextImageKHR waits".
+  - On return: "[vulkan-shim] app in foreground: rendering resumed", and the game carried on (GPU 992 MB, footprint 2246 MB).
+  - Then the user paused, chose Save and Quit and quit ("Stopping!", status 0). No device-lost errors and no crash.
+  - Evidence: `docs/evidence/2026-10-24-minecraft-26.3-controls-background-pause-iphone15promax-ios27-build202610232340.log`.
+  - **Stage 4 device checks:**
+    - touch controls in 26.3 menus and world (taps hit after the two SDL fixes), user-confirmed;
+    - background pause and resume;
+    - render scale applied (1398×645);
+    - 1.21.11 controls on the shared code, on MobileGlues.
+  - **Open:** 26.3 in a world uses 2.2–2.5 GB, GPU about 1 GB, more than 1.21.11 on Zink.
+- **Device: vanilla 26.3 (2026-10-24, build 202610232340, devicectl-confirmed; logs copied about 00:14Z):**
+  - "Graphics backend forced to vulkan by launch argument", "Using graphics backend Vulkan, using drivers: 1.4.363 KosmicKrisp Mesa 27.0.0-devel", "Using graphics device: Apple A17 Pro GPU (APPLE)".
+  - Controls at 932×430 pt / 1398×645 px. World joined at 00:11:48; peak 2359 MB (GPU 995 MB). Saved and quit, `Main.main returned normally`.
+  - Just before it, 26.2 was refused with its message, as intended ("Could not start 26.2: 26.2 is not supported yet…").
+  - Evidence: `docs/evidence/2026-10-24-minecraft-26.3-vanilla-vulkan-kosmickrisp-iphone15promax-ios27-build202610232340.log`.
+  - That completes the plan's device verification for vanilla 26.3: Vulkan backend on Apple A17 Pro GPU / KosmicKrisp, title screen, world join, touch controls, save and quit. Memory peak noted above.
+
+## 2026-10-24 — 26.3 memory: VMA blocks
+- **Where 26.3's graphics memory goes:**
+  - The shim now counts the app's device memory on stderr: `vkAllocateMemory`/`vkFreeMemory` per memory type, and the buffers and images bound into it (sizes from `vkGet*MemoryRequirements` at bind, removed at destroy). It also logs the memory heaps and types once.
+  - KosmicKrisp (Mac and iOS builds) offers one heap with one memory type (flags 0xf).
+  - 26.3 allocates through VMA with default settings (`VulkanBackend`: no `preferredLargeHeapBlockSize`). VMA grows its blocks 32 → 64 → 128 → 256 MB.
+  - **Mac, Mojang's VMA:** title screen 224 MB allocated for 130 MB used. In a world, blocks 32+64+128+256+256(+256) = 736–992 MB for 528 MB used. The 992 MB matches the ~990 MB GPU in `[VXMEM]` on the iPhone.
+  - The large users are Minecraft's own chunk "uber buffers" (`SectionRenderDispatcher`: 128 MB vertex and 32 MB index heaps per chunk layer, created as needed, TLSF inside) and a 98 MB chunk staging buffer.
+- **Fix: `patches/lwjgl/3.4.3-0002-vma-32mb-blocks.patch`**, `VMA_DEFAULT_LARGE_HEAP_BLOCK_SIZE` 256 → 32 MB in our iOS LWJGL 3.4.3. VMA then gives allocations over 16 MB memory of their own and packs the rest into small blocks.
+  - Checked on the Mac with a macOS `liblwjgl_vma` built from the same source with the patch (Mojang's other natives unchanged): title screen 153 MB for 130 MB used; world 801 MB for 772 MB used. That run loaded more chunks; slack about 30 MB instead of 200–450 MB.
+  - What remains is Minecraft's 128 MB heap granularity per chunk layer (game code, not changed).
+  - `scripts/build-lwjgl.sh` now removes VMA's objects before building. LWJGL's native build checks only the `.cpp` files, so the first rebuild had kept the old `liblwjgl_vma.dylib`.
+  - Rebuilt: only `liblwjgl_vma.dylib` changed among the natives; the jars differ by timestamps. The old output is in `build/deps/lwjgl-out-3.4.3.before-vma32`.
+  - The shim with the accounting (tables trimmed to 64 Ki entries each) is in `vulkan-out/kosmickrisp{,-mac}` and the `sdl3-vulkan` snapshot.
+  - **Build 202610240026** (SHA-256 `e62e7689746ed30ec1a1d4ea6c6ebf91315b5080d9a2221f0ce76206d61165c3`) carries both. Not yet run on the device. Before: GPU about 992 MB, footprint 2.2–2.5 GB in a world.
+- **Device, build 202610240026** (devicectl-confirmed; Fabric 26.3, about 1 min in a world walking around; logs copied 01:13Z):
+  - **Vulkan memory:** the game's allocations peaked at **553 MB** for 512–516 MB used (before: 992 MB). Title screen: 161 MB for 129 MB.
+  - **iOS `[VXMEM]` in the world:** GPU **810 MB** (before 979–995 MB), footprint 2255–2274 MB (before 2384–2397 MB in the comparable run 22, up to 2504 MB in others). So about 170 MB less GPU and 120–140 MB less in total.
+  - GPU (810) minus the app's allocations (553) leaves about 257 MB that is KosmicKrisp/Metal's own: swapchain, command buffers, pipelines.
+  - The rest is about 1.45 GB: Java heap 708 MB committed (about 500 MB live after GC, from `-Xlog:gc`); the other about 740 MB is native (JIT code, driver CPU side, LWJGL chunk-building buffers, OpenAL), not broken down.
+  - Evidence: `docs/evidence/2026-10-24-minecraft-26.3-vma32-memory-iphone15promax-ios27-build202610240026.log`.
+  - **Remaining levers, not taken:**
+    - render distance (12 here), which drives both the chunk heaps and the Java heap;
+    - Minecraft's 128 MB chunk-heap granularity (game code);
+    - a breakdown of the native about 740 MB.
 
 ## 2026-10-24 — Hotbar under the home bar, and too small
 - **Report (a player, through the user):** the hotbar is too small, and the iPhone's home bar (swipe bar) easily covers it.
@@ -1300,3 +1575,46 @@ Changes:
   - The launcher logged "Large interface: GUI Scale 2 → Auto". The game area is full screen (932×430 pt), and the scale switched to 0.559 after rotation (721 px tall, GUI scale 3).
   - The user joined a world (01:40:04Z), quit cleanly, and made 9 hotbar selections by touch.
   - The user reports the hotbar is now bigger and that they "always thought that the hotbar is small too".
+
+## 2026-10-24 — 26.3: "Large interface" render-scale snap on the SDL path
+Requested by the user through the main session, after main's bigger-hotbar change (`44391ca`) was merged into this branch (`d602cd1`). There, `vxEffectiveRenderScale` snaps the GLFW path's scale to Minecraft's GUI steps; on 26.3, SDL applied the plain `VOXELIUM_RENDER_SCALE`, so at 50% the framebuffer was 645 px tall and the GUI stayed at scale 2.
+- **patches/sdl3/0005:**
+  - `UIKit_VoxeliumRenderScale` (used for the Metal view's `contentScaleFactor` and for `SDL_GetWindowSizeInPixels`) applies the same rule when `VOXELIUM_LARGE_INTERFACE=1`: the nearest r_k = (240k+1)/height with k ≥ 3 (and width·r_k/k ≥ 320), never below k = 3's.
+  - It's computed from the screen's landscape size, so it's the same before and after rotation; SDL's window fills the screen in landscape.
+  - New export `SDL_VoxeliumRenderScale`; `build-sdl3.sh` checks it.
+  - iPhone 15 Pro Max: 0.50 → 721/1290 = 0.559; framebuffer 1562×720 px with SDL's truncation, so GUI scale 3.
+- **VXSDLControls:** pixels per point for hotbar taps now come from `SDL_VoxeliumRenderScale`, so taps and the picture use the same number.
+- **Experimental build 202610240147** (SHA-256 `2720d08fcdc986e2b628ec9df74df645047d96b7fbfc04ecfea2f5e9b2f8436c`). Not yet run on the device.
+- **Device, build 202610240147** (devicectl-confirmed; logs copied about 01:55Z). The run was **Fabric** 26.3 (`fabric-loader-0.19.5-26.3`), not vanilla; the render-scale path is the same.
+  - "[VXSDL] touch controls on the game window: 932x430 pt, framebuffer 1562x720 px (render scale 0.56)", as computed.
+  - Hotbar taps were mapped with GUI scale 3: "bottom touch at 462,413 pt (fb 1562x720, scale 1.68) -> hotbar slot 4", then slots 6 and 8; 3 hotbar selects, 16 touches.
+  - World joined, quit with status 0.
+  - Memory in the world: footprint 2112–2144 MB, GPU 802 MB, at the slightly higher resolution.
+  - **The user confirmed:** the hotbar was bigger and the taps picked the right slots.
+
+## 2026-10-24 — Experimental build: choose the renderer when starting a game
+Requested by the user through the main session, as the candidate for Voxelium 2.0 (no push or merge before their approval).
+- **VoxeliumCore:** `GameRenderer` (`mobileGlues`, `vulkan`), `RendererChoice.of(version)` and `GameRuntime.lwjglArtifacts(of:)`; tests in `GameRuntimeTests.rendererChoicePerVersion`.
+  - `.vulkanOnly` for versions listing `lwjgl-sdl` (26.3+);
+  - `.single` for `lwjgl-vulkan` without SDL (26.2, refused with its reason) and for Java 8 versions (gl4es);
+  - `.mobileGluesOrVulkan` otherwise (1.17 – 26.1.2).
+- **Play menu (experimental build only, `#if VOXELIUM_ZINK_EXPERIMENT`):**
+  - 1.17 – 26.1.2: "Play with MobileGlues" and "Play with Vulkan" (Zink on KosmicKrisp).
+    - Vulkan is disabled, with the reason, when Zink isn't bundled, on iOS < 26, or after the Zink or SDL + Vulkan test ran in this launch.
+    - MobileGlues is disabled after a MobileGlues test.
+  - 26.3+: only "Play with Vulkan", with a footer saying MobileGlues can't run it.
+  - Java 8 versions and 26.2: the single "Launch Minecraft (needs JIT)" as before.
+  - The last choice per version is remembered (UserDefaults `VoxeliumRenderer.<id>`) and checkmarked; the version list's quick launch uses it, or MobileGlues.
+  - The shader render-distance warning still comes first.
+- **Launcher:** `MinecraftLauncher.launch(…, renderer:)` replaces the global `ZinkRenderer.enabled` switch, whose toggle is gone from the graphics tests; it used to default to Zink. A Vulkan request that can't be met is logged.
+- **The normal build is unchanged:** same single Launch item; the renderer argument is ignored without `VOXELIUM_ZINK_EXPERIMENT`. It compiles. `swift test`: 121 pass.
+- **Experimental build 202610240158** (SHA-256 `cae0c69a46aee1e5427cfc6ec9b5d2448ed973888dc7bbbbaa4cbb8c6f97b701`). Not yet run on the device.
+- **Device, build 202610240158** (devicectl-confirmed; logs copied about 03:55Z). Each start used the renderer picked in the Play menu:
+  - **03:49, Fabric 1.21.11, "Play with MobileGlues":** "OpenGL Version: 4.0.0 MobileGlues 1.3.3" on ANGLE Metal; world joined; peak 1715 MB.
+  - **03:50, Fabric 1.21.11, "Play with Vulkan":** "OpenGL Version: 4.6 (Core Profile) Mesa", "zink Vulkan 1.4 (Apple A17 Pro GPU (MESA_KOSMICKRISP))"; world joined; peak 1401 MB.
+  - **03:52, Fabric 26.3, "Play with Vulkan":** "Using graphics backend Vulkan … KosmicKrisp", A17 Pro GPU; world joined; stopped with status 0; peak 2158 MB.
+  - Earlier starts with the same build:
+    - Fabric 1.21.11 on Zink at 03:25 and 03:29 joined worlds.
+    - Fabric 26.2 was refused with its message (02:01:26).
+    - Two starts at 03:25:08 and 03:49:00 stopped with "JIT is not enabled (no debugger attached)": the app was opened without StikDebug. The retries from StikDebug worked.
+  - **NeoForge 1.21.1 on Vulkan (02:01:41)** stopped after the JVM's flags line, before the JIT probe, like the first NeoForge start on 2026-10-23 16:57; the app was relaunched. Cause not proven (StikDebug/JIT handshake?).

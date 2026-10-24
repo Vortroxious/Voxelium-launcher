@@ -1,0 +1,56 @@
+diff --git a/src/vulkan/wsi/wsi_common_metal.c b/src/vulkan/wsi/wsi_common_metal.c
+index 54542c6..4da39c7 100644
+--- a/src/vulkan/wsi/wsi_common_metal.c
++++ b/src/vulkan/wsi/wsi_common_metal.c
+@@ -19,6 +19,7 @@
+ #include "vulkan/vulkan_core.h"
+ 
+ #include <assert.h>
++#include <TargetConditionals.h>
+ 
+ struct wsi_metal {
+    struct wsi_interface base;
+@@ -40,7 +41,10 @@ wsi_metal_surface_get_support(VkIcdSurfaceBase *surface,
+ }
+ 
+ static const VkPresentModeKHR present_modes[] = {
++#if TARGET_OS_OSX
++   /* CAMetalLayer.displaySyncEnabled is macOS only: iOS cannot tear. */
+    VK_PRESENT_MODE_IMMEDIATE_KHR,
++#endif
+    VK_PRESENT_MODE_FIFO_KHR,
+ };
+ 
+diff --git a/src/vulkan/wsi/wsi_common_metal_layer.m b/src/vulkan/wsi/wsi_common_metal_layer.m
+index 6308d70..cda4e95 100644
+--- a/src/vulkan/wsi/wsi_common_metal_layer.m
++++ b/src/vulkan/wsi/wsi_common_metal_layer.m
+@@ -10,6 +10,7 @@
+ 
+ #import <QuartzCore/CAMetalLayer.h>
+ #import <Metal/Metal.h>
++#include <TargetConditionals.h>
+ 
+ void
+ wsi_metal_layer_size(const CAMetalLayer *metal_layer,
+@@ -139,7 +140,9 @@
+ wsi_metal_layer_set_immediate(const CAMetalLayer *metal_layer,
+                               bool enable_immediate)
+ {
++#if TARGET_OS_OSX
+    metal_layer.displaySyncEnabled = !enable_immediate;
++#endif
+ }
+ 
+ VkResult
+@@ -170,7 +173,10 @@
+       metal_layer.maximumDrawableCount = image_count;
+       metal_layer.drawableSize = (CGSize){.width = width, .height = height};
+       metal_layer.opaque = enable_opaque;
++#if TARGET_OS_OSX
++      /* iOS always presents in sync with the display (FIFO only, see present_modes). */
+       metal_layer.displaySyncEnabled = !enable_immediate;
++#endif
+       metal_layer.pixelFormat = metal_format;
+ 
+       metal_layer.colorspace = cg_color_space;

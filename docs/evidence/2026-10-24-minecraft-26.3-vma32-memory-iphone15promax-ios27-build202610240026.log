@@ -1,0 +1,41 @@
+# Fabric 26.3 on iPhone 15 Pro Max, iOS 27, experimental build 202610240026 (devicectl-confirmed): VMA 32 MB blocks
+# (patches/lwjgl/3.4.3-0002) and the shim's device-memory accounting. About 1 min in a world, walking. Logs copied ~01:13Z.
+# Memory lines only ([vulkan-shim], [VXMEM]), the world join and the last GC lines:
+[vulkan-shim] memory heap 0: 5461 MB, flags 0x1
+[vulkan-shim] memory type 0: heap 0, flags 0xf
+[vulkan-shim] memory up: 52 MB in 4 allocations (peak 52 MB); used by 49 buffers/images 18 MB (peak 19 MB): type0 52 MB
+[vulkan-shim] memory up: 76 MB in 5 allocations (peak 76 MB); used by 50 buffers/images 42 MB (peak 42 MB): type0 76 MB
+[vulkan-shim] memory in use: 76 MB in 5 allocations (peak 76 MB); used by 51 buffers/images 66 MB (peak 66 MB): type0 76 MB
+[vulkan-shim] memory up: 108 MB in 6 allocations (peak 108 MB); used by 471 buffers/images 76 MB (peak 76 MB): type0 108 MB
+[vulkan-shim] memory up: 129 MB in 7 allocations (peak 129 MB); used by 563 buffers/images 80 MB (peak 80 MB): type0 129 MB
+[vulkan-shim] memory in use: 129 MB in 7 allocations (peak 129 MB); used by 3973 buffers/images 128 MB (peak 128 MB): type0 129 MB
+[vulkan-shim] memory up: 161 MB in 8 allocations (peak 161 MB); used by 3994 buffers/images 129 MB (peak 129 MB): type0 161 MB
+2026-10-24 08:10:09.547 Voxelium[33101:4614773] [VXMEM] in game (SDL): footprint 1326 MB (peak 1326 MB; GPU 259 MB, rest 1066 MB), iOS allows 2049 MB more (lowest 2049 MB, limit remaining 2049 MB)
+[01:10:17] [Server thread/INFO]: System chat: Vortroxious joined the game
+[vulkan-shim] large allocation: 128 MB, type 0
+[vulkan-shim] memory up: 265 MB in 8 allocations (peak 265 MB); used by 805 buffers/images 95 MB (peak 130 MB): type0 265 MB
+[vulkan-shim] memory in use: 265 MB in 8 allocations (peak 265 MB); used by 806 buffers/images 223 MB (peak 223 MB): type0 265 MB
+[vulkan-shim] large allocation: 128 MB, type 0
+[vulkan-shim] memory up: 393 MB in 9 allocations (peak 393 MB); used by 803 buffers/images 223 MB (peak 223 MB): type0 393 MB
+[vulkan-shim] memory in use: 393 MB in 9 allocations (peak 393 MB); used by 804 buffers/images 351 MB (peak 351 MB): type0 393 MB
+[vulkan-shim] large allocation: 128 MB, type 0
+[vulkan-shim] memory up: 521 MB in 10 allocations (peak 521 MB); used by 807 buffers/images 351 MB (peak 351 MB): type0 521 MB
+[vulkan-shim] memory in use: 521 MB in 10 allocations (peak 521 MB); used by 808 buffers/images 479 MB (peak 479 MB): type0 521 MB
+[vulkan-shim] memory up: 553 MB in 11 allocations (peak 553 MB); used by 808 buffers/images 479 MB (peak 479 MB): type0 553 MB
+[vulkan-shim] memory in use: 553 MB in 11 allocations (peak 553 MB); used by 810 buffers/images 512 MB (peak 512 MB): type0 553 MB
+2026-10-24 08:10:19.547 Voxelium[33101:4614769] [VXMEM] in game (SDL): footprint 1961 MB (peak 1961 MB; GPU 809 MB, rest 1151 MB), iOS allows 1414 MB more (lowest 1414 MB, limit remaining 1414 MB)
+2026-10-24 08:10:29.548 Voxelium[33101:4614769] [VXMEM] in game (SDL): footprint 2265 MB (peak 2265 MB; GPU 810 MB, rest 1455 MB), iOS allows 1110 MB more (lowest 1110 MB, limit remaining 1110 MB)
+2026-10-24 08:10:39.542 Voxelium[33101:4615238] [VXMEM] in game (SDL): footprint 2274 MB (peak 2274 MB; GPU 810 MB, rest 1464 MB), iOS allows 1101 MB more (lowest 1101 MB, limit remaining 1101 MB)
+2026-10-24 08:10:49.527 Voxelium[33101:4614769] [VXMEM] in game (SDL): footprint 2261 MB (peak 2274 MB; GPU 810 MB, rest 1451 MB), iOS allows 1114 MB more (lowest 1101 MB, limit remaining 1114 MB)
+2026-10-24 08:10:59.518 Voxelium[33101:4614768] [VXMEM] in game (SDL): footprint 2255 MB (peak 2274 MB; GPU 810 MB, rest 1445 MB), iOS allows 1120 MB more (lowest 1101 MB, limit remaining 1120 MB)
+2026-10-24 08:11:09.548 Voxelium[33101:4615238] [VXMEM] in game (SDL): footprint 2256 MB (peak 2274 MB; GPU 810 MB, rest 1446 MB), iOS allows 1119 MB more (lowest 1101 MB, limit remaining 1119 MB)
+2026-10-24 08:11:19.467 Voxelium[33101:4614769] [VXMEM] in game (SDL): footprint 2258 MB (peak 2274 MB; GPU 810 MB, rest 1448 MB), iOS allows 1117 MB more (lowest 1101 MB, limit remaining 1117 MB)
+[01:11:19] [Render thread/INFO]: Stopping!
+[vulkan-shim] memory down: 404 MB in 9 allocations (peak 553 MB); used by 77 buffers/images 323 MB (peak 516 MB): type0 404 MB
+[vulkan-shim] memory down: 276 MB in 8 allocations (peak 553 MB); used by 76 buffers/images 195 MB (peak 516 MB): type0 276 MB
+[vulkan-shim] memory down: 148 MB in 7 allocations (peak 553 MB); used by 75 buffers/images 67 MB (peak 516 MB): type0 148 MB
+[vulkan-shim] memory down: 92 MB in 5 allocations (peak 553 MB); used by 54 buffers/images 5 MB (peak 516 MB): type0 92 MB
+[vulkan-shim] memory down: 8 MB in 1 allocations (peak 553 MB); used by 0 buffers/images 0 MB (peak 516 MB): type0 8 MB
+[72.742s][info][gc] GC(105) Pause Young (Concurrent Start) (G1 Evacuation Pause) 671M->499M(708M) 3.574ms
+[75.405s][info][gc] GC(107) Pause Young (Prepare Mixed) (G1 Evacuation Pause) 671M->501M(708M) 3.997ms
+[77.889s][info][gc] GC(108) Pause Young (Mixed) (G1 Evacuation Pause) 671M->496M(708M) 4.613ms

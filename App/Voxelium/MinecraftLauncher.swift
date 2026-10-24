@@ -30,7 +30,11 @@ final class MinecraftLauncher: ObservableObject {
     /// One JVM per process: once Minecraft has been started, relaunch the app to start again.
     private static var started = false
 
-    func launch(versionID: String, paths: AppPaths, settings: LauncherSettings, accounts: AccountModel) async {
+    /// `renderer`: the experimental build's Play menu choice (MobileGlues, or Vulkan through
+    /// Zink for 1.17 – 26.1.2). Normal builds always use MobileGlues (gl4es for Java 8);
+    /// 26.3+ always runs its own Vulkan renderer.
+    func launch(versionID: String, paths: AppPaths, settings: LauncherSettings, accounts: AccountModel,
+                renderer: GameRenderer = .mobileGlues) async {
         guard !Self.started else {
             state = .finished(ok: false, message: "A JVM already ran in this launch. Close and relaunch the app.")
             return
@@ -83,7 +87,7 @@ final class MinecraftLauncher: ObservableObject {
             }
             let home = java.appendingPathComponent("jre\(javaMajor)", isDirectory: true)
 
-            // LWJGL: the app's iOS builds stand in for Mojang's (3.3.3, or 3.4.1 for LWJGL ≥ 3.4.1).
+            // LWJGL: the app's iOS builds stand in for Mojang's (3.3.3, 3.4.1 for LWJGL ≥ 3.4.1, 3.4.3 for ≥ 3.4.3).
             // Versions up to 1.12.2 (LWJGL 2) also get lwjglx, the LWJGL 2 API on top of LWJGL 3.
             let wanted = GameRuntime.lwjgl(for: version)
             let lwjgl2 = GameRuntime.needsLWJGL2Bridge(wanted)
@@ -104,17 +108,23 @@ final class MinecraftLauncher: ObservableObject {
                 let c = lib.name.split(separator: ":")
                 return c.count >= 3 && c[0] == "org.lwjgl" ? String(c[1]) : nil
             })
+            // Minecraft 26.3+ (LWJGL 3.4.3) uses SDL3 instead of GLFW and runs its Vulkan
+            // renderer on KosmicKrisp (Mesa's Vulkan on Metal 4), not OpenGL on MobileGlues.
+            let sdlVulkan: SDLVulkanLibraries?
             if requested.contains("lwjgl-sdl") {
-                throw LaunchError.message("\(versionID) uses SDL and Vulkan instead of GLFW and OpenGL (Minecraft 26.3 and later). This launcher's iOS window and graphics layers do not support that yet.")
+                sdlVulkan = try Self.sdlVulkanLibraries(versionID: versionID, build: build, lwjgl: lwjgl, frameworks: frameworks)
+            } else {
+                sdlVulkan = nil
             }
             // Minecraft 26.2 (the first version to list lwjgl-vulkan) starts but draws only a
             // black screen: its shader programs fail to link on MobileGlues + ANGLE (ES 3.0).
             // Investigation paused (docs/ENGINEERING_LOG.md, 2026-10-17); refuse it clearly.
-            if requested.contains("lwjgl-vulkan") {
+            if requested.contains("lwjgl-vulkan") && sdlVulkan == nil {
                 throw LaunchError.message("\(versionID) is not supported yet: it starts but shows only a black screen on iOS (its graphics shaders do not work on this phone's OpenGL ES layer). Minecraft up to 26.1.2 works.")
             }
             let extras = Self.optionalLWJGLModules.filter(requested.contains)
-            let modules = Self.lwjglModules + extras + (lwjgl2 ? ["lwjgl-lwjglx"] : [])  // bridge last, as upstream
+            let modules = sdlVulkan != nil ? GameRuntime.sdlVulkanLWJGLModules
+                : Self.lwjglModules + extras + (lwjgl2 ? ["lwjgl-lwjglx"] : [])  // bridge last, as upstream
             let ours = (forgePlan == nil ? [] : [java.appendingPathComponent(ForgeLaunch.bootJarName)])
                 + modules.map { lwjgl.appendingPathComponent("\($0).jar") }
                 + [java.appendingPathComponent("voxelium-ios-compat.jar")]
@@ -142,8 +152,24 @@ final class MinecraftLauncher: ObservableObject {
             // NULL on 1.16.5); they get gl4es, as on Amethyst and ZalithLauncher. 1.17+ use
             // MobileGlues. Both run on the app's ANGLE context.
             let useGL4ES = javaMajor == 8
-            let glLibrary = frameworks.appendingPathComponent(useGL4ES ? "libgl4es.dylib" : "libmobileglues.dylib")
-            guard fm.fileExists(atPath: glLibrary.path) else {
+            var glLibrary = frameworks.appendingPathComponent(useGL4ES ? "libgl4es.dylib" : "libmobileglues.dylib")
+            #if VOXELIUM_ZINK_EXPERIMENT
+            // Experimental builds, "Play with Vulkan": desktop GL 4.6 through Zink on KosmicKrisp
+            // instead (VXGLFW shows its pbuffer on the layer). Not for gl4es versions, and not
+            // after the Zink test ran in this process (Mesa is set up once).
+            let zinkDir = frameworks.appendingPathComponent("zink", isDirectory: true)
+            let useZink = sdlVulkan == nil && renderer == .vulkan && !useGL4ES && !ZinkSession.used
+                && ProcessInfo.processInfo.isOperatingSystemAtLeast(OperatingSystemVersion(majorVersion: 26, minorVersion: 0, patchVersion: 0))
+                && fm.fileExists(atPath: zinkDir.appendingPathComponent("libGL_mesa.dylib").path)
+                && fm.fileExists(atPath: zinkDir.appendingPathComponent("libvulkan_kosmickrisp.dylib").path)
+            if useZink { glLibrary = zinkDir.appendingPathComponent("libGL_mesa.dylib") }
+            if renderer == .vulkan && sdlVulkan == nil && !useZink {
+                log.info("launch", "Vulkan (Zink) is not available for \(versionID) here; using \(useGL4ES ? "gl4es" : "MobileGlues")")
+            }
+            #else
+            let useZink = false
+            #endif
+            guard sdlVulkan != nil || fm.fileExists(atPath: glLibrary.path) else {
                 throw LaunchError.message("Bundled file missing: \(glLibrary.lastPathComponent)")
             }
 
@@ -163,9 +189,11 @@ final class MinecraftLauncher: ObservableObject {
                 // (BugChecks "sodium.checks.issue2561") turns that check off.
                 "-Dsodium.checks.issue2561=false",
                 "-Dorg.lwjgl.librarypath=\(lwjgl.path)",
+            ] + (sdlVulkan?.lwjglOptions ?? [
                 "-Dorg.lwjgl.glfw.libname=\(VXGLFWLibraryPath())",
                 "-Dorg.lwjgl.glfw.checkThread0=false",
                 "-Dorg.lwjgl.opengl.libname=\(glLibrary.path)",
+            ]) + [
                 "-Dorg.lwjgl.system.allocator=system",
                 // Minecraft resolves logs/, crash-reports/ etc. against the working directory.
                 "-Duser.dir=\(gameDir.path)",
@@ -190,6 +218,9 @@ final class MinecraftLauncher: ObservableObject {
             if lwjglDebugFlag.trimmingCharacters(in: .whitespacesAndNewlines) == "on" {
                 options += ["-Dorg.lwjgl.util.Debug=true", "-Dorg.lwjgl.util.DebugFunctions=true", "-Dorg.lwjgl.util.DebugLoader=true"]
                 log.info("launch", "LWJGL debug output on (logs/lwjgl-debug)")
+            }
+            if sdlVulkan != nil {
+                try GameOptions.forceVulkanBackend(gameDirectory: gameDir)
             }
             if let forgePlan {
                 options += ["-Dvoxelium.processors=\(forgePlan.path)", "-Dvoxelium.mainClass=\(plan.mainClass)"]
@@ -240,11 +271,37 @@ final class MinecraftLauncher: ObservableObject {
                 fm.createFile(atPath: logURL.path, contents: Data(header.utf8))
             }
 
-            log.info("launch", "Starting Minecraft \(versionID)\(resolved.isModded ? " (on \(resolved.chain.dropFirst().joined(separator: " → ")), own game folder)" : "") as \(identity.playerName) (\(identity.userType)): Java \(javaMajor) (asks \(major)), LWJGL \(build.rawValue) for \(wanted.map { "\($0)" } ?? "?"), GL \(useGL4ES ? "gl4es" : "MobileGlues"), heap \(heap) MB, render scale \(Int(renderScale * 100))%, \(ours.count + plan.classpath.count) classpath entries, \(options.count) JVM options")
+            log.info("launch", "Starting Minecraft \(versionID)\(resolved.isModded ? " (on \(resolved.chain.dropFirst().joined(separator: " → ")), own game folder)" : "") as \(identity.playerName) (\(identity.userType)): Java \(javaMajor) (asks \(major)), LWJGL \(build.rawValue) for \(wanted.map { "\($0)" } ?? "?"), \(sdlVulkan != nil ? "SDL3 + Vulkan (KosmicKrisp)" : "GL \(useGL4ES ? "gl4es" : useZink ? "Zink (experimental)" : "MobileGlues")"), heap \(heap) MB, render scale \(Int(renderScale * 100))%, \(ours.count + plan.classpath.count) classpath entries, \(options.count) JVM options")
             Self.started = true
-            if !useGL4ES { MobileGluesSession.used = true }
-            // The app's GLFW resolves glfwGetProcAddress from this library.
-            setenv("VOXELIUM_GL_LIBRARY", glLibrary.path, 1)
+            if let sdlVulkan {
+                sdlVulkan.prepareEnvironment()
+            } else {
+                if !useGL4ES && !useZink { MobileGluesSession.used = true }
+                // The app's GLFW resolves glfwGetProcAddress from this library.
+                setenv("VOXELIUM_GL_LIBRARY", glLibrary.path, 1)
+            }
+            #if VOXELIUM_ZINK_EXPERIMENT
+            if useZink {
+                ZinkSession.used = true
+                // As measured in the Zink test (docs/COMPUTE_SHADERS_RESEARCH.md): Zink
+                // through EGL's surfaceless platform, KosmicKrisp loaded directly, and the
+                // version forced to 4.6 (KosmicKrisp lacks geometry shaders and transform
+                // feedback, so Mesa would offer only 2.1). Its own shader cache folder.
+                setenv("VOXELIUM_GL_BACKEND", "zink", 1)
+                setenv("VOXELIUM_ZINK_DIR", zinkDir.path, 1)
+                setenv("MESA_LOADER_DRIVER_OVERRIDE", "zink", 1)
+                setenv("ZINK_VULKAN_LIBRARY", zinkDir.appendingPathComponent("libvulkan_kosmickrisp.dylib").path, 1)
+                setenv("MESA_GL_VERSION_OVERRIDE", "4.6", 1)
+                setenv("MESA_GLSL_VERSION_OVERRIDE", "460", 1)
+                unsetenv("LIBGL_ALWAYS_SOFTWARE")
+                let caches = fm.urls(for: .cachesDirectory, in: .userDomainMask)[0]
+                    .appendingPathComponent("mesa_shader_cache_game", isDirectory: true)
+                try? fm.createDirectory(at: caches, withIntermediateDirectories: true)
+                setenv("MESA_SHADER_CACHE_DIR", caches.path, 1)
+                // Zink/Mesa warnings and errors (Iris packs that fail in the driver).
+                setenv("MESA_LOG_FILE", paths.logsDir.appendingPathComponent("zink-game-mesa.log").path, 1)
+            }
+            #endif
             if useGL4ES {
                 // gl4es loads GLES from here (ANGLE) and uses its GLES 2 backend.
                 setenv("LIBGL_GLES", frameworks.appendingPathComponent("libGLESv2.framework/libGLESv2").path, 1)
@@ -257,7 +314,9 @@ final class MinecraftLauncher: ObservableObject {
             }
 
             let mainClass = forgePlan == nil ? plan.mainClass : ForgeLaunch.bootMainClass
-            let gameArgs = plan.gameArguments
+            // 26.3+: Vulkan always. The launch argument overrides the in-game setting and
+            // Minecraft's switch to OpenGL after a start that did not finish.
+            let gameArgs = plan.gameArguments + (sdlVulkan != nil ? ["--graphicsBackend", "vulkan"] : [])
             Task.detached(priority: .userInitiated) {
                 let result = VXJVMBridge.run(javaHome: home.path, classpath: classpath, mainClass: mainClass,
                                              args: gameArgs, jvmOptions: options, logPath: logURL.path)
@@ -270,6 +329,69 @@ final class MinecraftLauncher: ObservableObject {
             state = .finished(ok: false, message: String(describing: error))
             log.error("launch", "Could not start \(versionID): \(error)")
         }
+    }
+
+    /// The native libraries Minecraft 26.3+ loads besides the LWJGL 3.4.3 build: SDL3
+    /// (scripts/build-sdl3.sh, with patches/sdl3) and the Vulkan loader shim with
+    /// KosmicKrisp next to it (scripts/build-zink.sh vulkan). Only the experimental
+    /// build bundles them so far, in Frameworks/sdl3.
+    struct SDLVulkanLibraries {
+        let sdl: URL
+        let vulkan: URL
+        let shaderc: URL
+        let spvc: URL
+
+        var lwjglOptions: [String] {
+            [
+                "-Dorg.lwjgl.sdl.libname=\(sdl.path)",
+                // LWJGL loads the shim; Minecraft then hands that path to SDL_Vulkan_LoadLibrary.
+                "-Dorg.lwjgl.vulkan.libname=\(vulkan.path)",
+                // LWJGL's default name is libshaderc.dylib; spvc's default is ours.
+                "-Dorg.lwjgl.shaderc.libname=\(shaderc.path)",
+                "-Dorg.lwjgl.spvc.libname=\(spvc.path)",
+                // 26.3 loads LWJGL's OpenGL at startup even on Vulkan, and LWJGL's default on
+                // "Mac OS X" is OpenGL.framework, which iOS lacks ("There is no OpenGL context
+                // management API available", device crash 2026-10-23). Any loadable library
+                // will do, as nothing draws through it: this app, which is already loaded.
+                "-Dorg.lwjgl.opengl.libname=\(VXGLFWLibraryPath())",
+            ]
+        }
+
+        func prepareEnvironment() {
+            // What SDL_Vulkan_LoadLibrary(NULL) would load, should anything call it so.
+            setenv("SDL_VULKAN_LIBRARY", vulkan.path, 1)
+            // SDL hint: hide the home indicator and defer edge swipes to a second swipe,
+            // as VXGLFW's view controller does (Minecraft sets no value for it).
+            setenv("SDL_IOS_HIDE_HOME_INDICATOR", "2", 1)
+            VXStartMemoryLog("in game (SDL)")
+            // Touch controls over SDL's window, background and game pause (VXSDLControls.m).
+            // The render scale (VOXELIUM_RENDER_SCALE) is applied by SDL (patches/sdl3/0005).
+            VXSDLControlsStart(sdl.path, vulkan.path)
+        }
+    }
+
+    static func sdlVulkanLibraries(versionID: String, build: GameRuntime.LWJGLBuild, lwjgl: URL, frameworks: URL) throws -> SDLVulkanLibraries {
+        // KosmicKrisp needs Metal 4.
+        guard ProcessInfo.processInfo.isOperatingSystemAtLeast(OperatingSystemVersion(majorVersion: 26, minorVersion: 0, patchVersion: 0)) else {
+            throw LaunchError.message("\(versionID) needs iOS 26 or later: it draws with Vulkan, which this launcher provides through KosmicKrisp, and KosmicKrisp needs Metal 4 (iOS 26). Minecraft up to 26.1.2 works on this iOS version.")
+        }
+        guard build == .v343 else {
+            throw LaunchError.message("\(versionID) uses SDL with LWJGL \(build.rawValue); this launcher supports SDL only with LWJGL 3.4.3 (Minecraft 26.3).")
+        }
+        let sdlDir = frameworks.appendingPathComponent("sdl3", isDirectory: true)
+        let libs = SDLVulkanLibraries(sdl: sdlDir.appendingPathComponent("libSDL3.dylib"),
+                                      vulkan: sdlDir.appendingPathComponent("libvulkan.1.dylib"),
+                                      shaderc: lwjgl.appendingPathComponent("libshaderc_shared.dylib"),
+                                      spvc: lwjgl.appendingPathComponent("libspirv-cross.dylib"))
+        let kosmicKrisp = sdlDir.appendingPathComponent("libvulkan_kosmickrisp.dylib")
+        let fm = FileManager.default
+        guard fm.fileExists(atPath: libs.sdl.path), fm.fileExists(atPath: libs.vulkan.path), fm.fileExists(atPath: kosmicKrisp.path) else {
+            throw LaunchError.message("\(versionID) uses SDL and Vulkan instead of GLFW and OpenGL (Minecraft 26.3 and later). This build does not include them yet; only the experimental build does.")
+        }
+        for url in [libs.shaderc, libs.spvc] where !fm.fileExists(atPath: url.path) {
+            throw LaunchError.message("Bundled file missing: \(url.lastPathComponent)")
+        }
+        return libs
     }
 
     static func activateAudioSession(log: Logger) {

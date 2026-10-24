@@ -12,6 +12,11 @@
 // caller's thread in glfwPollEvents/glfwWaitEvents, as GLFW specifies.
 //
 // Platform is reported as GLFW_PLATFORM_NULL so nothing tries Cocoa/AppKit.
+//
+// Experimental builds only (VOXELIUM_ZINK_EXPERIMENT): with VOXELIUM_GL_BACKEND=zink
+// the context comes from Mesa's EGL (Zink on KosmicKrisp, desktop GL 4.6) instead of
+// ANGLE. Mesa has no iOS window surface, so the game draws into a pbuffer and each
+// swap reads it back and draws it into the CAMetalLayer with Metal; see "Zink".
 
 #import <UIKit/UIKit.h>
 #import <QuartzCore/QuartzCore.h>
@@ -33,6 +38,13 @@
 
 #import "VXGLFW.h"
 #import "JVMBridge.h"
+#import "VXTouchControls.h"
+
+#if VOXELIUM_ZINK_EXPERIMENT
+#import <Metal/Metal.h>
+#define GL_GLES_PROTOTYPES 0
+#include <GLES3/gl3.h>
+#endif
 
 // Keep every API function in the executable's export trie even though nothing
 // in the app calls them directly.
@@ -75,8 +87,18 @@ static PFNEGLSWAPBUFFERSPROC p_eglSwapBuffers;
 static PFNEGLSWAPINTERVALPROC p_eglSwapInterval;
 static PFNEGLQUERYSURFACEPROC p_eglQuerySurface;
 
+#if VOXELIUM_ZINK_EXPERIMENT
+// VOXELIUM_GL_BACKEND=zink (set by the launcher): Mesa's EGL from $VOXELIUM_ZINK_DIR.
+static BOOL gZink;
+static BOOL vxLoadMesaEGL(void);
+#endif
+
 static BOOL vxLoadEGL(void) {
     if (gDisplay != EGL_NO_DISPLAY) return YES;
+#if VOXELIUM_ZINK_EXPERIMENT
+    const char *backend = getenv("VOXELIUM_GL_BACKEND");
+    if (backend && !strcmp(backend, "zink")) return vxLoadMesaEGL();
+#endif
     NSString *path = [NSBundle.mainBundle.privateFrameworksPath stringByAppendingPathComponent:@"libEGL.framework/libEGL"];
     gEGLLib = dlopen(path.fileSystemRepresentation, RTLD_NOW | RTLD_LOCAL);
     if (!gEGLLib) {
@@ -120,6 +142,263 @@ static BOOL vxLoadEGL(void) {
     return YES;
 }
 
+#if VOXELIUM_ZINK_EXPERIMENT
+static void vxOnMain(dispatch_block_t block);
+
+#ifndef EGL_PLATFORM_SURFACELESS_MESA
+#define EGL_PLATFORM_SURFACELESS_MESA 0x31DD
+#endif
+
+static BOOL vxLoadMesaEGL(void) {
+    const char *dir = getenv("VOXELIUM_ZINK_DIR");
+    NSString *path = [(dir ? @(dir) : [NSBundle.mainBundle.privateFrameworksPath stringByAppendingPathComponent:@"zink"])
+                      stringByAppendingPathComponent:@"libEGL_mesa.dylib"];
+    gEGLLib = dlopen(path.fileSystemRepresentation, RTLD_NOW | RTLD_LOCAL);
+    if (!gEGLLib) {
+        vxError(GLFW_PLATFORM_UNAVAILABLE, "cannot load Mesa libEGL: %s", dlerror());
+        return NO;
+    }
+#define L(name) p_##name = (__typeof__(p_##name))dlsym(gEGLLib, #name)
+    L(eglGetProcAddress); L(eglGetError); L(eglInitialize); L(eglTerminate); L(eglBindAPI);
+    L(eglChooseConfig); L(eglCreateWindowSurface); L(eglCreatePbufferSurface); L(eglDestroySurface);
+    L(eglCreateContext); L(eglDestroyContext); L(eglMakeCurrent); L(eglSwapBuffers);
+    L(eglSwapInterval); L(eglQuerySurface);
+#undef L
+    PFNEGLGETPLATFORMDISPLAYPROC getPlatformDisplay = (PFNEGLGETPLATFORMDISPLAYPROC)dlsym(gEGLLib, "eglGetPlatformDisplay");
+    if (!getPlatformDisplay || !p_eglInitialize || !p_eglCreateContext) {
+        vxError(GLFW_PLATFORM_UNAVAILABLE, "Mesa libEGL is missing entry points");
+        return NO;
+    }
+    EGLDisplay dpy = getPlatformDisplay(EGL_PLATFORM_SURFACELESS_MESA, EGL_DEFAULT_DISPLAY, NULL);
+    EGLint major = 0, minor = 0;
+    if (dpy == EGL_NO_DISPLAY || !p_eglInitialize(dpy, &major, &minor)) {
+        vxError(GLFW_PLATFORM_UNAVAILABLE, "Mesa eglInitialize failed: 0x%X", p_eglGetError ? p_eglGetError() : 0);
+        return NO;
+    }
+    p_eglBindAPI(EGL_OPENGL_API);
+    // Everything renders into pbuffers: the window's is read back at each swap.
+    EGLint count = 0;
+    EGLint attrs[] = {
+        EGL_RED_SIZE, 8, EGL_GREEN_SIZE, 8, EGL_BLUE_SIZE, 8, EGL_ALPHA_SIZE, 8,
+        EGL_DEPTH_SIZE, 24, EGL_STENCIL_SIZE, 8,
+        EGL_RENDERABLE_TYPE, EGL_OPENGL_BIT, EGL_SURFACE_TYPE, EGL_PBUFFER_BIT, EGL_NONE};
+    if (!p_eglChooseConfig(dpy, attrs, &gPbufferConfig, 1, &count) || count < 1) {
+        vxError(GLFW_PLATFORM_UNAVAILABLE, "no suitable Mesa EGL config: 0x%X", p_eglGetError());
+        p_eglTerminate(dpy);
+        return NO;
+    }
+    gWindowConfig = gPbufferConfig;
+    gDisplay = dpy;
+    gZink = YES;
+    NSLog(@"[VXGLFW] Zink: Mesa EGL %d.%d (surfaceless) from %@", major, minor, path);
+    return YES;
+}
+
+// Presents a Zink window: at each swap the pbuffer (GL's default framebuffer) is
+// read into one of two pixel-pack buffers, and the previous frame's buffer is
+// waited for, copied into a Metal buffer and drawn into the CAMetalLayer. Waiting
+// for the previous frame keeps at most two frames of GL work queued: with nothing
+// waiting, Zink on KosmicKrisp queues GPU work (about 1.2 MB a frame) without
+// limit (docs/COMPUTE_SHADERS_RESEARCH.md).
+@interface VXZinkPresenter : NSObject {
+@public
+    int width, height, stride;
+    GLuint pbo[2];
+    GLsync fence[2];
+    uint64_t frame;
+}
+@property (nonatomic, strong) CAMetalLayer *layer;
+@property (nonatomic, strong) id<MTLDevice> device;
+@property (nonatomic, strong) id<MTLCommandQueue> queue;
+@property (nonatomic, strong) id<MTLRenderPipelineState> pipeline;
+@property (nonatomic, strong) NSArray<id<MTLBuffer>> *buffers;
+@property (nonatomic, strong) NSArray<id<MTLTexture>> *textures;
+@property (nonatomic, strong) dispatch_semaphore_t inFlight;
+@end
+
+@implementation VXZinkPresenter
+@end
+
+static struct {
+    PFNGLGETINTEGERVPROC getIntegerv;
+    PFNGLBINDFRAMEBUFFERPROC bindFramebuffer;
+    PFNGLBINDBUFFERPROC bindBuffer;
+    PFNGLGENBUFFERSPROC genBuffers;
+    PFNGLDELETEBUFFERSPROC deleteBuffers;
+    PFNGLBUFFERDATAPROC bufferData;
+    PFNGLPIXELSTOREIPROC pixelStorei;
+    PFNGLREADPIXELSPROC readPixels;
+    PFNGLFENCESYNCPROC fenceSync;
+    PFNGLCLIENTWAITSYNCPROC clientWaitSync;
+    PFNGLDELETESYNCPROC deleteSync;
+    PFNGLMAPBUFFERRANGEPROC mapBufferRange;
+    PFNGLUNMAPBUFFERPROC unmapBuffer;
+    PFNGLFLUSHPROC flush;
+} gZinkGL;
+
+static BOOL vxZinkLoadGL(void) {
+    if (gZinkGL.readPixels) return YES;
+#define G(field, name) gZinkGL.field = (__typeof__(gZinkGL.field))p_eglGetProcAddress(name)
+    G(getIntegerv, "glGetIntegerv"); G(bindFramebuffer, "glBindFramebuffer"); G(bindBuffer, "glBindBuffer");
+    G(genBuffers, "glGenBuffers"); G(deleteBuffers, "glDeleteBuffers"); G(bufferData, "glBufferData");
+    G(pixelStorei, "glPixelStorei"); G(readPixels, "glReadPixels"); G(fenceSync, "glFenceSync");
+    G(clientWaitSync, "glClientWaitSync"); G(deleteSync, "glDeleteSync"); G(mapBufferRange, "glMapBufferRange");
+    G(unmapBuffer, "glUnmapBuffer"); G(flush, "glFlush");
+#undef G
+    return gZinkGL.readPixels && gZinkGL.mapBufferRange && gZinkGL.fenceSync;
+}
+
+static NSString *const kVXZinkShader =
+    @"#include <metal_stdlib>\n"
+     "using namespace metal;\n"
+     "struct V { float4 p [[position]]; float2 uv; };\n"
+     // One triangle covering the screen. GL rows run bottom-up and the texture's
+     // row 0 is GL's bottom row, so uv = q puts GL's top row at the top.
+     "vertex V vx(uint id [[vertex_id]]) {\n"
+     "  float2 q = float2((id << 1) & 2, id & 2);\n"
+     "  V v; v.p = float4(q * 2.0 - 1.0, 0.0, 1.0); v.uv = q; return v; }\n"
+     "fragment float4 fx(V in [[stage_in]], texture2d<float> t [[texture(0)]]) {\n"
+     "  constexpr sampler s(filter::nearest); return float4(t.sample(s, in.uv).rgb, 1.0); }\n";
+
+static VXZinkPresenter *vxZinkPresenterCreate(CAMetalLayer *layer) {
+    VXZinkPresenter *p = [VXZinkPresenter new];
+    p.device = MTLCreateSystemDefaultDevice();
+    p.queue = [p.device newCommandQueue];
+    NSError *error = nil;
+    id<MTLLibrary> lib = [p.device newLibraryWithSource:kVXZinkShader options:nil error:&error];
+    MTLRenderPipelineDescriptor *d = [MTLRenderPipelineDescriptor new];
+    d.vertexFunction = [lib newFunctionWithName:@"vx"];
+    d.fragmentFunction = [lib newFunctionWithName:@"fx"];
+    d.colorAttachments[0].pixelFormat = MTLPixelFormatBGRA8Unorm;
+    p.pipeline = lib ? [p.device newRenderPipelineStateWithDescriptor:d error:&error] : nil;
+    if (!p.pipeline) {
+        NSLog(@"[VXGLFW] Zink: Metal present pipeline failed: %@", error);
+        return nil;
+    }
+    p.inFlight = dispatch_semaphore_create(3);
+    p.layer = layer;
+    vxOnMain(^{
+        layer.device = p.device;
+        layer.pixelFormat = MTLPixelFormatBGRA8Unorm;
+        layer.framebufferOnly = YES;
+        layer.opaque = YES;
+        layer.maximumDrawableCount = 3;
+    });
+    return p;
+}
+
+// Drops queued read-backs and reallocates everything for a new framebuffer size.
+// Called with the window's context current.
+static void vxZinkPresenterResize(VXZinkPresenter *p, int width, int height) {
+    for (int i = 0; i < 2; i++) {
+        if (p->fence[i]) { gZinkGL.deleteSync(p->fence[i]); p->fence[i] = NULL; }
+    }
+    if (p->pbo[0]) gZinkGL.deleteBuffers(2, p->pbo);
+    p->width = width;
+    p->height = height;
+    NSUInteger align = [p.device minimumLinearTextureAlignmentForPixelFormat:MTLPixelFormatBGRA8Unorm];
+    p->stride = (int)(((NSUInteger)width * 4 + align - 1) / align * align);
+    size_t size = (size_t)p->stride * height;
+    GLint oldPack = 0;
+    gZinkGL.getIntegerv(GL_PIXEL_PACK_BUFFER_BINDING, &oldPack);
+    gZinkGL.genBuffers(2, p->pbo);
+    for (int i = 0; i < 2; i++) {
+        gZinkGL.bindBuffer(GL_PIXEL_PACK_BUFFER, p->pbo[i]);
+        gZinkGL.bufferData(GL_PIXEL_PACK_BUFFER, (GLsizeiptr)size, NULL, GL_STREAM_READ);
+    }
+    gZinkGL.bindBuffer(GL_PIXEL_PACK_BUFFER, (GLuint)oldPack);
+    // Wait out frames Metal still draws from the old buffers.
+    for (int i = 0; i < 3; i++) dispatch_semaphore_wait(p.inFlight, DISPATCH_TIME_FOREVER);
+    NSMutableArray *buffers = [NSMutableArray array], *textures = [NSMutableArray array];
+    MTLTextureDescriptor *td = [MTLTextureDescriptor texture2DDescriptorWithPixelFormat:MTLPixelFormatBGRA8Unorm
+                                                                                  width:width height:height mipmapped:NO];
+    td.usage = MTLTextureUsageShaderRead;
+    td.storageMode = MTLStorageModeShared;
+    for (int i = 0; i < 3; i++) {
+        id<MTLBuffer> b = [p.device newBufferWithLength:size options:MTLResourceStorageModeShared];
+        [buffers addObject:b];
+        [textures addObject:[b newTextureWithDescriptor:td offset:0 bytesPerRow:(NSUInteger)p->stride]];
+    }
+    p.buffers = buffers;
+    p.textures = textures;
+    for (int i = 0; i < 3; i++) dispatch_semaphore_signal(p.inFlight);
+    CAMetalLayer *layer = p.layer;
+    vxOnMain(^{ layer.drawableSize = CGSizeMake(width, height); });
+    p->frame = 0;
+    NSLog(@"[VXGLFW] Zink: presenting %dx%d (row stride %d bytes)", width, height, p->stride);
+}
+
+// Shows a mapped read-back (bottom-up BGRA rows, p->stride apart) on the layer.
+static void vxZinkShow(VXZinkPresenter *p, const void *pixels) {
+    dispatch_semaphore_wait(p.inFlight, DISPATCH_TIME_FOREVER);
+    NSUInteger slot = (NSUInteger)(p->frame % 3);
+    memcpy(p.buffers[slot].contents, pixels, (size_t)p->stride * p->height);
+    @autoreleasepool {
+        id<CAMetalDrawable> drawable = [p.layer nextDrawable];
+        if (!drawable) {
+            dispatch_semaphore_signal(p.inFlight);
+            return;
+        }
+        MTLRenderPassDescriptor *rp = [MTLRenderPassDescriptor renderPassDescriptor];
+        rp.colorAttachments[0].texture = drawable.texture;
+        rp.colorAttachments[0].loadAction = MTLLoadActionDontCare;
+        rp.colorAttachments[0].storeAction = MTLStoreActionStore;
+        id<MTLCommandBuffer> cb = [p.queue commandBuffer];
+        id<MTLRenderCommandEncoder> enc = [cb renderCommandEncoderWithDescriptor:rp];
+        [enc setRenderPipelineState:p.pipeline];
+        [enc setFragmentTexture:p.textures[slot] atIndex:0];
+        [enc drawPrimitives:MTLPrimitiveTypeTriangle vertexStart:0 vertexCount:3];
+        [enc endEncoding];
+        [cb presentDrawable:drawable];
+        dispatch_semaphore_t sem = p.inFlight;
+        [cb addCompletedHandler:^(id<MTLCommandBuffer> b) { dispatch_semaphore_signal(sem); }];
+        [cb commit];
+    }
+}
+
+// One swap: queue this frame's read-back, then wait for the previous one and show it.
+static void vxZinkPresent(VXZinkPresenter *p) {
+    GLint readFB = 0, pack = 0, align = 0, rowLength = 0, skipRows = 0, skipPixels = 0;
+    gZinkGL.getIntegerv(GL_READ_FRAMEBUFFER_BINDING, &readFB);
+    gZinkGL.getIntegerv(GL_PIXEL_PACK_BUFFER_BINDING, &pack);
+    gZinkGL.getIntegerv(GL_PACK_ALIGNMENT, &align);
+    gZinkGL.getIntegerv(GL_PACK_ROW_LENGTH, &rowLength);
+    gZinkGL.getIntegerv(GL_PACK_SKIP_ROWS, &skipRows);
+    gZinkGL.getIntegerv(GL_PACK_SKIP_PIXELS, &skipPixels);
+
+    int cur = (int)(p->frame % 2), prev = 1 - cur;
+    gZinkGL.bindFramebuffer(GL_READ_FRAMEBUFFER, 0);
+    gZinkGL.bindBuffer(GL_PIXEL_PACK_BUFFER, p->pbo[cur]);
+    gZinkGL.pixelStorei(GL_PACK_ALIGNMENT, 4);
+    gZinkGL.pixelStorei(GL_PACK_ROW_LENGTH, p->stride / 4);
+    gZinkGL.pixelStorei(GL_PACK_SKIP_ROWS, 0);
+    gZinkGL.pixelStorei(GL_PACK_SKIP_PIXELS, 0);
+    gZinkGL.readPixels(0, 0, p->width, p->height, 0x80E1 /* GL_BGRA */, GL_UNSIGNED_BYTE, NULL);
+    p->fence[cur] = gZinkGL.fenceSync(GL_SYNC_GPU_COMMANDS_COMPLETE, 0);
+    gZinkGL.flush();
+
+    if (p->fence[prev]) {
+        gZinkGL.clientWaitSync(p->fence[prev], GL_SYNC_FLUSH_COMMANDS_BIT, 2000000000ull);
+        gZinkGL.deleteSync(p->fence[prev]);
+        p->fence[prev] = NULL;
+        gZinkGL.bindBuffer(GL_PIXEL_PACK_BUFFER, p->pbo[prev]);
+        const void *pixels = gZinkGL.mapBufferRange(GL_PIXEL_PACK_BUFFER, 0, (GLsizeiptr)p->stride * p->height, GL_MAP_READ_BIT);
+        if (pixels) {
+            vxZinkShow(p, pixels);
+            gZinkGL.unmapBuffer(GL_PIXEL_PACK_BUFFER);
+        }
+    }
+    p->frame++;
+
+    gZinkGL.bindBuffer(GL_PIXEL_PACK_BUFFER, (GLuint)pack);
+    gZinkGL.bindFramebuffer(GL_READ_FRAMEBUFFER, (GLuint)readFB);
+    gZinkGL.pixelStorei(GL_PACK_ALIGNMENT, align);
+    gZinkGL.pixelStorei(GL_PACK_ROW_LENGTH, rowLength);
+    gZinkGL.pixelStorei(GL_PACK_SKIP_ROWS, skipRows);
+    gZinkGL.pixelStorei(GL_PACK_SKIP_PIXELS, skipPixels);
+}
+#endif
+
 #pragma mark - Main-thread helper
 
 static void vxOnMain(dispatch_block_t block) {
@@ -162,7 +441,7 @@ static void vxPush(VXEvent e) {
 
 @class VXGLFWView;
 
-@interface VXGLFWWindowObj : NSObject {
+@interface VXGLFWWindowObj : NSObject <VXInputSink> {
 @public
     int width, height;          // window size, points
     int fbWidth, fbHeight;      // framebuffer size, pixels
@@ -185,10 +464,12 @@ static void vxPush(VXEvent e) {
 @property (nonatomic, strong) UIWindow *uiWindow;
 @property (nonatomic, strong) VXGLFWView *view;
 @property (nonatomic, copy) NSString *title;
+#if VOXELIUM_ZINK_EXPERIMENT
+// Zink: the on-screen window's pbuffer is shown through this (nil otherwise).
+@property (nonatomic, strong) VXZinkPresenter *zink;
+#endif
 @end
 
-@implementation VXGLFWWindowObj
-@end
 
 static NSMutableArray<VXGLFWWindowObj *> *gWindows;
 static VXGLFWWindowObj *gVisibleWindow;
@@ -266,591 +547,20 @@ static void vxSendChar(VXGLFWWindowObj *w, UTF32Char cp) {
     vxPush((VXEvent){.type = VXEventChar, .window = H(w), .a = (int)cp});
 }
 
-#pragma mark - Haptics (as Amethyst: light on button press / tap, medium on long press)
-
-static UIImpactFeedbackGenerator *vxLightHaptic(void) {
-    static UIImpactFeedbackGenerator *g;
-    if (!g) { g = [[UIImpactFeedbackGenerator alloc] initWithStyle:UIImpactFeedbackStyleLight]; [g prepare]; }
-    return g;
-}
-
-static UIImpactFeedbackGenerator *vxMediumHaptic(void) {
-    static UIImpactFeedbackGenerator *g;
-    if (!g) { g = [[UIImpactFeedbackGenerator alloc] initWithStyle:UIImpactFeedbackStyleMedium]; [g prepare]; }
-    return g;
-}
-
-#pragma mark - On-screen controls (Amethyst/PojavLauncher default layout)
-
-// Layout and behaviour follow Amethyst-iOS's built-in default control layout
-// (Natives/customcontrols/CustomControlsUtils.m, generateAndSaveDefaultControl,
-// GPL-3.0). Its positions are expressions over the screen size in pixels; they
-// are evaluated here in points with button_scale = 100 and margin = 2 pt.
-
-typedef NS_ENUM(NSInteger, VXSpecial) {
-    VXSpecialNone, VXSpecialRuntimeMenu, VXSpecialHideGUI, VXSpecialKeyboard, VXSpecialVirtualMouse, VXSpecialDrawer,
-};
-
-@class VXControlsOverlay;
-
-@interface VXControlButton : UIButton
-@property (nonatomic, weak) VXGLFWWindowObj *owner;
-@property (nonatomic, weak) VXControlsOverlay *overlayRef;
-@property (nonatomic) int key;          // GLFW key, or GLFW_KEY_UNKNOWN
-@property (nonatomic, copy) NSArray<NSNumber *> *extraKeys;  // pressed together with key (custom layouts)
-@property (nonatomic) int mouseButton;  // GLFW mouse button, or -1
-@property (nonatomic) VXSpecial special;
-@property (nonatomic) BOOL toggle, latched, inGame, inMenu, inDrawer;
-@property (nonatomic) CGSize size;      // points
-@property (nonatomic, copy) CGPoint (^origin)(CGFloat W, CGFloat H);
+// The on-screen controls (VXTouchControls.m) send their input to the window.
+@implementation VXGLFWWindowObj
+- (void)vxKey:(int)key action:(int)action { vxSendKey(self, key, action); }
+- (void)vxMouseButton:(int)button action:(int)action { vxSendButton(self, button, action); }
+- (void)vxChar:(UInt32)codepoint { vxSendChar(self, codepoint); }
+- (void)vxCursorAt:(CGPoint)p { vxPush((VXEvent){.type = VXEventCursorPos, .window = H(self), .x = p.x, .y = p.y}); }
+// Captured cursor (mouse look): relative motion, encoded as a = 1 with the delta in x/y.
+- (void)vxCursorDelta:(CGPoint)d { vxPush((VXEvent){.type = VXEventCursorPos, .window = H(self), .x = d.x, .y = d.y, .a = 1}); }
+- (void)vxQuit { vxPush((VXEvent){.type = VXEventClose, .window = H(self)}); }
+- (BOOL)vxInGame { return cursorMode == GLFW_CURSOR_DISABLED; }
+- (CGSize)vxFramebufferSize { return CGSizeMake(fbWidth, fbHeight); }
+- (CGFloat)vxPixelsPerPoint { return scale; }
 @end
 
-// The app's memory as iOS counts it (phys_footprint) and how much more it may use
-// before iOS kills it; footprint + available is the app's limit (3376 MB on an iPhone
-// 15 Pro Max).
-static void vxMemoryNow(uint64_t *footprint, uint64_t *available) {
-    task_vm_info_data_t info;
-    mach_msg_type_number_t count = TASK_VM_INFO_COUNT;
-    *footprint = task_info(mach_task_self(), TASK_VM_INFO, (task_info_t)&info, &count) == KERN_SUCCESS ? info.phys_footprint : 0;
-    *available = os_proc_available_memory();
-}
-
-@interface VXControlsOverlay : UIView
-@property (nonatomic, weak) VXGLFWWindowObj *owner;
-@property (nonatomic, weak) UIView *gameView;
-@property (nonatomic) BOOL inGame, guiHidden, drawerOpen, virtualMouse;
-@property (nonatomic, strong) UIImageView *pointer;
-- (instancetype)initWithOwner:(VXGLFWWindowObj *)owner;
-- (void)special:(VXSpecial)special from:(VXControlButton *)button;
-- (void)toggleKeyboard;
-- (void)refresh;
-- (void)showNotice:(NSString *)text;
-@end
-
-@implementation VXControlButton
-
-+ (instancetype)named:(NSString *)title size:(CGSize)size {
-    VXControlButton *b = [self buttonWithType:UIButtonTypeCustom];
-    b.key = GLFW_KEY_UNKNOWN;
-    b.mouseButton = -1;
-    b.size = size;
-    b.inGame = b.inMenu = YES;
-    [b setTitle:title forState:UIControlStateNormal];
-    b.titleLabel.numberOfLines = 2;
-    b.titleLabel.lineBreakMode = NSLineBreakByWordWrapping;
-    b.titleLabel.textAlignment = NSTextAlignmentCenter;
-    b.titleLabel.adjustsFontSizeToFitWidth = YES;
-    b.titleLabel.font = [UIFont systemFontOfSize:14 weight:UIFontWeightMedium];
-    [b setTitleColor:UIColor.whiteColor forState:UIControlStateNormal];
-    b.backgroundColor = [UIColor colorWithWhite:0 alpha:0x4d / 255.0];  // Amethyst bgColor 0x4d000000
-    b.layer.borderColor = UIColor.whiteColor.CGColor;
-    [b addTarget:b action:@selector(down) forControlEvents:UIControlEventTouchDown];
-    [b addTarget:b action:@selector(up) forControlEvents:UIControlEventTouchUpInside | UIControlEventTouchUpOutside | UIControlEventTouchCancel];
-    return b;
-}
-
-- (void)layoutSubviews {
-    [super layoutSubviews];
-    self.layer.cornerRadius = MIN(self.bounds.size.width, self.bounds.size.height) / 2;  // cornerRadius 100%
-}
-
-- (void)setPressedLook:(BOOL)pressed {
-    self.backgroundColor = pressed ? [UIColor colorWithWhite:1 alpha:0.35] : [UIColor colorWithWhite:0 alpha:0x4d / 255.0];
-}
-
-- (void)send:(int)action {
-    if (self.key != GLFW_KEY_UNKNOWN) vxSendKey(self.owner, self.key, action);
-    for (NSNumber *k in self.extraKeys) vxSendKey(self.owner, k.intValue, action);
-    if (self.mouseButton >= 0) vxSendButton(self.owner, self.mouseButton, action);
-}
-
-- (void)down {
-    [vxLightHaptic() impactOccurred];
-    if (self.special != VXSpecialNone) {
-        [self.overlayRef special:self.special from:self];
-        return;
-    }
-    if (self.toggle) {
-        self.latched = !self.latched;
-        [self send:self.latched ? GLFW_PRESS : GLFW_RELEASE];
-        [self setPressedLook:self.latched];
-    } else {
-        [self send:GLFW_PRESS];
-        [self setPressedLook:YES];
-    }
-}
-
-- (void)up {
-    if (self.special != VXSpecialNone || self.toggle) return;
-    [self send:GLFW_RELEASE];
-    [self setPressedLook:NO];
-}
-
-- (void)releaseLatched {
-    if (self.latched) {
-        self.latched = NO;
-        [self send:GLFW_RELEASE];
-        [self setPressedLook:NO];
-    }
-}
-
-@end
-
-// Movement stick (Amethyst default: 204.8 pt, bottom-left, relative, no forward lock).
-@interface VXJoystick : UIView
-@property (nonatomic, weak) VXGLFWWindowObj *owner;
-@end
-
-@implementation VXJoystick {
-    UIView *_knob;
-    int _held;  // bit 0 W, 1 S, 2 A, 3 D
-}
-
-- (instancetype)initWithFrame:(CGRect)frame {
-    if ((self = [super initWithFrame:frame])) {
-        self.backgroundColor = [UIColor colorWithWhite:0 alpha:0x4d / 255.0];
-        self.layer.borderWidth = 1;
-        self.layer.borderColor = [UIColor colorWithWhite:0 alpha:0x4d / 255.0].CGColor;  // strokeColor 1291845632
-        _knob = [[UIView alloc] initWithFrame:CGRectMake(0, 0, 72, 72)];
-        _knob.backgroundColor = [UIColor colorWithWhite:1 alpha:0.35];
-        _knob.layer.cornerRadius = 36;
-        _knob.userInteractionEnabled = NO;
-        [self addSubview:_knob];
-    }
-    return self;
-}
-
-- (void)layoutSubviews {
-    [super layoutSubviews];
-    self.layer.cornerRadius = self.bounds.size.width / 2;
-    if (!_held) _knob.center = CGPointMake(CGRectGetMidX(self.bounds), CGRectGetMidY(self.bounds));
-}
-
-- (void)apply:(int)held {
-    static const int keys[4] = {GLFW_KEY_W, GLFW_KEY_S, GLFW_KEY_A, GLFW_KEY_D};
-    for (int i = 0; i < 4; i++) {
-        BOOL was = (_held >> i) & 1, now = (held >> i) & 1;
-        if (was != now) vxSendKey(self.owner, keys[i], now ? GLFW_PRESS : GLFW_RELEASE);
-    }
-    _held = held;
-}
-
-- (void)track:(UITouch *)t {
-    CGPoint c = CGPointMake(CGRectGetMidX(self.bounds), CGRectGetMidY(self.bounds));
-    CGPoint p = [t locationInView:self];
-    CGFloat r = self.bounds.size.width / 2;
-    CGFloat dx = (p.x - c.x) / r, dy = (p.y - c.y) / r;
-    CGFloat len = hypot(dx, dy);
-    if (len > 1) { dx /= len; dy /= len; }
-    _knob.center = CGPointMake(c.x + dx * r * 0.6, c.y + dy * r * 0.6);
-    int held = 0;
-    if (dy < -0.35) held |= 1;
-    if (dy > 0.35) held |= 2;
-    if (dx < -0.35) held |= 4;
-    if (dx > 0.35) held |= 8;
-    [self apply:held];
-}
-
-- (void)touchesBegan:(NSSet<UITouch *> *)touches withEvent:(UIEvent *)event {
-    [vxLightHaptic() impactOccurred];
-    [self track:touches.anyObject];
-}
-- (void)touchesMoved:(NSSet<UITouch *> *)touches withEvent:(UIEvent *)event { [self track:touches.anyObject]; }
-- (void)touchesEnded:(NSSet<UITouch *> *)touches withEvent:(UIEvent *)event { [self reset]; }
-- (void)touchesCancelled:(NSSet<UITouch *> *)touches withEvent:(UIEvent *)event { [self reset]; }
-
-- (void)reset {
-    [self apply:0];
-    _knob.center = CGPointMake(CGRectGetMidX(self.bounds), CGRectGetMidY(self.bounds));
-}
-
-@end
-
-// Hidden first responder that brings up the iOS keyboard (world names, chat,
-// signs) and turns typing into GLFW char/key events.
-@interface VXKeyboardProxy : UIView <UIKeyInput>
-@property (nonatomic, weak) VXGLFWWindowObj *owner;
-@property (nonatomic) UITextAutocorrectionType autocorrectionType;
-@property (nonatomic) UITextAutocapitalizationType autocapitalizationType;
-@property (nonatomic) UITextSpellCheckingType spellCheckingType;
-@property (nonatomic) UIReturnKeyType returnKeyType;
-@end
-
-@implementation VXKeyboardProxy
-- (instancetype)initWithFrame:(CGRect)frame {
-    if ((self = [super initWithFrame:frame])) {
-        self.autocorrectionType = UITextAutocorrectionTypeNo;
-        self.autocapitalizationType = UITextAutocapitalizationTypeNone;
-        self.spellCheckingType = UITextSpellCheckingTypeNo;
-        self.returnKeyType = UIReturnKeyDone;
-        self.userInteractionEnabled = NO;
-    }
-    return self;
-}
-- (BOOL)canBecomeFirstResponder { return YES; }
-- (BOOL)hasText { return YES; }
-- (void)insertText:(NSString *)text {
-    VXGLFWWindowObj *w = self.owner;
-    [text enumerateSubstringsInRange:NSMakeRange(0, text.length) options:NSStringEnumerationByComposedCharacterSequences
-                          usingBlock:^(NSString *s, NSRange r, NSRange er, BOOL *stop) {
-        if ([s isEqualToString:@"\n"]) {
-            vxSendKey(w, GLFW_KEY_ENTER, GLFW_PRESS);
-            vxSendKey(w, GLFW_KEY_ENTER, GLFW_RELEASE);
-            return;
-        }
-        UTF32Char cp = 0;
-        if ([s getBytes:&cp maxLength:sizeof(cp) usedLength:NULL encoding:NSUTF32LittleEndianStringEncoding
-                options:0 range:NSMakeRange(0, s.length) remainingRange:NULL]) vxSendChar(w, cp);
-    }];
-}
-- (void)deleteBackward {
-    vxSendKey(self.owner, GLFW_KEY_BACKSPACE, GLFW_PRESS);
-    vxSendKey(self.owner, GLFW_KEY_BACKSPACE, GLFW_RELEASE);
-}
-@end
-
-@implementation VXControlsOverlay {
-    NSMutableArray<VXControlButton *> *_buttons;
-    VXJoystick *_stick;
-    VXKeyboardProxy *_keyboard;
-    CGSize _loggedSize;
-    CGFloat _stickX, _stickY, _stickSize;  // fractions of the overlay / points; _stickY < 0 = default
-    UILabel *_memoryGauge;   // "1.7 / 3.4 GB" under More: orange from 80%, red from 90% of the limit
-    UILabel *_notice;        // short messages, e.g. after an iOS memory warning
-    NSTimer *_memoryTimer;
-    CGFloat _controlsAlpha;                // layout "opacity" (Controls tab), applied to buttons and joystick
-}
-
-// The layout from the launcher's Controls tab: JSON at $VOXELIUM_CONTROLS_PATH, written by
-// MinecraftLauncher from VoxeliumCore's ControlLayout (positions are fractions of the
-// landscape screen, sizes in points). Returns NO (built-in layout used) if missing or invalid.
-- (BOOL)loadLayoutFile {
-    const char *path = getenv("VOXELIUM_CONTROLS_PATH");
-    if (!path) return NO;
-    NSData *data = [NSData dataWithContentsOfFile:@(path)];
-    NSDictionary *root = data ? [NSJSONSerialization JSONObjectWithData:data options:0 error:nil] : nil;
-    NSArray *list = [root isKindOfClass:NSDictionary.class] ? root[@"buttons"] : nil;
-    if (![list isKindOfClass:NSArray.class]) {
-        NSLog(@"[VXGLFW] controls: could not read %s, using the built-in layout", path);
-        return NO;
-    }
-    NSDictionary *specials = @{@"runtimeMenu": @(VXSpecialRuntimeMenu), @"hideGUI": @(VXSpecialHideGUI),
-                               @"keyboard": @(VXSpecialKeyboard), @"virtualMouse": @(VXSpecialVirtualMouse),
-                               @"drawer": @(VXSpecialDrawer)};
-    for (NSDictionary *d in list) {
-        if (![d isKindOfClass:NSDictionary.class]) continue;
-        NSString *name = [d[@"name"] isKindOfClass:NSString.class] ? d[@"name"] : @"";
-        CGFloat w = [d[@"width"] doubleValue] ?: 69.6, h = [d[@"height"] doubleValue] ?: 69.6;
-        CGFloat fx = [d[@"x"] doubleValue], fy = [d[@"y"] doubleValue];
-        NSMutableArray<NSNumber *> *keys = [NSMutableArray array];
-        if ([d[@"keys"] isKindOfClass:NSArray.class])
-            for (id k in d[@"keys"]) if ([k isKindOfClass:NSNumber.class] && [k intValue] > 0 && [k intValue] <= GLFW_KEY_LAST) [keys addObject:k];
-        VXControlButton *btn = [self add:name key:keys.count ? keys[0].intValue : GLFW_KEY_UNKNOWN w:w h:h
-                                    game:[d[@"showInGame"] boolValue] menu:[d[@"showInMenu"] boolValue]
-                                      at:^CGPoint(CGFloat W, CGFloat H) { return CGPointMake(fx * W, fy * H); }];
-        if (keys.count > 1) btn.extraKeys = [keys subarrayWithRange:NSMakeRange(1, keys.count - 1)];
-        int mouse = d[@"mouse"] ? [d[@"mouse"] intValue] : -1;
-        btn.mouseButton = mouse >= 0 && mouse <= GLFW_MOUSE_BUTTON_LAST ? mouse : -1;
-        NSNumber *special = [d[@"special"] isKindOfClass:NSString.class] ? specials[d[@"special"]] : nil;
-        btn.special = special ? (VXSpecial)special.integerValue : VXSpecialNone;
-        btn.toggle = [d[@"toggle"] boolValue];
-        btn.inDrawer = [d[@"inDrawer"] boolValue];
-        if (btn.inDrawer) btn.inGame = btn.inMenu = YES;
-        if (btn.special == VXSpecialDrawer) btn.layer.borderWidth = 1.5;
-    }
-    double opacity = root[@"opacity"] ? [root[@"opacity"] doubleValue] : 1;
-    _controlsAlpha = MIN(MAX(opacity, 0.2), 1);
-    NSDictionary *stick = root[@"joystick"];
-    if ([stick isKindOfClass:NSDictionary.class]) {
-        _stickX = [stick[@"x"] doubleValue];
-        _stickY = [stick[@"y"] doubleValue];
-        _stickSize = [stick[@"size"] doubleValue] ?: 204.8;
-    }
-    NSLog(@"[VXGLFW] controls: %lu buttons from %s", (unsigned long)_buttons.count, path);
-    return YES;
-}
-
-// Amethyst's default layout, used when no layout file is given (e.g. the GLFW test).
-// Keep in step with ControlLayout.amethystDefault in VoxeliumCore.
-- (void)addBuiltInLayout {
-    const CGFloat m = 2, a = 69.6, b = 104.8, d = 96, dh = 40;
-
-    // Right-hand cluster (x/y from Amethyst's expressions, simplified).
-    [self add:@"Jump" key:GLFW_KEY_SPACE w:a h:a game:YES menu:NO
-           at:^CGPoint(CGFloat W, CGFloat H) { return CGPointMake(0.94878495 * W - a, 0.31131014 * H + a + m); }];
-    [self add:@"Shift" key:GLFW_KEY_LEFT_SHIFT w:a h:a game:YES menu:YES
-           at:^CGPoint(CGFloat W, CGFloat H) { return CGPointMake(0.94878495 * W - a, 0.31131014 * H); }].toggle = YES;
-    [self add:@"Sprint" key:GLFW_KEY_LEFT_CONTROL w:a h:a game:YES menu:NO
-           at:^CGPoint(CGFloat W, CGFloat H) { return CGPointMake(0.94878495 * W - 2 * a - m, 0.31131014 * H); }].toggle = YES;
-    [self add:@"Right\nClick" mouse:GLFW_MOUSE_BUTTON_RIGHT w:a h:a
-           at:^CGPoint(CGFloat W, CGFloat H) { return CGPointMake(0.8756154 * W - a, 0.8178498 * H - a); }];
-    [self add:@"Left\nClick" mouse:GLFW_MOUSE_BUTTON_LEFT w:a h:a
-           at:^CGPoint(CGFloat W, CGFloat H) { return CGPointMake(0.7756397 * W - a, 0.8224885 * H - a); }];
-    [self add:@"Middle\nClick" mouse:GLFW_MOUSE_BUTTON_MIDDLE w:a h:a
-           at:^CGPoint(CGFloat W, CGFloat H) { return CGPointMake(0.83548373 * W - a, 0.67798775 * H - a); }];
-    // Inventory (E): Amethyst has it in the top row; moved, at the user's request, into the
-    // right-hand cluster, just right of Right Click and below Jump (in reach of the right thumb).
-    [self add:@"Inven-\ntory" key:GLFW_KEY_E w:a h:a game:YES menu:NO
-           at:^CGPoint(CGFloat W, CGFloat H) {
-               return CGPointMake(0.8756154 * W + m, MAX(0.8178498 * H - a, 0.31131014 * H + 2 * a + 2 * m));
-           }];
-
-    // Top row, packed from the right edge.
-    VXControlButton *menuBtn = [self add:@"Runtime\nMenu" key:GLFW_KEY_UNKNOWN w:b h:39.2 game:YES menu:YES
-           at:^CGPoint(CGFloat W, CGFloat H) { return CGPointMake(W - a - b - m, 0); }];
-    menuBtn.special = VXSpecialRuntimeMenu;
-    VXControlButton *hide = [self add:@"Hide\nGUI" key:GLFW_KEY_UNKNOWN w:a h:40 game:YES menu:YES
-           at:^CGPoint(CGFloat W, CGFloat H) { return CGPointMake(W - a, 0); }];
-    hide.special = VXSpecialHideGUI;
-    [self add:@"Pause" key:GLFW_KEY_ESCAPE w:b h:39.2 game:YES menu:NO
-           at:^CGPoint(CGFloat W, CGFloat H) { return CGPointMake(W - a - 2 * b - 2 * m, 0); }];
-    [self add:@"Exit\nMenu" key:GLFW_KEY_ESCAPE w:b h:39.2 game:NO menu:YES
-           at:^CGPoint(CGFloat W, CGFloat H) { return CGPointMake(W - a - 2 * b - 2 * m, 0); }];
-
-    // "More" drawer (top-left) and its items.
-    VXControlButton *more = [self add:@"More" key:GLFW_KEY_UNKNOWN w:d h:dh game:YES menu:YES
-           at:^CGPoint(CGFloat W, CGFloat H) { return CGPointMake(0, 0); }];
-    more.special = VXSpecialDrawer;
-    more.layer.borderWidth = 1.5;
-    const CGFloat dy = 0.0026855469;
-    [self drawer:@"Third\nperson" key:GLFW_KEY_F5 at:^CGPoint(CGFloat W, CGFloat H) { return CGPointMake(d + m, dy * H); }];
-    [self drawer:@"Debug\nMenu" key:GLFW_KEY_F3 at:^CGPoint(CGFloat W, CGFloat H) { return CGPointMake(3 * (d + m), dy * H); }];
-    [self drawer:@"Mouse\nToggle" key:GLFW_KEY_UNKNOWN at:^CGPoint(CGFloat W, CGFloat H) { return CGPointMake(2 * (d + m), dy * H + dh + m); }].special = VXSpecialVirtualMouse;
-    [self drawer:@"Chat" key:GLFW_KEY_T at:^CGPoint(CGFloat W, CGFloat H) { return CGPointMake(0, dy * H + dh + m); }];
-    [self drawer:@"Keyboard" key:GLFW_KEY_UNKNOWN at:^CGPoint(CGFloat W, CGFloat H) { return CGPointMake(d + m, dy * H + dh + m); }].special = VXSpecialKeyboard;
-    // Amethyst's expression puts Player List above the screen (y < 0); it is placed in the free slot at the top instead.
-    [self drawer:@"Player\nList" key:GLFW_KEY_TAB at:^CGPoint(CGFloat W, CGFloat H) { return CGPointMake(2 * (d + m), dy * H); }].toggle = YES;
-}
-
-- (instancetype)initWithOwner:(VXGLFWWindowObj *)owner {
-    if ((self = [super initWithFrame:CGRectZero])) {
-        _owner = owner;
-        _buttons = [NSMutableArray array];
-        _stickX = 0.02326631;
-        _stickSize = 204.8;
-        _stickY = -1;  // Amethyst default: 0.9753418 * H - size
-        _controlsAlpha = 1;
-        if (![self loadLayoutFile]) [self addBuiltInLayout];
-
-        _stick = [[VXJoystick alloc] initWithFrame:CGRectZero];
-        _stick.owner = owner;
-        [self addSubview:_stick];
-        _stick.alpha = _controlsAlpha;
-        for (VXControlButton *btn in _buttons) btn.alpha = _controlsAlpha;
-
-        _keyboard = [[VXKeyboardProxy alloc] initWithFrame:CGRectZero];
-        _keyboard.owner = owner;
-        [self addSubview:_keyboard];
-
-        _pointer = [[UIImageView alloc] initWithImage:[UIImage systemImageNamed:@"cursorarrow"]];
-        _pointer.tintColor = UIColor.whiteColor;
-        _pointer.layer.shadowOpacity = 0.8;
-        _pointer.layer.shadowRadius = 1.5;
-        _pointer.layer.shadowOffset = CGSizeZero;
-        _pointer.userInteractionEnabled = NO;
-        _pointer.hidden = YES;
-        [self addSubview:_pointer];
-
-        _memoryGauge = [UILabel new];
-        _memoryGauge.font = [UIFont monospacedDigitSystemFontOfSize:11 weight:UIFontWeightSemibold];
-        _memoryGauge.textColor = UIColor.whiteColor;
-        _memoryGauge.textAlignment = NSTextAlignmentCenter;
-        _memoryGauge.layer.cornerRadius = 8;
-        _memoryGauge.layer.masksToBounds = YES;
-        _memoryGauge.userInteractionEnabled = NO;
-        _memoryGauge.accessibilityLabel = @"Memory use";
-        [self addSubview:_memoryGauge];
-        _notice = [UILabel new];
-        _notice.font = [UIFont systemFontOfSize:13 weight:UIFontWeightSemibold];
-        _notice.textColor = UIColor.whiteColor;
-        _notice.backgroundColor = [UIColor colorWithRed:0.75 green:0.2 blue:0.15 alpha:0.9];
-        _notice.numberOfLines = 0;
-        _notice.textAlignment = NSTextAlignmentCenter;
-        _notice.layer.cornerRadius = 10;
-        _notice.layer.masksToBounds = YES;
-        _notice.userInteractionEnabled = NO;
-        _notice.alpha = 0;
-        [self addSubview:_notice];
-        __weak VXControlsOverlay *weakSelf = self;
-        _memoryTimer = [NSTimer scheduledTimerWithTimeInterval:2 repeats:YES block:^(NSTimer *t) { [weakSelf updateMemoryGauge]; }];
-        [self updateMemoryGauge];
-        [self refresh];
-    }
-    return self;
-}
-
-- (void)dealloc { [_memoryTimer invalidate]; }
-
-- (void)updateMemoryGauge {
-    uint64_t footprint = 0, available = 0;
-    vxMemoryNow(&footprint, &available);
-    double used = footprint / 1073741824.0, limit = (footprint + available) / 1073741824.0;
-    double share = limit > 0 ? used / limit : 0;
-    _memoryGauge.text = [NSString stringWithFormat:@"%.1f / %.1f GB", used, limit];
-    _memoryGauge.backgroundColor = share >= 0.9 ? [UIColor colorWithRed:0.8 green:0.15 blue:0.1 alpha:0.85]
-                                 : share >= 0.8 ? [UIColor colorWithRed:0.9 green:0.55 blue:0.0 alpha:0.85]
-                                                : [UIColor colorWithWhite:0 alpha:0.4];
-    [self setNeedsLayout];
-}
-
-- (void)showNotice:(NSString *)text {
-    _notice.text = text;
-    [self setNeedsLayout];
-    [self layoutIfNeeded];
-    [UIView animateWithDuration:0.25 animations:^{ self->_notice.alpha = 1; }];
-    [NSObject cancelPreviousPerformRequestsWithTarget:self selector:@selector(hideNotice) object:nil];
-    [self performSelector:@selector(hideNotice) withObject:nil afterDelay:6];
-}
-
-- (void)hideNotice {
-    [UIView animateWithDuration:0.4 animations:^{ self->_notice.alpha = 0; }];
-}
-
-- (VXControlButton *)add:(NSString *)name key:(int)key w:(CGFloat)w h:(CGFloat)h game:(BOOL)game menu:(BOOL)menu
-                      at:(CGPoint (^)(CGFloat, CGFloat))origin {
-    VXControlButton *btn = [VXControlButton named:name size:CGSizeMake(w, h)];
-    btn.owner = self.owner;
-    btn.overlayRef = self;
-    btn.key = key;
-    btn.inGame = game;
-    btn.inMenu = menu;
-    btn.origin = origin;
-    [_buttons addObject:btn];
-    [self addSubview:btn];
-    return btn;
-}
-
-- (VXControlButton *)add:(NSString *)name mouse:(int)mouse w:(CGFloat)w h:(CGFloat)h at:(CGPoint (^)(CGFloat, CGFloat))origin {
-    VXControlButton *btn = [self add:name key:GLFW_KEY_UNKNOWN w:w h:h game:YES menu:YES at:origin];
-    btn.mouseButton = mouse;
-    return btn;
-}
-
-- (VXControlButton *)drawer:(NSString *)name key:(int)key at:(CGPoint (^)(CGFloat, CGFloat))origin {
-    VXControlButton *btn = [self add:name key:key w:96 h:40 game:YES menu:YES at:origin];
-    btn.inDrawer = YES;
-    return btn;
-}
-
-- (void)refresh {
-    for (VXControlButton *btn in _buttons) {
-        BOOL shown = self.inGame ? btn.inGame : btn.inMenu;
-        if (btn.inDrawer) shown = shown && self.drawerOpen;
-        if (self.guiHidden && btn.special != VXSpecialHideGUI) shown = NO;
-        btn.hidden = !shown;
-    }
-    _stick.hidden = !self.inGame || self.guiHidden;  // joystick: in game only
-    self.pointer.hidden = !(self.virtualMouse && !self.inGame);
-    _memoryGauge.hidden = self.guiHidden || self.drawerOpen;
-}
-
-- (void)setInGame:(BOOL)inGame {
-    if (_inGame == inGame) return;
-    _inGame = inGame;
-    if (!inGame) {
-        // Leaving the game (menu, inventory, chat): release movement and latched keys.
-        [_stick reset];
-        for (VXControlButton *btn in _buttons) if (btn.key == GLFW_KEY_LEFT_CONTROL) [btn releaseLatched];
-    }
-    [self refresh];
-    [self logControls];
-}
-
-- (void)toggleKeyboard {
-    if (_keyboard.isFirstResponder) {
-        [_keyboard resignFirstResponder];
-        [self.gameView becomeFirstResponder];  // keep hardware keyboard input
-    } else {
-        [_keyboard becomeFirstResponder];
-    }
-}
-
-- (void)special:(VXSpecial)special from:(VXControlButton *)button {
-    switch (special) {
-        case VXSpecialHideGUI:
-            self.guiHidden = !self.guiHidden;
-            [self refresh];
-            break;
-        case VXSpecialDrawer:
-            self.drawerOpen = !self.drawerOpen;
-            [self refresh];
-            break;
-        case VXSpecialKeyboard:
-            [self toggleKeyboard];
-            break;
-        case VXSpecialVirtualMouse:
-            self.virtualMouse = !self.virtualMouse;
-            [self refresh];
-            break;
-        case VXSpecialRuntimeMenu: {
-            UIAlertController *sheet = [UIAlertController alertControllerWithTitle:@"Voxelium" message:nil
-                                                                    preferredStyle:UIAlertControllerStyleActionSheet];
-            [sheet addAction:[UIAlertAction actionWithTitle:@"Show / hide keyboard" style:UIAlertActionStyleDefault
-                                                    handler:^(UIAlertAction *x) { [self toggleKeyboard]; }]];
-            [sheet addAction:[UIAlertAction actionWithTitle:self.virtualMouse ? @"Virtual mouse: on" : @"Virtual mouse: off"
-                                                      style:UIAlertActionStyleDefault
-                                                    handler:^(UIAlertAction *x) { [self special:VXSpecialVirtualMouse from:nil]; }]];
-            [sheet addAction:[UIAlertAction actionWithTitle:@"Quit game (saves the world)" style:UIAlertActionStyleDestructive
-                                                    handler:^(UIAlertAction *x) {
-                if (self.owner) vxPush((VXEvent){.type = VXEventClose, .window = H(self.owner)});
-            }]];
-            [sheet addAction:[UIAlertAction actionWithTitle:@"Cancel" style:UIAlertActionStyleCancel handler:nil]];
-            sheet.popoverPresentationController.sourceView = button;
-            UIViewController *vc = self.window.rootViewController;
-            [vc presentViewController:sheet animated:YES completion:nil];
-            break;
-        }
-        case VXSpecialNone:
-            break;
-    }
-}
-
-- (UIView *)hitTest:(CGPoint)point withEvent:(UIEvent *)event {
-    UIView *hit = [super hitTest:point withEvent:event];
-    return (hit == self || hit == _keyboard || hit == _pointer) ? nil : hit;
-}
-
-// Diagnostics: where each control is and what is visible (stderr goes to jvm.log).
-- (void)logControls {
-    NSMutableString *row = [NSMutableString string];
-    for (VXControlButton *btn in _buttons)
-        if (!btn.inDrawer)
-            [row appendFormat:@" [%@ %.0f,%.0f%@]", [btn.currentTitle stringByReplacingOccurrencesOfString:@"\n" withString:@" "],
-                btn.frame.origin.x, btn.frame.origin.y, btn.hidden ? @" hidden" : @""];
-    NSLog(@"[VXGLFW] controls %.0fx%.0f pt, inGame=%d:%@", self.bounds.size.width, self.bounds.size.height, self.inGame, row);
-}
-
-- (void)layoutSubviews {
-    [super layoutSubviews];
-    CGFloat W = self.bounds.size.width, H = self.bounds.size.height;
-    for (VXControlButton *btn in _buttons) {
-        CGPoint o = btn.origin(W, H);
-        // Keep every control on screen (Amethyst clamps the same way when loading).
-        o.x = MIN(MAX(o.x, 0), W - btn.size.width);
-        o.y = MIN(MAX(o.y, 0), H - btn.size.height);
-        btn.frame = (CGRect){o, btn.size};
-    }
-    if (!CGSizeEqualToSize(_loggedSize, self.bounds.size)) {
-        _loggedSize = self.bounds.size;
-        [self logControls];
-    }
-    const CGFloat stick = _stickSize;
-    CGFloat sy = _stickY >= 0 ? _stickY * H : 0.9753418 * H - stick;
-    _stick.frame = CGRectMake(MIN(MAX(_stickX * W, 0), W - stick), MIN(MAX(sy, 0), H - stick), stick, stick);
-
-    // Memory gauge just under the More button (wherever a custom layout puts it).
-    CGRect anchor = CGRectMake(0, 0, 100, 40);
-    for (VXControlButton *btn in _buttons) if (btn.special == VXSpecialDrawer) { anchor = btn.frame; break; }
-    CGSize g = [_memoryGauge sizeThatFits:CGSizeMake(200, 20)];
-    CGFloat gw = g.width + 14, gh = 18;
-    _memoryGauge.frame = CGRectMake(MIN(MAX(CGRectGetMidX(anchor) - gw / 2, 0), W - gw),
-                                    MIN(CGRectGetMaxY(anchor) + 4, H - gh), gw, gh);
-    CGFloat nw = MIN(W - 40, 420);
-    CGSize n = [_notice sizeThatFits:CGSizeMake(nw - 24, 200)];
-    _notice.frame = CGRectMake((W - nw) / 2, 60, nw, n.height + 16);
-}
-
-@end
 
 #pragma mark - Game view (touch + hardware keyboard)
 
@@ -883,202 +593,17 @@ static double vxEffectiveRenderScale(CGFloat widthPt, CGFloat heightPt) {
     return best;
 }
 
-// The GUI scale Minecraft uses: its options.txt "guiScale" (0 = auto), clamped to what the
-// framebuffer allows. Re-read at most every 2 s, since the player can change it in game.
-static int vxGuiScale(int fbW, int fbH) {
-    int maxScale = 1;
-    while (maxScale < fbW && maxScale < fbH && fbW / (maxScale + 1) >= 320 && fbH / (maxScale + 1) >= 240) maxScale++;
-    static int setting;
-    static CFTimeInterval lastRead = -10;
-    CFTimeInterval now = CACurrentMediaTime();
-    const char *path = getenv("VOXELIUM_OPTIONS_PATH");
-    if (path && now - lastRead > 2) {
-        lastRead = now;
-        setting = 0;
-        NSString *text = [NSString stringWithContentsOfFile:@(path) encoding:NSUTF8StringEncoding error:nil];
-        for (NSString *line in [text componentsSeparatedByString:@"\n"]) {
-            if ([line hasPrefix:@"guiScale:"]) { setting = [line substringFromIndex:9].intValue; break; }
-        }
-    }
-    return setting > 0 && setting < maxScale ? setting : maxScale;
-}
-
-@interface VXGLFWView : UIView
+// The CAMetalLayer view the game draws on. Touch gestures and the controls come
+// from VXTouchView; this adds the hardware keyboard and size changes.
+@interface VXGLFWView : VXTouchView
 @property (nonatomic, weak) VXGLFWWindowObj *owner;
-@property (nonatomic, strong) VXControlsOverlay *overlay;
 @end
 
-// Touch diagnostics, logged when the window is destroyed (stderr ends up in jvm.log).
-static int gTouchBegan, gTouchMoved, gTouchMovedAccepted, gTouchEnded, gTouchCancelled, gHotbarSelects;
-
-// Gestures on the game view outside the controls (as Amethyst):
-//   in game:  drag = look, tap = use/place (right click), long press = break (hold left),
-//             tap on the hotbar = select that slot (keys 1-9);
-//   in menus: direct touch pointer, or a trackpad-style pointer with Mouse Toggle.
-static const CFTimeInterval kLongPress = 0.35;
-static const CGFloat kTapSlop = 12;
-
-@implementation VXGLFWView {
-    UITouch *_primary, *_secondary;
-    UITouch *_hotbarTouch;    // in game: a finger on the hotbar (independent of the look finger)
-    int _hotbarSlot;
-    CGPoint _lastPrimary, _startPrimary;
-    CFTimeInterval _startTime;
-    BOOL _primaryInGame, _primaryVirtual, _moved, _holding;
-    NSUInteger _gestureGeneration;
-    CGPoint _virtualCursor;
-}
+@implementation VXGLFWView
 
 + (Class)layerClass { return CAMetalLayer.class; }
 
 - (BOOL)canBecomeFirstResponder { return YES; }
-
-- (void)pushCursor:(CGPoint)p {
-    VXGLFWWindowObj *w = self.owner;
-    if (!w) return;
-    vxPush((VXEvent){.type = VXEventCursorPos, .window = H(w), .x = p.x, .y = p.y});
-}
-
-// Minecraft hotbar slot under a point (the game's GUI scale), or -1. The touch area
-// reaches 6 GUI pixels above the drawn hotbar, so slots are easier to hit.
-- (int)hotbarSlotAt:(CGPoint)p {
-    VXGLFWWindowObj *w = self.owner;
-    if (!w || w->fbWidth <= 0) return -1;
-    int fbW = w->fbWidth, fbH = w->fbHeight, s = vxGuiScale(fbW, fbH);
-    CGFloat x = p.x * w->scale, y = p.y * w->scale;
-    CGFloat left = (fbW / s / 2.0 - 91) * s, top = (fbH / s - 28.0) * s;
-    if (y < top || x < left || x >= left + 182.0 * s) return -1;
-    int slot = (int)((x - left) / (20.0 * s));
-    return slot >= 0 && slot <= 8 ? slot : -1;
-}
-
-- (void)selectHotbarSlot:(int)slot {
-    VXGLFWWindowObj *w = self.owner;
-    if (!w || slot < 0 || slot > 8) return;
-    _hotbarSlot = slot;
-    gHotbarSelects++;
-    [vxLightHaptic() impactOccurred];
-    vxSendKey(w, GLFW_KEY_1 + slot, GLFW_PRESS);
-    vxSendKey(w, GLFW_KEY_1 + slot, GLFW_RELEASE);
-}
-
-- (void)touchesBegan:(NSSet<UITouch *> *)touches withEvent:(UIEvent *)event {
-    gTouchBegan += (int)touches.count;
-    VXGLFWWindowObj *w = self.owner;
-    if (!w) return;
-    for (UITouch *t in touches) {
-        CGPoint p = [t locationInView:self];
-        // In game, a touch that lands on the hotbar selects that slot right away and
-        // owns the hotbar until it lifts: sliding along it changes slot, as in Amethyst.
-        // It never looks, uses, breaks or drops (no hold-to-drop, at the user's request).
-        int slot = -1;
-        BOOL inGame = w->cursorMode == GLFW_CURSOR_DISABLED;
-        if (inGame && p.y > self.bounds.size.height * 0.85) {
-            // Diagnostics for hotbar hits (bottom of the screen only).
-            NSLog(@"[VXGLFW] bottom touch at %.0f,%.0f pt (fb %dx%d, scale %.2f) -> hotbar slot %d",
-                  p.x, p.y, w->fbWidth, w->fbHeight, w->scale, [self hotbarSlotAt:p]);
-        }
-        if (!_hotbarTouch && inGame && (slot = [self hotbarSlotAt:p]) >= 0) {
-            _hotbarTouch = t;
-            _hotbarSlot = -1;
-            [self selectHotbarSlot:slot];
-            continue;
-        }
-        if (!_primary) {
-            _primary = t;
-            _lastPrimary = _startPrimary = p;
-            _startTime = CACurrentMediaTime();
-            _primaryInGame = w->cursorMode == GLFW_CURSOR_DISABLED;
-            _primaryVirtual = !_primaryInGame && self.overlay.virtualMouse;
-            _moved = NO;
-            _holding = NO;
-            if (_primaryInGame || _primaryVirtual) {
-                // Tap vs long press is decided later; a still, held finger presses the left button.
-                NSUInteger gen = ++_gestureGeneration;
-                dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(kLongPress * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
-                    if (gen != self->_gestureGeneration || !self->_primary || self->_moved || self->_holding) return;
-                    self->_holding = YES;
-                    [vxMediumHaptic() impactOccurred];
-                    vxSendButton(self.owner, GLFW_MOUSE_BUTTON_LEFT, GLFW_PRESS);
-                });
-            } else {
-                [self pushCursor:p];
-                vxSendButton(w, GLFW_MOUSE_BUTTON_LEFT, GLFW_PRESS);
-            }
-        } else if (!_secondary && !_primaryInGame && !_primaryVirtual) {
-            _secondary = t;
-            vxSendButton(w, GLFW_MOUSE_BUTTON_RIGHT, GLFW_PRESS);
-        }
-    }
-}
-
-- (void)touchesMoved:(NSSet<UITouch *> *)touches withEvent:(UIEvent *)event {
-    gTouchMoved++;
-    VXGLFWWindowObj *w = self.owner;
-    if (w && _hotbarTouch && [touches containsObject:_hotbarTouch]) {
-        int slot = [self hotbarSlotAt:[_hotbarTouch locationInView:self]];
-        if (slot >= 0 && slot != _hotbarSlot) [self selectHotbarSlot:slot];
-    }
-    if (!w || !_primary || ![touches containsObject:_primary]) return;
-    gTouchMovedAccepted++;
-    CGPoint p = [_primary locationInView:self];
-    CGPoint d = CGPointMake(p.x - _lastPrimary.x, p.y - _lastPrimary.y);
-    if (hypot(p.x - _startPrimary.x, p.y - _startPrimary.y) > kTapSlop) _moved = YES;
-    if (w->cursorMode == GLFW_CURSOR_DISABLED) {
-        // Captured cursor (mouse look): relative motion, encoded as a = 1 with the delta in x/y.
-        // Scaled to screen pixels like Amethyst (touch point × UIScreen.scale while grabbing),
-        // so Minecraft's sensitivity slider feels the same as there.
-        const CGFloat k = UIScreen.mainScreen.scale;
-        vxPush((VXEvent){.type = VXEventCursorPos, .window = H(w), .x = d.x * k, .y = d.y * k, .a = 1});
-    } else if (_primaryVirtual) {
-        CGSize s = self.bounds.size;
-        _virtualCursor.x = MIN(MAX(_virtualCursor.x + d.x, 0), s.width);
-        _virtualCursor.y = MIN(MAX(_virtualCursor.y + d.y, 0), s.height);
-        self.overlay.pointer.frame = (CGRect){_virtualCursor, self.overlay.pointer.bounds.size};
-        [self pushCursor:_virtualCursor];
-    } else {
-        [self pushCursor:p];
-    }
-    _lastPrimary = p;
-}
-
-- (void)endTouches:(NSSet<UITouch *> *)touches {
-    VXGLFWWindowObj *w = self.owner;
-    if (!w) return;
-    if (_hotbarTouch && [touches containsObject:_hotbarTouch]) _hotbarTouch = nil;
-    if (_primary && [touches containsObject:_primary]) {
-        _gestureGeneration++;
-        BOOL tap = !_moved && CACurrentMediaTime() - _startTime < kLongPress;
-        if (_holding) {
-            vxSendButton(w, GLFW_MOUSE_BUTTON_LEFT, GLFW_RELEASE);
-        } else if (tap && _primaryInGame) {
-            [vxLightHaptic() impactOccurred];
-            vxSendButton(w, GLFW_MOUSE_BUTTON_RIGHT, GLFW_PRESS);
-            vxSendButton(w, GLFW_MOUSE_BUTTON_RIGHT, GLFW_RELEASE);
-        } else if (tap && _primaryVirtual) {
-            [vxLightHaptic() impactOccurred];
-            vxSendButton(w, GLFW_MOUSE_BUTTON_LEFT, GLFW_PRESS);
-            vxSendButton(w, GLFW_MOUSE_BUTTON_LEFT, GLFW_RELEASE);
-        } else if (!_primaryInGame && !_primaryVirtual) {
-            vxSendButton(w, GLFW_MOUSE_BUTTON_LEFT, GLFW_RELEASE);
-        }
-        _primary = nil;
-        _holding = NO;
-    }
-    if (_secondary && [touches containsObject:_secondary]) {
-        vxSendButton(w, GLFW_MOUSE_BUTTON_RIGHT, GLFW_RELEASE);
-        _secondary = nil;
-    }
-}
-
-- (void)touchesEnded:(NSSet<UITouch *> *)touches withEvent:(UIEvent *)event {
-    gTouchEnded += (int)touches.count;
-    [self endTouches:touches];
-}
-- (void)touchesCancelled:(NSSet<UITouch *> *)touches withEvent:(UIEvent *)event {
-    gTouchCancelled += (int)touches.count;
-    [self endTouches:touches];
-}
 
 - (void)handlePresses:(NSSet<UIPress *> *)presses action:(int)action {
     VXGLFWWindowObj *w = self.owner;
@@ -1110,11 +635,9 @@ static const CGFloat kTapSlop = 12;
 
 - (void)layoutSubviews {
     [super layoutSubviews];
-    self.overlay.frame = self.bounds;
     VXGLFWWindowObj *w = self.owner;
     if (!w) return;
     CGSize s = self.bounds.size;
-    if (CGPointEqualToPoint(_virtualCursor, CGPointZero)) _virtualCursor = CGPointMake(s.width / 2, s.height / 2);
     // The view's size changes with rotation; so may the scale that gives Minecraft its
     // largest interface.
     float scale = (float)(UIScreen.mainScreen.nativeScale * vxEffectiveRenderScale(s.width, s.height));
@@ -1189,7 +712,12 @@ VXAPI int glfwInit(void) {
                                .redBits = 8, .greenBits = 8, .blueBits = 8, .refreshRate = fps};
     vxResetHints();
     gInitialized = YES;
-    NSLog(@"[VXGLFW] initialised: ANGLE Metal display, screen %dx%d @%d Hz", gVideoMode.width, gVideoMode.height, fps);
+#if VOXELIUM_ZINK_EXPERIMENT
+    const char *displayKind = gZink ? "Mesa Zink (surfaceless)" : "ANGLE Metal";
+#else
+    const char *displayKind = "ANGLE Metal";
+#endif
+    NSLog(@"[VXGLFW] initialised: %s display, screen %dx%d @%d Hz", displayKind, gVideoMode.width, gVideoMode.height, fps);
     return GLFW_TRUE;
 }
 
@@ -1295,7 +823,25 @@ VXAPI void glfwWindowHintString(int hint, const char *value) {}
 
 #pragma mark - Windows
 
-static EGLContext vxCreateContext(EGLContext share) {
+static EGLContext vxCreateContext(VXGLFWWindowObj *w, EGLContext share) {
+#if VOXELIUM_ZINK_EXPERIMENT
+    if (gZink) {
+        // Desktop GL core. Mesa gives the highest version it supports for a core
+        // request (4.6 with MESA_GL_VERSION_OVERRIDE=4.6), so ask for the game's.
+        p_eglBindAPI(EGL_OPENGL_API);
+        int major = w->hintMajor >= 3 ? w->hintMajor : 3, minor = w->hintMajor >= 3 ? w->hintMinor : 2;
+        if (major == 3 && minor < 2) minor = 2;
+        EGLint flags = w->hintForward ? EGL_CONTEXT_OPENGL_FORWARD_COMPATIBLE_BIT_KHR : 0;
+        EGLint attrs[] = {EGL_CONTEXT_MAJOR_VERSION, major, EGL_CONTEXT_MINOR_VERSION, minor,
+                          EGL_CONTEXT_OPENGL_PROFILE_MASK, EGL_CONTEXT_OPENGL_CORE_PROFILE_BIT,
+                          EGL_CONTEXT_FLAGS_KHR, flags, EGL_NONE};
+        EGLContext c = p_eglCreateContext(gDisplay, gWindowConfig, share, attrs);
+        if (c == EGL_NO_CONTEXT)
+            NSLog(@"[VXGLFW] Zink: GL %d.%d core context refused: 0x%X (MESA_GL_VERSION_OVERRIDE=%s)",
+                  major, minor, p_eglGetError(), getenv("MESA_GL_VERSION_OVERRIDE") ?: "unset");
+        return c;
+    }
+#endif
     for (int minor = 2; minor >= 0; minor--) {
         EGLint attrs[] = {EGL_CONTEXT_MAJOR_VERSION, 3, EGL_CONTEXT_MINOR_VERSION, minor, EGL_NONE};
         EGLContext c = p_eglCreateContext(gDisplay, gWindowConfig, share, attrs);
@@ -1442,6 +988,7 @@ VXAPI GLFWwindow *glfwCreateWindow(int width, int height, const char *title, GLF
             }
             VXGLFWView *view = [[VXGLFWView alloc] initWithFrame:UIScreen.mainScreen.bounds];
             view.owner = w;
+            view.sink = w;
             view.multipleTouchEnabled = YES;
             VXControlsOverlay *overlay = [[VXControlsOverlay alloc] initWithOwner:w];
             overlay.gameView = view;
@@ -1488,6 +1035,15 @@ VXAPI GLFWwindow *glfwCreateWindow(int width, int height, const char *title, GLF
             w->height = (int)s.height;
             w->fbWidth = (int)lround(s.width * w->scale);
             w->fbHeight = (int)lround(s.height * w->scale);
+#if VOXELIUM_ZINK_EXPERIMENT
+            if (gZink) {
+                // No window surfaces in Mesa here: a pbuffer of the framebuffer size,
+                // shown on the layer at each swap (vxZinkPresent).
+                EGLint pb[] = {EGL_WIDTH, w->fbWidth, EGL_HEIGHT, w->fbHeight, EGL_NONE};
+                surface = p_eglCreatePbufferSurface(gDisplay, gPbufferConfig, pb);
+                return;
+            }
+#endif
             surface = p_eglCreateWindowSurface(gDisplay, gWindowConfig, (__bridge EGLNativeWindowType)view.layer, NULL);
         });
         w->surface = surface;
@@ -1501,7 +1057,7 @@ VXAPI GLFWwindow *glfwCreateWindow(int width, int height, const char *title, GLF
         vxOnMain(^{ w.uiWindow.hidden = YES; });
         return NULL;
     }
-    w->context = vxCreateContext(share ? W(share)->context : EGL_NO_CONTEXT);
+    w->context = vxCreateContext(w, share ? W(share)->context : EGL_NO_CONTEXT);
     if (w->context == EGL_NO_CONTEXT) {
         vxError(GLFW_VERSION_UNAVAILABLE, "EGL context creation failed: 0x%X", p_eglGetError());
         p_eglDestroySurface(gDisplay, w->surface);
@@ -1509,6 +1065,19 @@ VXAPI GLFWwindow *glfwCreateWindow(int width, int height, const char *title, GLF
         vxOnMain(^{ w.uiWindow.hidden = YES; });
         return NULL;
     }
+#if VOXELIUM_ZINK_EXPERIMENT
+    if (gZink && !w->offscreen) {
+        w.zink = vxZinkPresenterCreate((CAMetalLayer *)w.view.layer);
+        if (!w.zink) {
+            vxError(GLFW_PLATFORM_ERROR, "Zink: cannot set up Metal presentation");
+            p_eglDestroyContext(gDisplay, w->context);
+            p_eglDestroySurface(gDisplay, w->surface);
+            if (gVisibleWindow == w) gVisibleWindow = nil;
+            vxOnMain(^{ w.uiWindow.hidden = YES; });
+            return NULL;
+        }
+    }
+#endif
     EGLint ew = 0, eh = 0;
     p_eglQuerySurface(gDisplay, w->surface, EGL_WIDTH, &ew);
     p_eglQuerySurface(gDisplay, w->surface, EGL_HEIGHT, &eh);
@@ -1527,17 +1096,28 @@ VXAPI void glfwDestroyWindow(GLFWwindow *window) {
         p_eglMakeCurrent(gDisplay, EGL_NO_SURFACE, EGL_NO_SURFACE, EGL_NO_CONTEXT);
         tCurrent = nil;
     }
+#if VOXELIUM_ZINK_EXPERIMENT
+    if (w.zink) {
+        // Let Metal finish with the frames it still shows; the GL objects go with the
+        // context. Signal back after waiting: libdispatch traps when a semaphore is
+        // released below its initial value (crash on quitting the game, 2026-10-22).
+        dispatch_semaphore_t sem = w.zink.inFlight;
+        for (int i = 0; i < 3; i++) dispatch_semaphore_wait(sem, DISPATCH_TIME_FOREVER);
+        for (int i = 0; i < 3; i++) dispatch_semaphore_signal(sem);
+        w.zink = nil;
+    }
+#endif
     if (w->context) p_eglDestroyContext(gDisplay, w->context);
     if (w->surface) p_eglDestroySurface(gDisplay, w->surface);
     w->context = EGL_NO_CONTEXT;
     w->surface = EGL_NO_SURFACE;
     if (gVisibleWindow == w) gVisibleWindow = nil;
     if (!w->offscreen) {
-        NSLog(@"[VXGLFW] touches: began=%d moved=%d movedAccepted=%d ended=%d cancelled=%d hotbarSelects=%d",
-              gTouchBegan, gTouchMoved, gTouchMovedAccepted, gTouchEnded, gTouchCancelled, gHotbarSelects);
+        NSLog(@"[VXGLFW] touches: %@", VXTouchStats());
     }
     vxOnMain(^{
         w.view.owner = nil;
+        w.view.sink = nil;
         w.uiWindow.hidden = YES;
         w.uiWindow.rootViewController = nil;
         w.uiWindow = nil;
@@ -1994,6 +1574,32 @@ VXAPI void glfwSwapBuffers(GLFWwindow *window) {
             NSLog(@"[VXGLFW] in foreground: rendering resumed");
         }
     }
+#if VOXELIUM_ZINK_EXPERIMENT
+    if (w.zink) {
+        if (tCurrent != w || !vxZinkLoadGL()) return;
+        // The framebuffer size follows the view (rotation); the pbuffer cannot, so
+        // replace it. Minecraft draws into its own targets and blits to this one.
+        VXZinkPresenter *z = w.zink;
+        if (z->width != w->fbWidth || z->height != w->fbHeight) {
+            EGLint pb[] = {EGL_WIDTH, w->fbWidth, EGL_HEIGHT, w->fbHeight, EGL_NONE};
+            EGLSurface fresh = (z->width == 0) ? w->surface : p_eglCreatePbufferSurface(gDisplay, gPbufferConfig, pb);
+            if (fresh == EGL_NO_SURFACE || !p_eglMakeCurrent(gDisplay, fresh, fresh, w->context)) {
+                vxError(GLFW_PLATFORM_ERROR, "Zink: resizing the pbuffer to %dx%d failed: 0x%X", w->fbWidth, w->fbHeight, p_eglGetError());
+                return;
+            }
+            if (fresh != w->surface) {
+                p_eglDestroySurface(gDisplay, w->surface);
+                w->surface = fresh;
+            }
+            EGLint ew = 0, eh = 0;
+            p_eglQuerySurface(gDisplay, w->surface, EGL_WIDTH, &ew);
+            p_eglQuerySurface(gDisplay, w->surface, EGL_HEIGHT, &eh);
+            vxZinkPresenterResize(z, ew > 0 ? ew : w->fbWidth, eh > 0 ? eh : w->fbHeight);
+        }
+        vxZinkPresent(z);
+        return;
+    }
+#endif
     if (!p_eglSwapBuffers(gDisplay, w->surface)) {
         vxError(GLFW_PLATFORM_ERROR, "eglSwapBuffers failed: 0x%X", p_eglGetError());
     }
@@ -2078,4 +1684,24 @@ NSString *VXGLFWSelfCheck(void) {
     return [NSString stringWithFormat:@"dlopen(executable) ok; glfwInit=%s glfwSwapBuffers=%s",
             init == (void *)glfwInit ? "ok" : (init ? "different address" : "missing"),
             swap == (void *)glfwSwapBuffers ? "ok" : (swap ? "different address" : "missing")];
+}
+
+// Minecraft 26.3+ draws through SDL3 and Vulkan, so glfwSwapBuffers never runs and
+// cannot log memory. Log it on a timer instead (every 10 s), and on memory warnings
+// (with a GC), until Stage 4 moves the overlay and gauge to the SDL path.
+void VXStartMemoryLog(const char *label) {
+    static dispatch_source_t timer;
+    static dispatch_once_t once;
+    const char *why = strdup(label);
+    dispatch_once(&once, ^{
+        timer = dispatch_source_create(DISPATCH_SOURCE_TYPE_TIMER, 0, 0, dispatch_get_global_queue(QOS_CLASS_UTILITY, 0));
+        dispatch_source_set_timer(timer, dispatch_time(DISPATCH_TIME_NOW, 10 * NSEC_PER_SEC), 10 * NSEC_PER_SEC, NSEC_PER_SEC);
+        dispatch_source_set_event_handler(timer, ^{ vxLogMemory(why); });
+        dispatch_resume(timer);
+        [NSNotificationCenter.defaultCenter addObserverForName:UIApplicationDidReceiveMemoryWarningNotification object:nil
+                                                         queue:NSOperationQueue.mainQueue usingBlock:^(NSNotification *n) {
+            vxLogMemory("iOS memory warning");
+            VXJVMRequestGC("iOS memory warning");
+        }];
+    });
 }

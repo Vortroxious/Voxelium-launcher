@@ -1,0 +1,5 @@
+  frame 300: footprint 141.3 MB
+  frame 1500: footprint 141.3 MB
+  frame 3000: footprint 141.4 MB
+frames: 3000 at 1290x2796, first 7.4 ms, mean 2.46 ms (excluding first: 2.46 ms), centre pixel 128,128,117,255, gl error 0x0
+footprint after frames: 150.0 MB

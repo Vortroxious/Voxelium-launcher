@@ -2,11 +2,15 @@
 # Builds LWJGL Java jars and iOS arm64 native libraries from source.
 #   scripts/build-lwjgl.sh                    # 3.3.3 -> build/deps/lwjgl-out (Minecraft up to 1.21.11)
 #   LWJGL_SERIES=3.4.1 scripts/build-lwjgl.sh # 3.4.1 -> build/deps/lwjgl-out-3.4.1 (26.1 - 26.2)
-# Uses the AngelAuraMC fork (PojavLauncher lineage), whose
-# config/macos/build.xml compiles natives against the iPhoneOS SDK and whose
-# generated sources are committed, so LWJGL's Kotlin generator is skipped.
+#   LWJGL_SERIES=3.4.3 scripts/build-lwjgl.sh # 3.4.3 -> build/deps/lwjgl-out-3.4.3 (26.3, SDL3 + Vulkan)
+# 3.3.3 and 3.4.1 use the AngelAuraMC fork (PojavLauncher lineage), whose
+# config/macos/build.xml compiles natives against the iPhoneOS SDK. 3.4.3 is
+# upstream LWJGL (the fork stops at 3.4.1) with that iOS build change carried
+# over as patches/lwjgl/3.4.3-0001-ios-build.patch. Generated sources are
+# committed in both, so LWJGL's Kotlin generator is skipped.
 # Recipe adapted from the fork's ci_build_ios.bash, without its prebuilt
-# downloads (shaderc, freetype): those bindings are disabled here.
+# downloads (shaderc, freetype): shaderc and SPIRV-Cross come from
+# scripts/build-shaderc.sh, FreeType from scripts/build-freetype.sh.
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
@@ -36,7 +40,26 @@ case "$SERIES" in
     EXTRA=(-Djdk25=true "-Dnashorn.args=--no-deprecation-warning")
     LIBFFI_V="3.5.2"
     LIBFFI_SHA256="f3a3082a23b37c293a4fcd1053147b371f2ff91fa7ea1b2a52e335676bac82dc" ;;
-  *) echo "unknown LWJGL_SERIES $SERIES (3.3.3 or 3.4.1)" >&2; exit 1 ;;
+  3.4.3)
+    LWJGL_REPO="https://github.com/LWJGL/lwjgl3.git"
+    LWJGL_BRANCH="3.4.3"   # tag
+    LWJGL_REV="${LWJGL_REV:-30fac9b95f99cda97312232be25ba55297bf9951}"
+    SRCDIR="lwjgl3-3.4.3"; OUTDIR="$DEPS/lwjgl-out-3.4.3"
+    # Minecraft 26.3: SDL3 instead of GLFW, and the Vulkan renderer (vulkan, vma,
+    # shaderc, spvc). Natives compiled here: core, opengl, stb, vma. sdl, vulkan,
+    # shaderc, spvc, freetype, jemalloc and openal are Java-only bindings to
+    # libraries built elsewhere.
+    ON="freetype jemalloc openal opengl sdl shaderc spvc stb vma vulkan"
+    NATIVES="liblwjgl liblwjgl_opengl liblwjgl_stb liblwjgl_vma"
+    # build.offline: package from local files only. Online, the release step
+    # downloads every platform's official natives for jars we discard, and one
+    # failed download (seen: linux/ppc64le libshaderc.so) fails the build.
+    EXTRA=(-Djdk25=true "-Dnashorn.args=--no-deprecation-warning" -Dbuild.offline=true)
+    # 3.4.3 calls libffi's call-plan API (ffi_call_plan_alloc/invoke/free/size),
+    # new in libffi 3.8.0. SHA-256 as GitHub publishes for the release asset.
+    LIBFFI_V="3.8.0"
+    LIBFFI_SHA256="7da3e2d9a171eb0a038f592ecad3ff2bb2550f3496d87b3b29ad0cf4430c0db4" ;;
+  *) echo "unknown LWJGL_SERIES $SERIES (3.3.3, 3.4.1 or 3.4.3)" >&2; exit 1 ;;
 esac
 ANT_V="1.10.18"
 # Published by Apache: https://downloads.apache.org/ant/binaries/apache-ant-1.10.18-bin.tar.gz.sha512
@@ -63,7 +86,7 @@ if [ ! -x "apache-ant-$ANT_V/bin/ant" ]; then
 fi
 ANT="$DEPS/apache-ant-$ANT_V/bin/ant"
 
-# --- LWJGL fork at a pinned commit
+# --- LWJGL (fork or upstream) at a pinned commit
 if [ ! -d "$SRCDIR/.git" ]; then
   git clone --depth 1 --branch "$LWJGL_BRANCH" "$LWJGL_REPO" "$SRCDIR"
 fi
@@ -84,13 +107,19 @@ if [ ! -f "$NATIVE/libffi.a" ] || [ "$(cat "$NATIVE/libffi.version" 2>/dev/null)
   rm -rf libffi && tar -xzf "$TARBALL" && mv "libffi-$LIBFFI_V" libffi
   (
     cd libffi
-    # Generate sources for iOS arm64 only (same edit as the fork's CI script).
-    sed -i '.bak' -e '/\(64_platform\)/! s/build_target(ios_/#build_target(ios_/g' generate-darwin-source-and-headers.py
+    # Generate sources for iOS arm64 only (same edit as the fork's CI script). 3.8.0
+    # names every 64-bit target *64_platform, and its config.sub rejects the x86_64
+    # simulator triple: keep only the device arm64 target there.
+    KEEP='64_platform'
+    if [ "$LIBFFI_V" = "3.8.0" ]; then KEEP='ios_device_arm64_platform'; fi
+    sed -i '.bak' -e "/\($KEEP\)/! s/build_target(ios_/#build_target(ios_/g" generate-darwin-source-and-headers.py
     python3 generate-darwin-source-and-headers.py --only-ios
     mv generate-darwin-source-and-headers.py.bak generate-darwin-source-and-headers.py
-    # The Xcode project still copies the 32-bit ARM headers, which an arm64-only
-    # generation does not produce; arm64 builds never include them.
+    # The Xcode project still copies the 32-bit ARM headers (and, in 3.8.0, the
+    # x86_64 simulator ones), which an arm64-only generation does not produce;
+    # arm64 builds never include them.
     touch darwin_ios/include/ffi_armv7.h darwin_ios/include/ffitarget_armv7.h
+    if [ "$LIBFFI_V" = "3.8.0" ]; then touch darwin_ios/include/ffi_x86_64.h darwin_ios/include/ffitarget_x86_64.h; fi
     # The project still says iOS 8.0, which Xcode 27 rejects (supported: 15.0+).
     xcodebuild -arch arm64 -sdk iphoneos -target libffi-iOS -configuration Release \
       IPHONEOS_DEPLOYMENT_TARGET="$IOS_MIN"
@@ -99,7 +128,7 @@ if [ ! -f "$NATIVE/libffi.a" ] || [ "$(cat "$NATIVE/libffi.version" 2>/dev/null)
   echo "$LIBFFI_V" > "$NATIVE/libffi.version"
 fi
 
-# Skip LWJGL's Kotlin generator: generated sources are committed in the fork.
+# Skip LWJGL's Kotlin generator: generated sources are committed.
 mkdir -p bin/classes/generator bin/classes/templates/META-INF
 touch bin/classes/generator/touch.txt bin/classes/templates/touch.txt bin/classes/generator/generated-touch.txt
 
@@ -118,6 +147,7 @@ for b in $OFF; do case " $ON " in *" $b "*) ;; *) ARGS+=("-Dbinding.$b=false") ;
 # "JDK 8 mode" and looks for jni.h in ${java.home}/../include. Point it at the
 # real headers (JDK 8 mode also skips the optional Java 9 multi-release classes).
 : "${JAVA_HOME:=$(/usr/libexec/java_home)}"
+export JAVA_HOME   # 3.4.3 compiles its Java 25 classes with --system "${env.JAVA_HOME}"
 # Java 8 class library for LWJGL's Java 8 classes. Official LWJGL releases are
 # compiled against a JDK 8 rt.jar (JAVA8_HOME, --boot-class-path); compiling with
 # "-source 8 -target 8" against JDK 26's library instead links Java 9+ methods
@@ -132,6 +162,7 @@ mkdir -p "$JAVA8_HOME/jre/lib"
 ln -sf "$RT8" "$JAVA8_HOME/jre/lib/rt.jar"
 # Undo patches earlier versions of this script made, and recompile all Java.
 git checkout -q -- build.xml config/build-definitions.xml modules/lwjgl/opengl/src/main/java/org/lwjgl/opengl/GL.java
+if [ "$SERIES" = "3.4.3" ]; then git checkout -q -- .; fi
 # Our patches (patches/lwjgl/), per series.
 for p in "$ROOT"/patches/lwjgl/"$SERIES"-*.patch; do
   [ -f "$p" ] || continue
@@ -139,6 +170,10 @@ for p in "$ROOT"/patches/lwjgl/"$SERIES"-*.patch; do
   git apply "$p"
 done
 rm -rf bin/classes/lwjgl bin/RELEASE
+# LWJGL's native build checks only the .c/.cpp files against their objects, so a
+# patched header (VMA's vk_mem_alloc.h, patches/lwjgl/3.4.3-0002) would not be
+# recompiled; drop VMA's objects and library so it always is.
+rm -rf bin/macos/*/vma "$NATIVE/vma"
 # 3.3.3 does not recognise JDKs newer than 21 and builds in "JDK 8 mode", where it
 # never applies the boot class path; apply it whenever JAVA8_HOME is set.
 if [ "$SERIES" = "3.3.3" ]; then
@@ -161,7 +196,9 @@ for lib in $NATIVES; do
   [ "$platform" = "2" ] || { echo "$f is not an iOS binary (platform $platform)" >&2; exit 1; }
   cp "$f" "$OUTDIR/natives/"
 done
-find bin/RELEASE -name '*.jar' ! -name '*-natives-*' ! -name '*-sources.jar' ! -name '*-javadoc.jar' -exec cp {} "$OUTDIR/jars/" \;
+# (3.4.3 also releases lwjgl-unsafe.jar, lwjgl.jar without the FFM backend; the
+# Java 25 classes are dropped from lwjgl.jar below anyway.)
+find bin/RELEASE -name '*.jar' ! -name '*-natives-*' ! -name '*-sources.jar' ! -name '*-javadoc.jar' ! -name 'lwjgl-unsafe*.jar' -exec cp {} "$OUTDIR/jars/" \;
 # The jars carry SHA-1s of the *official* natives the release step downloaded;
 # LWJGL compares them against our iOS builds and prints a misleading
 # "Incompatible Java and native library versions" error. Drop them so the
@@ -179,7 +216,7 @@ done
 if [ "$SERIES" != "3.3.3" ]; then
   for j in "$OUTDIR"/jars/*.jar; do zip -q -d "$j" 'META-INF/versions/25/*' >/dev/null 2>&1 || true; done
 fi
-echo "LWJGL fork revision: $(git rev-parse HEAD)"
+echo "LWJGL revision: $(git rev-parse HEAD)"
 ls -la "$OUTDIR/natives" "$OUTDIR/jars"
 # The test programs and compat stubs are built once, with the 3.3.3 series.
 [ "$SERIES" = "3.3.3" ] || exit 0

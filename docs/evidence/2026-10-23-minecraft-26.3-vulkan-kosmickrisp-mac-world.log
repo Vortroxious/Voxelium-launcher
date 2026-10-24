@@ -1,0 +1,163 @@
+# Vanilla Minecraft 26.3 (client.jar e877b6a0) on the Mac (Apple M4, macOS 27), Vulkan backend on
+# KosmicKrisp (Mesa 9b32095 + patches/mesa, build/deps/vulkan-out/kosmickrisp-mac), Mojang's macOS
+# LWJGL 3.4.3 + SDL 3.4.14 natives, JDK 26, --graphicsBackend vulkan --quickPlaySingleplayer TestWorld
+# (a copy of an existing 26.3 world). Realms/auth errors are from the offline token. Paths shortened.
+driver ~/zalithios/build/deps/vulkan-out/kosmickrisp-mac/libvulkan.1.dylib
+[23:32:50] [Datafixer Bootstrap #0/INFO]: 307 Datafixer optimizations took 386 milliseconds
+[23:32:50] [main/WARN]: Unable to parse version 27.0 to a codename.
+[23:32:54] [main/INFO]: Completely ignored arguments: [--userType, legacy]
+[23:32:54] [Render thread/INFO]: Environment: Environment[discoveryUrl=https://discovery.minecraftservices.com/minecraft/client, name=PROD]
+[23:32:54] [Render thread/INFO]: Setting user: Player
+[23:32:54] [Render thread/INFO]: Backend library: LWJGL version 3.4.3+4
+[23:32:54] [Render thread/INFO]: SDL [SYSTEM]: App name: Minecraft
+[23:32:54] [Render thread/INFO]: SDL [SYSTEM]: App version: 26.3
+[23:32:54] [Render thread/INFO]: SDL [SYSTEM]: App ID: com.mojang.minecraft
+[23:32:54] [Render thread/INFO]: SDL [SYSTEM]: SDL revision: SDL-3.4.14-62f10da
+[23:32:54] [Render thread/WARN]: Graphics backend forced to vulkan by launch argument, in-game preferred graphics backend setting is ignored
+[23:32:54] [Render thread/INFO]: Enabling optional FeatureSet [AMD Buffer Marker]
+[23:32:54] [Render thread/INFO]: Optional FeatureSet [NV Diagnostic Checkpoint] not supported
+[23:32:54] [Render thread/INFO]: Optional FeatureSet [Wireframe] not supported
+[23:32:54] [Render thread/INFO]: Enabling optional FeatureSet [Calibrated Timestamps]
+[23:32:54] [Render thread/INFO]: Enabling optional FeatureSet [EXT MultiDraw]
+[23:32:54] [Render thread/INFO]: Using graphics backend Vulkan, using drivers: 1.4.363 KosmicKrisp Mesa 27.0.0-devel (git-9b3209540c)
+[23:32:54] [Render thread/INFO]: Using graphics device: Apple M4 (APPLE)
+[23:32:54] [Render thread/INFO]: Using graphics device extensions: VK_EXT_calibrated_timestamps (D), VK_KHR_synchronization2 (D), VK_EXT_metal_surface (I), VK_EXT_multi_draw (D), VK_AMD_buffer_marker (D), VK_EXT_vertex_attribute_divisor (D), VK_KHR_portability_enumeration (I), VK_KHR_swapchain (D), VK_KHR_surface (I), VK_KHR_push_descriptor (D), VK_EXT_debug_utils (I), VK_KHR_dynamic_rendering (D)
+[23:32:54] [Render thread/INFO]: Created window using SDL video driver: cocoa
+[23:32:55] [Download-2/ERROR]: Failed to fetch user properties
+com.mojang.authlib.exceptions.InvalidCredentialsException: Status: 401
+	at com.mojang.authlib.exceptions.MinecraftClientHttpException.toAuthenticationException(MinecraftClientHttpException.java:70)
+	at com.mojang.authlib.services.MinecraftServicesUserApiService.fetchProperties(MinecraftServicesUserApiService.java:168)
+	at net.minecraft.client.Minecraft.lambda$new$1(Minecraft.java:451)
+	at java.base/java.util.concurrent.CompletableFuture$AsyncSupply.run(CompletableFuture.java:1789)
+	at java.base/java.util.concurrent.ThreadPoolExecutor.runWorker(ThreadPoolExecutor.java:1090)
+	at java.base/java.util.concurrent.ThreadPoolExecutor$Worker.run(ThreadPoolExecutor.java:614)
+	at java.base/java.lang.Thread.run(Thread.java:1516)
+Caused by: MinecraftClientHttpException[type=HTTP_ERROR, status=401, response=ErrorResponse[path=/player/attributes, error=null, errorMessage=null, details=null]]
+	at com.mojang.authlib.minecraft.client.MinecraftClient.buildHttpException(MinecraftClient.java:170)
+	at com.mojang.authlib.minecraft.client.MinecraftClient.readServiceResponse(MinecraftClient.java:147)
+	at com.mojang.authlib.minecraft.client.MinecraftClient.getWithEtag(MinecraftClient.java:81)
+	at com.mojang.authlib.minecraft.client.MinecraftClient.get(MinecraftClient.java:65)
+	at com.mojang.authlib.services.MinecraftServicesUserApiService.fetchProperties(MinecraftServicesUserApiService.java:118)
+	... 5 more
+[23:32:56] [Render thread/INFO]: Reloading ResourceManager: vanilla, vanilla
+[23:32:56] [Worker-Main-2/INFO]: Found unifont_all_no_pua-17.0.01.hex, loading
+[23:32:56] [Worker-Main-6/INFO]: Found unifont_pua-17.0.01.hex, loading
+[23:32:56] [Worker-Main-9/INFO]: Found unifont_jp_patch-17.0.01.hex, loading
+[23:32:56] [Download-2/INFO]: Could not authorize you against Realms server: java.lang.RuntimeException: Failed to parse into SignedJWT: 0
+[23:32:56] [Download-2/ERROR]: Failed to fetch Realms feature flags
+com.mojang.realmsclient.exception.RealmsServiceException: Realms authentication error with message 'java.lang.RuntimeException: Failed to parse into SignedJWT: 0'
+	at com.mojang.realmsclient.client.RealmsClient.execute(RealmsClient.java:625)
+	at com.mojang.realmsclient.client.RealmsClient.fetchFeatureFlags(RealmsClient.java:204)
+	at java.base/java.util.concurrent.CompletableFuture$AsyncSupply.run(CompletableFuture.java:1789)
+	at java.base/java.util.concurrent.ThreadPoolExecutor.runWorker(ThreadPoolExecutor.java:1090)
+	at java.base/java.util.concurrent.ThreadPoolExecutor$Worker.run(ThreadPoolExecutor.java:614)
+	at java.base/java.lang.Thread.run(Thread.java:1516)
+[23:32:56] [Render thread/ERROR]: Pipeline minecraft:pipeline/wireframe uses WIREFRAME fill mode, not supported by device
+[23:32:56] [Render thread/ERROR]: Pipeline minecraft:pipeline/wireframe_multidraw uses WIREFRAME fill mode, not supported by device
+[23:32:57] [Render thread/WARN]: Failed to load optional shader programs:
+ - minecraft:pipeline/wireframe
+ - minecraft:pipeline/wireframe_multidraw
+[23:32:58] [Render thread/INFO]: OpenAL initialized on device MacBook Air Speakers
+[23:32:58] [Render thread/INFO]: Sound engine started
+[23:32:58] [Render thread/INFO]: Created: 512x256x0 minecraft:textures/atlas/particles.png-atlas
+[23:32:58] [Render thread/INFO]: Created: 256x128x0 minecraft:textures/atlas/celestials.png-atlas
+[23:32:58] [Render thread/INFO]: Created: 128x128x0 minecraft:textures/atlas/decorated_pot.png-atlas
+[23:32:58] [Render thread/INFO]: Created: 512x256x0 minecraft:textures/atlas/paintings.png-atlas
+[23:32:58] [Render thread/INFO]: Created: 1024x512x0 minecraft:textures/atlas/shield_patterns.png-atlas
+[23:32:58] [Render thread/INFO]: Created: 1024x512x0 minecraft:textures/atlas/banner_patterns.png-atlas
+[23:32:58] [Render thread/INFO]: Created: 2048x2048x4 minecraft:textures/atlas/blocks.png-atlas
+[23:32:58] [Render thread/INFO]: Created: 1024x512x0 minecraft:textures/atlas/items.png-atlas
+[23:32:58] [Render thread/INFO]: Created: 1024x1024x0 minecraft:textures/atlas/gui.png-atlas
+[23:32:58] [Render thread/INFO]: Created: 128x64x0 minecraft:textures/atlas/map_decorations.png-atlas
+[23:32:58] [Render thread/INFO]: Created: 512x512x0 minecraft:textures/atlas/chest.png-atlas
+[23:32:58] [Render thread/INFO]: Created: 512x512x0 minecraft:textures/atlas/shulker_boxes.png-atlas
+[23:33:34] [Worker-Main-1/INFO]: Starting upgrade for world "TestWorld"
+[23:33:34] [Worker-Main-1/INFO]: Upgrading progress: 0%
+[23:33:34] [Worker-Main-1/INFO]: File system capabilities: FileSystemCapabilities[atomicMove=true, hardLinks=true]
+[23:33:34] [Worker-Main-1/INFO]: Applying file structure changes for world "TestWorld"
+[23:33:34] [Worker-Main-1/INFO]: Moving new hardlinked world to top level
+[23:33:34] [Worker-Main-1/INFO]: Start cleanup
+[23:33:34] [Worker-Main-1/INFO]: Moving out old world folder
+[23:33:34] [Worker-Main-1/INFO]: Moving in new world folder
+[23:33:34] [Worker-Main-1/INFO]: Done applying file structure changes for world "TestWorld". Cleaning up outdated data...
+[23:33:34] [Worker-Main-1/INFO]: Upgrade done for world "TestWorld"
+[23:33:35] [Render thread/WARN]: Missing data pack fabric-convention-tags-v2
+[23:33:35] [Render thread/WARN]: Missing data pack mr_orbital_strikecannondatapack
+[23:33:36] [Worker-Main-5/INFO]: Loaded 1866 advancements
+[23:33:36] [Server thread/INFO]: Starting integrated minecraft server version 26.3
+[23:33:36] [Server thread/INFO]: Generating keypair
+[23:33:37] [Server thread/INFO]: Loading 25 persistent chunks...
+[23:33:37] [Server thread/INFO]: Preparing spawn area: 11%
+[23:33:38] [Server thread/INFO]: Preparing spawn area: 11%
+[23:33:38] [Server thread/INFO]: Saving chunks for level 'ServerLevel[New World]'/minecraft:overworld
+[23:33:38] [Server thread/INFO]: Saving chunks for level 'ServerLevel[New World]'/minecraft:the_nether
+[23:33:38] [Server thread/INFO]: Saving chunks for level 'ServerLevel[New World]'/minecraft:the_end
+[23:33:38] [Server thread/INFO]: Loading 49 chunks for player spawn...
+[23:33:38] [Server thread/INFO]: Preparing spawn area: 41%
+[23:33:39] [Server thread/INFO]: Preparing spawn area: 44%
+[23:33:39] [Server thread/INFO]: Preparing spawn area: 100%
+[23:33:39] [Server thread/INFO]: Time elapsed: 2042 ms
+[23:33:39] [Server thread/INFO]: Player[local:E:ed8392db] logged in with entity id 155 at (212.8027160445132, 63.2323909007867, 151.34751200354853)
+[23:33:39] [Server thread/INFO]: System chat: Player joined the game
+[23:33:39] [Server thread/INFO]: System chat: Player has made the advancement [Stone Age]
+[23:33:39] [Server thread/INFO]: System chat: Player has made the advancement [Hot Stuff]
+[23:33:40] [Render thread/INFO]: [System] [CHAT] Player has made the advancement [Stone Age]
+[23:33:40] [Render thread/INFO]: [System] [CHAT] Player has made the advancement [Hot Stuff]
+[23:33:40] [Render thread/WARN]: Requested post effect does not exist: minecraft:end_of_frame
+[23:33:40] [Server thread/INFO]: Changing view distance to 16, from 10
+[23:33:40] [Server thread/INFO]: Changing simulation distance to 12, from 0
+[23:33:40] [Render thread/INFO]: Resizing Dynamic Transforms UBO, capacity limit of 2 reached during a single frame. New capacity will be 4.
+[23:33:40] [Render thread/INFO]: Loaded 70 advancements
+[23:33:40] [Render thread/INFO]: Resizing Dynamic Transforms UBO, capacity limit of 4 reached during a single frame. New capacity will be 8.
+[23:33:40] [Render thread/INFO]: Resizing Dynamic Transforms UBO, capacity limit of 8 reached during a single frame. New capacity will be 16.
+[23:33:40] [Render thread/INFO]: Resizing Chunk Sections Command Buffer, capacity limit of 2 reached during a single frame. New capacity will be 16.
+[23:33:40] [Render thread/INFO]: Resizing Chunk Sections Instanced, capacity limit of 2 reached during a single frame. New capacity will be 8.
+[23:33:40] [Render thread/INFO]: Resizing Chunk Sections Command Buffer, capacity limit of 16 reached during a single frame. New capacity will be 32.
+[23:33:40] [Render thread/INFO]: Resizing Chunk Sections Instanced, capacity limit of 8 reached during a single frame. New capacity will be 16.
+[23:33:40] [Render thread/INFO]: Resizing Chunk Sections Command Buffer, capacity limit of 32 reached during a single frame. New capacity will be 64.
+[23:33:40] [Render thread/INFO]: Resizing Chunk Sections Instanced, capacity limit of 16 reached during a single frame. New capacity will be 32.
+[23:33:40] [Render thread/INFO]: Resizing Chunk Sections Command Buffer, capacity limit of 64 reached during a single frame. New capacity will be 128.
+[23:33:40] [Render thread/INFO]: Resizing Chunk Sections Instanced, capacity limit of 32 reached during a single frame. New capacity will be 64.
+[23:33:41] [Render thread/INFO]: Resizing Chunk Sections Command Buffer, capacity limit of 128 reached during a single frame. New capacity will be 256.
+[23:33:41] [Render thread/INFO]: Resizing Chunk Sections Instanced, capacity limit of 64 reached during a single frame. New capacity will be 128.
+[23:33:41] [Render thread/INFO]: Resizing Chunk Sections Command Buffer, capacity limit of 256 reached during a single frame. New capacity will be 512.
+[23:33:41] [Render thread/INFO]: Resizing Chunk Sections Instanced, capacity limit of 128 reached during a single frame. New capacity will be 256.
+[23:33:43] [Render thread/INFO]: Resizing Chunk Sections Instanced, capacity limit of 256 reached during a single frame. New capacity will be 512.
+[23:33:43] [Render thread/INFO]: Resizing Chunk Sections Command Buffer, capacity limit of 512 reached during a single frame. New capacity will be 1024.
+[23:33:46] [Render thread/INFO]: Resizing Chunk Sections Instanced, capacity limit of 512 reached during a single frame. New capacity will be 1024.
+[23:33:46] [Render thread/INFO]: Resizing Chunk Sections Command Buffer, capacity limit of 1024 reached during a single frame. New capacity will be 2048.
+[23:33:51] [Server thread/WARN]: Can't keep up! Is the server overloaded? Running 2195ms or 43 ticks behind
+[23:33:51] [Render thread/INFO]: Resizing Chunk Sections Command Buffer, capacity limit of 2048 reached during a single frame. New capacity will be 4096.
+[23:33:51] [Render thread/INFO]: Resizing Chunk Sections Instanced, capacity limit of 1024 reached during a single frame. New capacity will be 2048.
+[23:34:10] [Render thread/INFO]: Loaded 81 advancements
+[23:34:10] [Server thread/INFO]: Player Player standing on air - force-sending blocks below
+[23:34:12] [Server thread/INFO]: Saving and pausing game...
+[23:34:12] [Server thread/INFO]: Saving chunks for level 'ServerLevel[New World]'/minecraft:overworld
+[23:34:12] [Server thread/INFO]: Saving chunks for level 'ServerLevel[New World]'/minecraft:the_nether
+[23:34:12] [Server thread/INFO]: Saving chunks for level 'ServerLevel[New World]'/minecraft:the_end
+[23:34:32] [Render thread/INFO]: Loaded 120 advancements
+[23:34:37] [Server thread/INFO]: Saving and pausing game...
+[23:34:37] [Server thread/INFO]: Saving chunks for level 'ServerLevel[New World]'/minecraft:overworld
+[23:34:37] [Server thread/INFO]: Saving chunks for level 'ServerLevel[New World]'/minecraft:the_nether
+[23:34:37] [Server thread/INFO]: Saving chunks for level 'ServerLevel[New World]'/minecraft:the_end
+[23:34:38] [Server thread/INFO]: Stopping server
+[23:34:38] [Server thread/INFO]: Saving players
+[23:34:38] [Server thread/INFO]: Player lost connection: Disconnected
+[23:34:38] [Server thread/INFO]: System chat: Player left the game
+[23:34:38] [Server thread/INFO]: Stopping singleplayer server as player logged out
+[23:34:38] [Server thread/INFO]: Saving worlds
+[23:34:39] [Server thread/INFO]: Saving chunks for level 'ServerLevel[New World]'/minecraft:overworld
+[23:34:39] [Server thread/INFO]: Saving chunks for level 'ServerLevel[New World]'/minecraft:the_nether
+[23:34:39] [Server thread/INFO]: Saving chunks for level 'ServerLevel[New World]'/minecraft:the_end
+[23:34:41] [Download-1/INFO]: Could not authorize you against Realms server: java.lang.RuntimeException: Failed to parse into SignedJWT: 0
+[23:34:41] [Download-1/ERROR]: Couldn't connect to realms
+com.mojang.realmsclient.exception.RealmsServiceException: Realms authentication error with message 'java.lang.RuntimeException: Failed to parse into SignedJWT: 0'
+	at com.mojang.realmsclient.client.RealmsClient.execute(RealmsClient.java:625)
+	at com.mojang.realmsclient.client.RealmsClient.clientCompatible(RealmsClient.java:354)
+	at com.mojang.realmsclient.RealmsAvailability.lambda$check$0(RealmsAvailability.java:48)
+	at java.base/java.util.concurrent.CompletableFuture$AsyncSupply.run(CompletableFuture.java:1789)
+	at java.base/java.util.concurrent.ThreadPoolExecutor.runWorker(ThreadPoolExecutor.java:1090)
+	at java.base/java.util.concurrent.ThreadPoolExecutor$Worker.run(ThreadPoolExecutor.java:614)
+	at java.base/java.lang.Thread.run(Thread.java:1516)
+[23:35:18] [Render thread/INFO]: Stopping!
+exit 0 after 151 s

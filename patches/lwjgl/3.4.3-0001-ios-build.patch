@@ -1,0 +1,118 @@
+diff --git a/config/build-definitions.xml b/config/build-definitions.xml
+index a3a6610..cb65c2c 100644
+--- a/config/build-definitions.xml
++++ b/config/build-definitions.xml
+@@ -386,7 +386,7 @@ This script is included in /build.xml and /config/update-dependencies.xml.
+                 <local name="dest"/>
+                 <property name="dest" value="${lib.native}/${module.@{module}.path}"/>
+                 <mkdir dir="${dest}"/>
+-                <get-quiet name="@{module} :: @{artifact}" url="https://build.lwjgl.org/${build.type}/${platform.remote}/${build.arch}/@{artifact}" dest="${dest}" skipexisting="false"/>
++                <get-quiet name="@{module} :: @{artifact}" url="https://build.lwjgl.org/${build.type}/${platform.remote}/${build.arch}/@{artifact}" dest="${dest}" skipexisting="true"/>
+             </sequential>
+         </sequential>
+     </macrodef>
+diff --git a/config/macos/build.xml b/config/macos/build.xml
+index daed096..c06b6b8 100644
+--- a/config/macos/build.xml
++++ b/config/macos/build.xml
+@@ -5,17 +5,16 @@
+ <project name="native-macos" basedir="../.." xmlns:if="ant:if" xmlns:unless="ant:unless">
+     <import file="../build-definitions.xml"/>
+ 
+-    <!-- Find the macOS SDK root. -->
++    <!-- Voxelium: build for iOS arm64 (iPhoneOS SDK) instead of macOS. The Java side
++         still runs as Platform.MACOSX; ios-version-min comes from the ant command line. -->
+     <exec executable="xcrun" outputproperty="sdkroot" failonerror="true">
+-        <arg line="--show-sdk-path --sdk macosx"/>
++        <arg line="--show-sdk-path --sdk iphoneos"/>
+     </exec>
+ 
+-    <condition property="macosx-version-min" value="11.0" else="10.11">
+-        <isset property="build.arch.arm"/>
+-    </condition>
+-    <condition property="macosx-version-min-vma" value="11.0" else="10.13">
+-        <isset property="build.arch.arm"/>
+-    </condition>
++    <property name="ios-version-min" value="16.0"/>
++    <property name="macosx-version-min" value="${ios-version-min}"/>
++    <property name="macosx-version-min-vma" value="${ios-version-min}"/>
++    <property name="build.arch.arm" value="true"/>
+ 
+     <property name="module.lwjgl.rel" value="../../../../${module.lwjgl}"/>
+ 
+@@ -37,7 +36,7 @@
+             <apply dir="@{dest}" executable="${clang}" dest="@{dest}" skipemptyfilesets="true" failonerror="true" parallel="true" taskname="Compiler">
+                 <arg line="-c -ObjC" unless:set="cpp"/>
+                 <arg line="-c -std=c++20" if:set="cpp"/>
+-                <arg line="-O3 -flto=auto -fPIC @{flags} -DNDEBUG -DLWJGL_MACOS -DLWJGL_${build.arch} -isysroot ${sdkroot} -mmacosx-version-min=@{macos}"/>
++                <arg line="-O3 -flto=auto -fPIC @{flags} -DNDEBUG -DLWJGL_MACOS -DLWJGL_${build.arch} -isysroot ${sdkroot} -miphoneos-version-min=@{macos}"/>
+                 <arg line="-target x64-apple-darwin -arch x86_64" unless:set="build.arch.arm"/>
+                 <arg line="-target aarch64-apple-darwin -arch arm64" if:set="build.arch.arm"/>
+ 
+@@ -61,7 +60,7 @@
+         <attribute name="module"/>
+         <attribute name="linker" default="clang"/>
+         <attribute name="lang" default="c"/>
+-        <attribute name="flags" default="-Werror -Wfatal-errors"/>
++        <attribute name="flags" default=""/>
+         <attribute name="simple" default="false"/>
+         <attribute name="macos" default="${macosx-version-min}"/>
+         <element name="beforeCompile" optional="true"/>
+@@ -114,7 +113,7 @@
+             <beforeLink unless:set="lib-uptodate"/>
+             <apply executable="${clang}" failonerror="true" parallel="true" taskname="Linker" unless:set="lib-uptodate">
+                 <srcfile/>
+-                <arg line='-dynamiclib -Wl,-no_compact_unwind -mmacosx-version-min=@{macos} -o ${lib.arch}/lib${name}.dylib -O3 -flto=auto -fPIC'/>
++                <arg line='-dynamiclib -Wl,-no_compact_unwind -miphoneos-version-min=@{macos} -isysroot ${sdkroot} -o ${lib.arch}/lib${name}.dylib -O3 -flto=auto -fPIC'/>
+                 <arg line="-target x64-apple-darwin -arch x86_64" unless:set="build.arch.arm"/>
+                 <arg line="-target aarch64-apple-darwin -arch arm64" if:set="build.arch.arm"/>
+                 <fileset dir="${dest}" includes="*.o"/>
+@@ -149,7 +148,7 @@
+         <parallel threadsPerProcessor="2">
+ 
+         <!-- CORE -->
+-        <build module="core" flags="-Werror -Wfatal-errors -Wall -Wextra -pedantic">
++        <build module="core" flags="-Wall -Wextra -pedantic">
+             <source>
+                 <arg value="-I${src.main.rel}/libffi"/>
+                 <arg value="-I${src.main.rel}/libffi/aarch64" if:set="build.arch.arm64"/>
+diff --git a/modules/lwjgl/core/src/generated/c/macos/org_lwjgl_system_macosx_ObjCRuntime.c b/modules/lwjgl/core/src/generated/c/macos/org_lwjgl_system_macosx_ObjCRuntime.c
+index 6876671..3c7a61b 100644
+--- a/modules/lwjgl/core/src/generated/c/macos/org_lwjgl_system_macosx_ObjCRuntime.c
++++ b/modules/lwjgl/core/src/generated/c/macos/org_lwjgl_system_macosx_ObjCRuntime.c
+@@ -4,7 +4,7 @@
+  * MACHINE GENERATED FILE, DO NOT EDIT
+  */
+ #include "common_tools.h"
+-#include <objc/objc-runtime.h>
++#include <objc/runtime.h>
+ 
+ typedef struct objc_method_description (*protocol_getMethodDescriptionPROC) (uintptr_t, uintptr_t, jboolean, jboolean);
+ 
+diff --git a/modules/lwjgl/core/src/templates/kotlin/core/macos/templates/ObjC.kt b/modules/lwjgl/core/src/templates/kotlin/core/macos/templates/ObjC.kt
+index 42044ea..bd5ef2a 100644
+--- a/modules/lwjgl/core/src/templates/kotlin/core/macos/templates/ObjC.kt
++++ b/modules/lwjgl/core/src/templates/kotlin/core/macos/templates/ObjC.kt
+@@ -12,7 +12,7 @@ val objc_runtime = "ObjCRuntime".nativeClass(
+     nativeSubPath = "macos",
+     binding = simpleBinding(Module.CORE_MACOS, "objc")
+ ) {
+-    nativeImport("<objc/objc-runtime.h>")
++    nativeImport("<objc/runtime.h>")
+ 
+     LongConstant(
+         "nil"..0L
+diff --git a/modules/lwjgl/vma/src/main/c/vk_mem_alloc.h b/modules/lwjgl/vma/src/main/c/vk_mem_alloc.h
+index f2b58bf..6e6ff34 100644
+--- a/modules/lwjgl/vma/src/main/c/vk_mem_alloc.h
++++ b/modules/lwjgl/vma/src/main/c/vk_mem_alloc.h
+@@ -4382,6 +4382,9 @@ inline void* VmaMalloc(const VkAllocationCallbacks* pAllocationCallbacks, size_t
+     }
+     else
+     {
++        // Voxelium (as AngelAuraMC's fork): LWJGL routes this to its aligned_alloc, which
++        // on Apple's libc fails for alignments below sizeof(void*); VMA asks for 1 or 2.
++        if (alignment < sizeof(void*)) alignment = sizeof(void*);
+         result = VMA_SYSTEM_ALIGNED_MALLOC(size, alignment);
+     }
+     VMA_ASSERT(result != VMA_NULL && "CPU memory allocation failed.");

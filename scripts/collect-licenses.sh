@@ -32,6 +32,16 @@ TINYFD_C="$(find "$DEPS/lwjgl3/modules/lwjgl/tinyfd" -name 'tinyfiledialogs.c' |
 [ -n "$STB_H" ] && [ -n "$TINYFD_C" ] || { echo "stb or tinyfiledialogs source not found" >&2; exit 1; }
 tail -n 40 "$STB_H" > "$TMP/stb-license.txt"
 sed -n '1,/\*\//p' "$TINYFD_C" > "$TMP/tinyfd-license.txt"
+# LWJGL 3.4.3 (Minecraft 26.3) is optional for now: its notices are added only when
+# LWJGL_SERIES=3.4.3 scripts/build-lwjgl.sh has run (the app bundles it only then).
+LW43=""
+if [ -d "$DEPS/lwjgl-out-3.4.3/natives" ]; then
+  LW43="$DEPS/lwjgl3-3.4.3"
+  tar -xzf "$DEPS/libffi-dl/libffi-3.8.0.tar.gz" -C "$TMP" "libffi-3.8.0/LICENSE"
+  # VMA carries its MIT licence in its header.
+  sed -n '1,/^$/p' "$LW43/modules/lwjgl/vma/src/main/c/vk_mem_alloc.h" | sed 's|^// \{0,1\}||' > "$TMP/vma-license.txt"
+  [ -f "$DEPS/shaderc-out/libshaderc_shared.dylib" ] || { echo "LWJGL 3.4.3 is built but shaderc is not; run scripts/build-shaderc.sh" >&2; exit 1; }
+fi
 
 cat > "$OUT" <<'EOF'
 Voxelium — third-party notices
@@ -67,6 +77,17 @@ section "xxhash by Stephan Brumme (in libmobileglues)" "MIT" "$DEPS/mg-src/Mobil
 section "gl4es (libgl4es.dylib), PojavLauncherTeam/gl4es c3d6a54f8a2c, with patches/gl4es" "MIT" "$DEPS/gl4es/LICENSE"
 section "LWJGL 3.3.3 and 3.4.1 (AngelAuraMC/lwjgl3 forks)" "BSD-3-Clause" "$DEPS/lwjgl3/LICENSE.md"
 section "libffi 3.4.8 (in LWJGL 3.3.3) and 3.5.2 (in LWJGL 3.4.1)" "MIT" "$TMP/libffi-3.4.8/LICENSE" "$TMP/libffi-3.5.2/LICENSE"
+if [ -n "$LW43" ]; then
+  SC="$DEPS/shaderc-src"
+  section "LWJGL 3.4.3 (github.com/LWJGL/lwjgl3, with patches/lwjgl/3.4.3-*)" "BSD-3-Clause" "$LW43/LICENSE.md"
+  section "libffi 3.8.0 (in LWJGL 3.4.3)" "MIT" "$TMP/libffi-3.8.0/LICENSE"
+  section "Vulkan Memory Allocator 3.4.0 (in liblwjgl_vma)" "MIT" "$TMP/vma-license.txt"
+  section "shaderc v2026.3, LWJGL-CI/shaderc LWJGL-3.4.3 (libshaderc_shared.dylib)" "Apache-2.0" "$SC/shaderc/LICENSE"
+  section "glslang 16.4.0 (in libshaderc_shared)" "BSD-3-Clause and others, see below" "$SC/shaderc/third_party/glslang/LICENSE.txt"
+  section "SPIRV-Tools v2026.3 (in libshaderc_shared)" "Apache-2.0" "$SC/shaderc/third_party/spirv-tools/LICENSE"
+  section "SPIRV-Headers (in libshaderc_shared)" "MIT-style (Khronos)" "$SC/shaderc/third_party/spirv-headers/LICENSE"
+  section "SPIRV-Cross vulkan-sdk-1.4.357.0 (libspirv-cross.dylib, for LWJGL 3.4.3)" "Apache-2.0" "$SC/SPIRV-Cross/LICENSE"
+fi
 section "stb (in liblwjgl_stb)" "MIT or public domain" "$TMP/stb-license.txt"
 section "tinyfiledialogs (in liblwjgl_tinyfd)" "zlib" "$TMP/tinyfd-license.txt"
 section "FreeType 2.13.3 (libfreetype.dylib)" \
@@ -74,6 +95,14 @@ section "FreeType 2.13.3 (libfreetype.dylib)" \
   "$DEPS/freetype/docs/FTL.TXT"
 section "OpenAL Soft 1.25.2 (libopenal.dylib)" "LGPL-2.0 or later. Dynamically linked; source: github.com/kcat/openal-soft, rebuild with scripts/build-openal.sh." \
   "$DEPS/openal-soft/COPYING"
+# SDL3 is only in the experimental IPA so far (Minecraft 26.3 work, which also
+# carries the notice in Frameworks/sdl3/LICENSES); WITH_SDL3=YES adds it here
+# once the shipping app bundles it.
+if [ "${WITH_SDL3:-}" = "YES" ]; then
+  section "SDL 3.4.14 (libSDL3.dylib), libsdl-org/SDL 147a8ee32dbf, with patches/sdl3" \
+    "zlib. Source: github.com/libsdl-org/SDL, our changes in patches/sdl3/, rebuild with scripts/build-sdl3.sh." \
+    "$DEPS/sdl3/LICENSE.txt"
+fi
 section "UniversalJIT26.js and UniversalJIT26Extension.js (Amethyst-iOS); JIT helpers in JITSupport.m adapted from Amethyst-iOS" \
   "GPL-3.0, the same licence as Voxelium (see LICENSE)." "$ROOT/LICENSE"
 
