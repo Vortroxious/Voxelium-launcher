@@ -51,3 +51,11 @@ Status as of 2026-10-24.
   - `Voxelium-2.0-unsigned.ipa.sha256`: 92 bytes, `5643a429…43e3`;
   - `THIRD_PARTY_NOTICES.txt`: 401,252 bytes, `2656920b…0d74`, identical to the repository's. It was first attached as the 1.0 file and replaced by the maintainer.
 - The description was pasted as HTML (as for 1.0). The maintainer reports it renders correctly.
+
+# Release checklist (Voxelium 2.1)
+
+Status as of 2026-10-24.
+- ✅ Minecraft 26.2 fix (MobileGlues patch 0015) merged into `main` (`0fa9679`); version 2.1, release notes [RELEASE_NOTES_2.1.md](RELEASE_NOTES_2.1.md).
+- ✅ Device pass on the release IPA (build 202610241301, SHA-256 `d04f01c2…d616`): Fabric 26.2 on MobileGlues and on Vulkan. Regression on the same code (build 202610241249): Fabric 26.1.2, Fabric 1.21.11 and NeoForge 1.21.1 on MobileGlues.
+- ✅ Committed and tagged `v2.1`.
+- 👤 Push `main` and `v2.1`. Create the GitHub Release **v2.1** with `build/ipa/Voxelium-2.1-unsigned.ipa`, `Voxelium-2.1-unsigned.ipa.sha256` and `build/ipa/THIRD_PARTY_NOTICES.txt` (401,252 bytes; check it is not the 0.24 MB 1.0 file), and paste the release notes.

@@ -1681,3 +1681,13 @@ Requested by the user through the main session, as the candidate for Voxelium 2.
   | NeoForge 1.21.1 | 12:57:22Z | 12:57:48 | 12:58:27 | 1,681 MB |
 
   - 26.2 was **not** started on this build. Its MobileGlues pass is from the diagnostic build 202610241238, which has the same patch 0015.
+
+## 2026-10-24 — Voxelium 2.1
+- **User:** make this version 2.1. Version 2.1 is set in `MARKETING_VERSION`, `LaunchPlanner.launcherVersion` and the User-Agent `Voxelium/2.1 (…)`. Release notes in [RELEASE_NOTES_2.1.md](RELEASE_NOTES_2.1.md); README download name and roadmap updated. `swift test` 121/121.
+- **IPA:** build 202610241301, 213,459,733 bytes, SHA-256 `d04f01c215210890c4f9490a455e1b554e52acd1ba854465433755e9914da616`, at `build/ipa/Voxelium-2.1-unsigned.ipa` with its `.sha256`. The current notices are copied next to it as `build/ipa/THIRD_PARTY_NOTICES.txt`.
+  - Checked inside: bundle ID `io.github.voxelium.launcher`, 2.1, minimum iOS 16.0; normal MobileGlues with patch 0015 (no `MG-GLERR`); notices identical to the repo; Zink, KosmicKrisp, SDL3 + shim and LWJGL 3.4.3 present; no signing files.
+  - **Not yet run on a device.**
+- **2.1 device pass, build 202610241301** (devicectl-confirmed 2.1 (202610241301); logs read 2026-10-24 13:48Z). Fabric 0.19.5 on **26.2**, one app launch per renderer:
+  - **MobileGlues (13:45:02Z):** joined at 13:45:26, stopped at 13:46:13, "returned normally"; peak 2,445 MB.
+  - **Vulkan/Zink (13:46:24Z):** joined at 13:46:42, stopped at 13:47:07, "returned normally"; peak 2,503 MB.
+  - No exception, FATAL or crash.
