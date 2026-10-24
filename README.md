@@ -94,24 +94,23 @@ Also: a USB cable for your iPhone, and an Apple ID (a free one works).
 2. Create the pairing file and send it to StikDebug. idevice_pair can place it in StikDebug directly; if you save it as a `.plist` file instead, AirDrop it to your iPhone or put it in the Files app.
 3. On the iPhone, open **StikDebug → Settings → Import Pairing File** and choose the `.plist`. (Skip this if idevice_pair already placed it in StikDebug.)
 
-### Step 4: Assign the JIT script to Voxelium (once)
-In **StikDebug**, open **Apps**, touch and hold **Voxelium**, choose **Assign Script**, then pick **universal.js**.
-
-### Step 5: Start Voxelium (every time)
+### Step 4: Open Voxelium (every time)
 1. Open **LocalDevVPN** and turn the VPN **on**.
-2. Check your connection:
-   - **On Wi-Fi:** continue to step 3 as normal.
-   - **On mobile data:** turn **Airplane Mode on** first. StikDebug's connection needs it.
-3. Open **StikDebug** and launch **Voxelium** from it. Opened from the Home Screen instead, Voxelium can browse and install, but can't start Minecraft.
-4. **If you turned on Airplane Mode,** turn it **off** again right after Voxelium opens. Otherwise Voxelium has no internet, and the list of versions you haven't installed yet won't load. Once you're back online, pull down on the Versions page or tap **Refresh**.
+2. Open **Voxelium** from the Home Screen, like any app.
 
-### Step 6: Play
+You don't need to assign a script in StikDebug or open Voxelium from it any more. Voxelium asks StikDebug for JIT when you start a game (step 5). Opening Voxelium from StikDebug, as before, still works.
+
+### Step 5: Play
 1. **Account** tab: **Sign in with Microsoft**, copy the code and finish signing in on the page that opens.
 2. **Versions** tab: install a version (1.13 – 26.2, or 26.3 on iOS 26+). For mods, choose Fabric, Quilt, Forge or NeoForge when installing, or tap **Modpacks**.
-3. Under **Installed**, tap **Play → Launch Minecraft**.
+3. Under **Installed**, tap **Play** and choose how to start.
+   1. **StikDebug opens** and asks to enable JIT for Voxelium. Tap to confirm.
+   2. **StikDebug switches back** to Voxelium, and Minecraft starts.
+   3. **On iPhones with iOS 26,** Voxelium also sends StikDebug the JIT script it needs, so there's nothing to assign by hand.
+   4. **On mobile data:** StikDebug's connection needs **Airplane Mode on**. Turn it on just before tapping Play, and off again once the game has started.
 
 ### Troubleshooting
-- **"StikDebug is not attached" / Minecraft won't start:** close Voxelium completely, make sure LocalDevVPN is on, and start Voxelium from StikDebug again (step 5).
+- **StikDebug opens but Minecraft doesn't start:** make sure LocalDevVPN is on (and Airplane Mode, on mobile data), close Voxelium completely, open it again and tap Play. If it keeps failing, open StikDebug directly once, wait for it to connect, then try again. Starting Voxelium from StikDebug also works.
 - **The game closes after a while (low memory):** lower the render distance to 8–10, especially with shaders. The gauge under **More** in game shows how full memory is. If it still happens, **GetMoreRam** can add Apple's *Increased Memory Limit* to Voxelium: install GetMoreRam with Sideloadly, sign in there with the same Apple ID, open **App IDs**, refresh, select Voxelium and add *Increased Memory Limit*, then install Voxelium again with the same Apple ID. GetMoreRam's own guide uses SideStore or AltStore for that reinstall; doing it with Sideloadly has not been tested.
 - **Getting your worlds in or out:** use **Play → Worlds…** or Files → On My iPhone → Voxelium, with Minecraft closed. See [Bringing your worlds](docs/INSTALL.md#bringing-your-worlds).
 - **The versions list doesn't load:** check your internet connection (and Airplane Mode, see step 5), then tap **Refresh**.

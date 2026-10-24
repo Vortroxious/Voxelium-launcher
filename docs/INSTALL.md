@@ -1,6 +1,6 @@
 # Installing and playing Voxelium
 
-Voxelium runs Minecraft: Java Edition on iPhone. Java needs JIT, which iOS only allows while a debugger is attached, so you start Voxelium through **StikDebug** each time.
+Voxelium runs Minecraft: Java Edition on iPhone. Java needs JIT, which iOS only allows while a debugger is attached. You open Voxelium from the Home Screen, and when you start a game it asks **StikDebug** to turn JIT on: StikDebug opens, asks you to confirm, and switches back. Starting Voxelium from StikDebug, as in earlier versions, also works.
 
 Tested on an iPhone 15 Pro Max with iOS 27.0 and StikDebug 3.1.14. Other devices and iOS versions are not tested yet.
 
@@ -43,10 +43,10 @@ Updating from 0.1.0: the first start moves everything from the old hidden folder
 
 ## Known limits
 - 26.3 runs on Vulkan only, which needs iOS 26 or later. 26.2 runs on both renderers. Versions 1.12.2 and older are not supported.
-- **Renderers:** on 1.17 – 26.1.2, Play offers MobileGlues (as in 1.0) or Vulkan (iOS 26+). Each renderer can start once per app launch; restart Voxelium from StikDebug to switch.
+- **Renderers:** on 1.17 – 26.1.2, Play offers MobileGlues (as in 1.0) or Vulkan (iOS 26+). Each renderer can start once per app launch; close and reopen Voxelium to switch.
 - Forge and NeoForge are new: NeoForge for 1.21.1 and Forge for 1.20.1 are tested on an iPhone; other versions not yet. Their first launch takes a minute or two longer, because Voxelium finishes setting them up then (it patches Minecraft once). Forge is offered for Minecraft 1.17 and newer, NeoForge for 1.20.2 and newer.
 - Very large modpacks (hundreds of mods) do not fit in iPhone memory.
-- If StikDebug stops (for example after a long download), close Voxelium and start it from StikDebug again.
+- If StikDebug doesn't bring you back, or the game doesn't start, close Voxelium, check LocalDevVPN is on, open Voxelium again and tap Play.
 
 ## When something goes wrong
 - **Logs tab:** the launcher log. `logs/jvm.log` (Files → On My iPhone → Voxelium → logs) holds the game's output.
