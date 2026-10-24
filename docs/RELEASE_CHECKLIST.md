@@ -59,3 +59,11 @@ Status as of 2026-10-24.
 - ✅ Device pass on the release IPA (build 202610241301, SHA-256 `d04f01c2…d616`): Fabric 26.2 on MobileGlues and on Vulkan. Regression on the same code (build 202610241249): Fabric 26.1.2, Fabric 1.21.11 and NeoForge 1.21.1 on MobileGlues.
 - ✅ Committed and tagged `v2.1`.
 - 👤 Push `main` and `v2.1`. Create the GitHub Release **v2.1** with `build/ipa/Voxelium-2.1-unsigned.ipa`, `Voxelium-2.1-unsigned.ipa.sha256` and `build/ipa/THIRD_PARTY_NOTICES.txt` (401,252 bytes; check it is not the 0.24 MB 1.0 file), and paste the release notes.
+
+# Release checklist (Voxelium 2.2)
+
+Status as of 2026-10-24.
+- ✅ StikDebug JIT hand-off and smooth close merged into `main` (`7b32063`); version 2.2, release notes [RELEASE_NOTES_2.2.md](RELEASE_NOTES_2.2.md).
+- ✅ Device pass on the release IPA (build 202610241422, SHA-256 `781fb54b…2cc1`): opened from the Home Screen, JIT from StikDebug in 4 s, Fabric 1.21.11 started, and quitting closed the app to the Home Screen.
+- ✅ Committed and tagged `v2.2`.
+- 👤 Push `main` and `v2.2`. Create the GitHub Release **v2.2** with `build/ipa/Voxelium-2.2-unsigned.ipa`, its `.sha256` and `build/ipa/THIRD_PARTY_NOTICES.txt` (0.38 MB), and paste the release notes.

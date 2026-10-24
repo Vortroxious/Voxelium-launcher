@@ -67,7 +67,7 @@ This takes about 15 minutes the first time. You need a Mac for steps 1–3; afte
 | **Sideloadly**: installs apps on your iPhone with your Apple ID | [sideloadly.io](https://sideloadly.io/index.html) |
 | **idevice_pair**: makes the pairing file StikDebug needs | [github.com/jkcoxson/idevice_pair/releases](https://github.com/jkcoxson/idevice_pair/releases) |
 | **StikDebug** (`.ipa`): turns on JIT, which Java needs | [github.com/StikDebug/StikDebug/releases/latest](https://github.com/StikDebug/StikDebug/releases/latest) |
-| **Voxelium** (`Voxelium-2.1-unsigned.ipa`) | [github.com/Vortroxious/Voxelium-launcher/releases/latest](https://github.com/Vortroxious/Voxelium-launcher/releases/latest) |
+| **Voxelium** (`Voxelium-2.2-unsigned.ipa`) | [github.com/Vortroxious/Voxelium-launcher/releases/latest](https://github.com/Vortroxious/Voxelium-launcher/releases/latest) |
 | *Optional:* **GetMoreRam** (`.ipa`): only if the game keeps closing from low memory (see [Troubleshooting](#troubleshooting)) | [github.com/hugeBlack/GetMoreRam/releases](https://github.com/hugeBlack/GetMoreRam/releases) |
 
 Also: a USB cable for your iPhone, and an Apple ID (a free one works).
@@ -137,5 +137,6 @@ Design notes: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md). Progress and evidenc
 | Phase 3 | Forge / NeoForge | ✅ NeoForge 1.21.1 and Forge 1.20.1 (with Oculus shaders) work on device; modpacks and more versions to test |
 | Release 1.0 | Forge and NeoForge | ✅ [Published](https://github.com/Vortroxious/Voxelium-launcher/releases/tag/v1.0) 2026-10-21 |
 | Release 2.0 | Vulkan renderer (KosmicKrisp, Zink), Minecraft 26.3 (SDL3), renderer choice, bigger hotbar | ✅ [Published](https://github.com/Vortroxious/Voxelium-launcher/releases/tag/v2.0) 2026-10-24 |
-| Release 2.1 | Minecraft 26.2 on MobileGlues (patch 0015: base-vertex draws through ANGLE's OES/EXT functions) and on Vulkan | ⏳ Being prepared ([release notes](docs/RELEASE_NOTES_2.1.md)) |
+| Release 2.1 | Minecraft 26.2 on MobileGlues (patch 0015: base-vertex draws through ANGLE's OES/EXT functions) and on Vulkan | ✅ Tagged 2026-10-24 ([release notes](docs/RELEASE_NOTES_2.1.md)) |
+| Release 2.2 | Open Voxelium from the Home Screen: Play asks StikDebug for JIT (like Amethyst); smooth close after quitting | ⏳ Being prepared ([release notes](docs/RELEASE_NOTES_2.2.md)) |
 | Later | CurseForge (with your own API key), game controllers and keyboards on the OpenGL path, launcher update checks | Ideas |

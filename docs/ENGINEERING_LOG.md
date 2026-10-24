@@ -1730,3 +1730,15 @@ Requested by the user through the main session, as the candidate for Voxelium 2.
   - Opened from the Home Screen. Play asked StikDebug at 14:20:55Z, JIT was on at 14:20:59Z, and Fabric 1.21.11 started.
   - After "Stopping!" at 14:21:18, `jvm.log` shows "[JVMBridge] Java called exit(0): closing the app to the Home Screen".
   - The user: "good enough and i love this update".
+
+## 2026-10-24 — Voxelium 2.2
+- The StikDebug hand-off and smooth close were committed as `3899c1c` and merged into `main` as `7b32063`.
+- Version 2.2 is set in `MARKETING_VERSION`, `launcherVersion` and the User-Agent. Release notes in [RELEASE_NOTES_2.2.md](RELEASE_NOTES_2.2.md); README download name and roadmap updated. `swift test` 123/123.
+- **IPA:** build 202610241422, 213,475,257 bytes, SHA-256 `781fb54b0689463fbb906fd4b35fbd51779fb207182c1f9e9999a39281be2cc1`, at `build/ipa/Voxelium-2.2-unsigned.ipa` with its `.sha256`.
+  - Checked inside: bundle ID `io.github.voxelium.launcher`, 2.2, minimum iOS 16.0; the `stikjit` link and the exit hook are present, and `UniversalJIT26.js` is bundled; normal MobileGlues; notices identical to the repo (unchanged from 2.1); no signing files.
+  - **Not yet run on a device.**
+- **2.2 device pass, build 202610241422** (devicectl-confirmed 2.2 (202610241422); logs read 2026-10-24 14:29Z):
+  - Opened from the Home Screen ("JIT/debugger attached: false", 14:27:26Z).
+  - Play asked StikDebug at 14:27:31Z (pid 35878, with UniversalJIT26.js), and JIT was on at 14:27:35Z.
+  - Fabric 1.21.11 started; the user quit from the title screen ("Stopping!" at 14:27:55, without joining a world). The log then shows "Java called exit(0): closing the app to the Home Screen". Peak 1,024 MB; no exception.
+  - Joining a world with this exact build wasn't repeated. The same flow on build 202610241404 joined one, and the game code is the same as 2.1's.
