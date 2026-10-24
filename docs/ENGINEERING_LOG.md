@@ -1525,3 +1525,28 @@ Same branch, on top of Stage 3 (`1b6f6f6`).
   - Just before it, 26.2 was refused with its message, as intended ("Could not start 26.2: 26.2 is not supported yet…").
   - Evidence: `docs/evidence/2026-10-24-minecraft-26.3-vanilla-vulkan-kosmickrisp-iphone15promax-ios27-build202610232340.log`.
   - That completes the plan's device verification for vanilla 26.3: Vulkan backend on Apple A17 Pro GPU / KosmicKrisp, title screen, world join, touch controls, save and quit. Memory peak noted above.
+
+## 2026-10-24 — 26.3 memory: VMA blocks
+- **Where 26.3's graphics memory goes:**
+  - The shim now counts the app's device memory on stderr: `vkAllocateMemory`/`vkFreeMemory` per memory type, and the buffers and images bound into it (sizes from `vkGet*MemoryRequirements` at bind, removed at destroy). It also logs the memory heaps and types once.
+  - KosmicKrisp (Mac and iOS builds) offers one heap with one memory type (flags 0xf).
+  - 26.3 allocates through VMA with default settings (`VulkanBackend`: no `preferredLargeHeapBlockSize`). VMA grows its blocks 32 → 64 → 128 → 256 MB.
+  - **Mac, Mojang's VMA:** title screen 224 MB allocated for 130 MB used. In a world, blocks 32+64+128+256+256(+256) = 736–992 MB for 528 MB used. The 992 MB matches the ~990 MB GPU in `[VXMEM]` on the iPhone.
+  - The large users are Minecraft's own chunk "uber buffers" (`SectionRenderDispatcher`: 128 MB vertex and 32 MB index heaps per chunk layer, created as needed, TLSF inside) and a 98 MB chunk staging buffer.
+- **Fix: `patches/lwjgl/3.4.3-0002-vma-32mb-blocks.patch`**, `VMA_DEFAULT_LARGE_HEAP_BLOCK_SIZE` 256 → 32 MB in our iOS LWJGL 3.4.3. VMA then gives allocations over 16 MB memory of their own and packs the rest into small blocks.
+  - Checked on the Mac with a macOS `liblwjgl_vma` built from the same source with the patch (Mojang's other natives unchanged): title screen 153 MB for 130 MB used; world 801 MB for 772 MB used. That run loaded more chunks; slack about 30 MB instead of 200–450 MB.
+  - What remains is Minecraft's 128 MB heap granularity per chunk layer (game code, not changed).
+  - `scripts/build-lwjgl.sh` now removes VMA's objects before building. LWJGL's native build checks only the `.cpp` files, so the first rebuild had kept the old `liblwjgl_vma.dylib`.
+  - Rebuilt: only `liblwjgl_vma.dylib` changed among the natives; the jars differ by timestamps. The old output is in `build/deps/lwjgl-out-3.4.3.before-vma32`.
+  - The shim with the accounting (tables trimmed to 64 Ki entries each) is in `vulkan-out/kosmickrisp{,-mac}` and the `sdl3-vulkan` snapshot.
+  - **Build 202610240026** (SHA-256 `e62e7689746ed30ec1a1d4ea6c6ebf91315b5080d9a2221f0ce76206d61165c3`) carries both. Not yet run on the device. Before: GPU about 992 MB, footprint 2.2–2.5 GB in a world.
+- **Device, build 202610240026** (devicectl-confirmed; Fabric 26.3, about 1 min in a world walking around; logs copied 01:13Z):
+  - **Vulkan memory:** the game's allocations peaked at **553 MB** for 512–516 MB used (before: 992 MB). Title screen: 161 MB for 129 MB.
+  - **iOS `[VXMEM]` in the world:** GPU **810 MB** (before 979–995 MB), footprint 2255–2274 MB (before 2384–2397 MB in the comparable run 22, up to 2504 MB in others). So about 170 MB less GPU and 120–140 MB less in total.
+  - GPU (810) minus the app's allocations (553) leaves about 257 MB that is KosmicKrisp/Metal's own: swapchain, command buffers, pipelines.
+  - The rest is about 1.45 GB: Java heap 708 MB committed (about 500 MB live after GC, from `-Xlog:gc`); the other about 740 MB is native (JIT code, driver CPU side, LWJGL chunk-building buffers, OpenAL), not broken down.
+  - Evidence: `docs/evidence/2026-10-24-minecraft-26.3-vma32-memory-iphone15promax-ios27-build202610240026.log`.
+  - **Remaining levers, not taken:**
+    - render distance (12 here), which drives both the chunk heaps and the Java heap;
+    - Minecraft's 128 MB chunk-heap granularity (game code);
+    - a breakdown of the native about 740 MB.

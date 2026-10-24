@@ -10,6 +10,8 @@
 //     enable for MoltenVK, and removes it (and its create flag) before the
 //     conformant ICD sees it;
 //   - answers vkGetDeviceProcAddr from the ICD once an instance exists.
+// It also counts the app's device memory (vkAllocateMemory/vkFreeMemory) on
+// stderr, per memory type, to tell the app's allocations from the driver's.
 // For the app (Voxelium) it also holds queue submits, image acquires and
 // presents while vx_vulkan_set_paused(1) is in effect: iOS refuses GPU work
 // from apps in the background, and Minecraft 26.3 keeps rendering when its
@@ -55,6 +57,268 @@ static void wait_while_paused(const char *where)
       fprintf(stderr, "[vulkan-shim] app in foreground: rendering resumed\n");
    }
    pthread_mutex_unlock(&pause_lock);
+}
+
+// --- Memory accounting: what the app allocates (vkAllocateMemory), per memory
+// type, logged at every 32 MB step and with the memory types on first use. For
+// telling the app's own allocations apart from the driver's (Metal) overhead.
+static pthread_mutex_t mem_lock = PTHREAD_MUTEX_INITIALIZER;
+static VkDeviceSize mem_by_type[VK_MAX_MEMORY_TYPES], mem_total, mem_logged, mem_peak;
+static uint32_t mem_count, mem_types_logged;
+static PFN_vkAllocateMemory icd_AllocateMemory;
+static PFN_vkFreeMemory icd_FreeMemory;
+static PFN_vkGetPhysicalDeviceMemoryProperties icd_GetPhysicalDeviceMemoryProperties;
+
+// VkDeviceMemory -> (size, type), open addressing; the game holds a few thousand.
+#define MEM_SLOTS 65536
+static struct { VkDeviceMemory mem; VkDeviceSize size; uint32_t type; } mem_slots[MEM_SLOTS];
+
+static size_t mem_slot(VkDeviceMemory mem)
+{
+   uint64_t h = (uint64_t)mem;
+   h ^= h >> 33; h *= 0xff51afd7ed558ccdull; h ^= h >> 33;
+   return (size_t)(h & (MEM_SLOTS - 1));
+}
+
+// Buffers and images bound to memory: what the app actually uses inside its
+// allocations (an allocator such as VMA allocates larger blocks than it fills).
+#define RES_SLOTS 65536
+static struct { uint64_t handle; VkDeviceSize size; } res_slots[RES_SLOTS];
+static VkDeviceSize res_used, res_used_peak;
+static uint32_t res_count;
+static PFN_vkBindBufferMemory icd_BindBufferMemory;
+static PFN_vkBindImageMemory icd_BindImageMemory;
+static PFN_vkBindBufferMemory2 icd_BindBufferMemory2;
+static PFN_vkBindImageMemory2 icd_BindImageMemory2;
+static PFN_vkGetBufferMemoryRequirements icd_GetBufferMemoryRequirements;
+static PFN_vkGetImageMemoryRequirements icd_GetImageMemoryRequirements;
+static PFN_vkDestroyBuffer icd_DestroyBuffer;
+static PFN_vkDestroyImage icd_DestroyImage;
+static VkDeviceSize res_logged;
+static void mem_log_locked(const char *why);
+
+static size_t res_slot(uint64_t h)
+{
+   h ^= h >> 33; h *= 0xff51afd7ed558ccdull; h ^= h >> 33;
+   return (size_t)(h & (RES_SLOTS - 1));
+}
+
+static void res_add_locked(uint64_t handle, VkDeviceSize size)
+{
+   size_t i = res_slot(handle);
+   while (res_slots[i].handle)
+      i = (i + 1) & (RES_SLOTS - 1);
+   res_slots[i].handle = handle;
+   res_slots[i].size = size;
+   res_used += size;
+   res_count++;
+   if (res_used > res_used_peak)
+      res_used_peak = res_used;
+   if (res_used >= res_logged + (64u << 20)) {
+      res_logged = res_used & ~((VkDeviceSize)(64u << 20) - 1);
+      mem_log_locked("in use");
+   }
+}
+
+static void res_remove_locked(uint64_t handle)
+{
+   size_t i = res_slot(handle);
+   for (size_t probes = 0; res_slots[i].handle && probes < RES_SLOTS; probes++, i = (i + 1) & (RES_SLOTS - 1)) {
+      if (res_slots[i].handle != handle)
+         continue;
+      res_used -= res_slots[i].size;
+      res_count--;
+      res_slots[i].handle = 0;
+      for (size_t j = (i + 1) & (RES_SLOTS - 1); res_slots[j].handle; j = (j + 1) & (RES_SLOTS - 1)) {
+         typeof(res_slots[0]) e = res_slots[j];
+         res_slots[j].handle = 0;
+         size_t k = res_slot(e.handle);
+         while (res_slots[k].handle)
+            k = (k + 1) & (RES_SLOTS - 1);
+         res_slots[k] = e;
+      }
+      return;
+   }
+}
+
+static void mem_log_locked(const char *why)
+{
+   char line[512];
+   int n = snprintf(line, sizeof(line), "[vulkan-shim] memory %s: %llu MB in %u allocations (peak %llu MB); "
+                    "used by %u buffers/images %llu MB (peak %llu MB):",
+                    why, (unsigned long long)(mem_total >> 20), mem_count, (unsigned long long)(mem_peak >> 20),
+                    res_count, (unsigned long long)(res_used >> 20), (unsigned long long)(res_used_peak >> 20));
+   for (uint32_t t = 0; t < VK_MAX_MEMORY_TYPES && n < (int)sizeof(line) - 24; t++) {
+      if (mem_by_type[t])
+         n += snprintf(line + n, sizeof(line) - n, " type%u %llu MB", t, (unsigned long long)(mem_by_type[t] >> 20));
+   }
+   fprintf(stderr, "%s\n", line);
+}
+
+static VKAPI_ATTR void VKAPI_CALL
+shim_GetPhysicalDeviceMemoryProperties(VkPhysicalDevice pd, VkPhysicalDeviceMemoryProperties *props)
+{
+   icd_GetPhysicalDeviceMemoryProperties(pd, props);
+   pthread_mutex_lock(&mem_lock);
+   if (!mem_types_logged) {
+      mem_types_logged = 1;
+      for (uint32_t i = 0; i < props->memoryHeapCount; i++)
+         fprintf(stderr, "[vulkan-shim] memory heap %u: %llu MB, flags 0x%x\n", i,
+                 (unsigned long long)(props->memoryHeaps[i].size >> 20), props->memoryHeaps[i].flags);
+      for (uint32_t i = 0; i < props->memoryTypeCount; i++)
+         fprintf(stderr, "[vulkan-shim] memory type %u: heap %u, flags 0x%x\n", i,
+                 props->memoryTypes[i].heapIndex, props->memoryTypes[i].propertyFlags);
+   }
+   pthread_mutex_unlock(&mem_lock);
+}
+
+static VKAPI_ATTR VkResult VKAPI_CALL
+shim_AllocateMemory(VkDevice device, const VkMemoryAllocateInfo *info, const VkAllocationCallbacks *alloc, VkDeviceMemory *mem)
+{
+   VkResult r = icd_AllocateMemory(device, info, alloc, mem);
+   if (r != VK_SUCCESS) {
+      fprintf(stderr, "[vulkan-shim] vkAllocateMemory(%llu MB, type %u) failed: %d\n",
+              (unsigned long long)(info->allocationSize >> 20), info->memoryTypeIndex, r);
+      return r;
+   }
+   pthread_mutex_lock(&mem_lock);
+   size_t i = mem_slot(*mem);
+   while (mem_slots[i].mem)
+      i = (i + 1) & (MEM_SLOTS - 1);
+   mem_slots[i].mem = *mem;
+   mem_slots[i].size = info->allocationSize;
+   mem_slots[i].type = info->memoryTypeIndex;
+   if (info->memoryTypeIndex < VK_MAX_MEMORY_TYPES)
+      mem_by_type[info->memoryTypeIndex] += info->allocationSize;
+   mem_total += info->allocationSize;
+   mem_count++;
+   if (mem_total > mem_peak)
+      mem_peak = mem_total;
+   if (info->allocationSize >= (64u << 20))
+      fprintf(stderr, "[vulkan-shim] large allocation: %llu MB, type %u\n",
+              (unsigned long long)(info->allocationSize >> 20), info->memoryTypeIndex);
+   if (mem_total >= mem_logged + (32u << 20)) {
+      mem_logged = mem_total & ~((VkDeviceSize)(32u << 20) - 1);
+      mem_log_locked("up");
+   }
+   pthread_mutex_unlock(&mem_lock);
+   return r;
+}
+
+static VKAPI_ATTR void VKAPI_CALL
+shim_FreeMemory(VkDevice device, VkDeviceMemory mem, const VkAllocationCallbacks *alloc)
+{
+   if (mem) {
+      pthread_mutex_lock(&mem_lock);
+      size_t i = mem_slot(mem);
+      for (size_t probes = 0; mem_slots[i].mem && probes < MEM_SLOTS; probes++, i = (i + 1) & (MEM_SLOTS - 1)) {
+         if (mem_slots[i].mem != mem)
+            continue;
+         if (mem_slots[i].type < VK_MAX_MEMORY_TYPES)
+            mem_by_type[mem_slots[i].type] -= mem_slots[i].size;
+         mem_total -= mem_slots[i].size;
+         mem_count--;
+         // Re-insert the rest of the cluster so lookups keep working.
+         mem_slots[i].mem = VK_NULL_HANDLE;
+         for (size_t j = (i + 1) & (MEM_SLOTS - 1); mem_slots[j].mem; j = (j + 1) & (MEM_SLOTS - 1)) {
+            typeof(mem_slots[0]) e = mem_slots[j];
+            mem_slots[j].mem = VK_NULL_HANDLE;
+            size_t k = mem_slot(e.mem);
+            while (mem_slots[k].mem)
+               k = (k + 1) & (MEM_SLOTS - 1);
+            mem_slots[k] = e;
+         }
+         break;
+      }
+      if (mem_total + (32u << 20) <= mem_logged) {
+         mem_logged = mem_total & ~((VkDeviceSize)(32u << 20) - 1);
+         mem_log_locked("down");
+      }
+      pthread_mutex_unlock(&mem_lock);
+   }
+   icd_FreeMemory(device, mem, alloc);
+}
+
+static VKAPI_ATTR VkResult VKAPI_CALL
+shim_BindBufferMemory(VkDevice device, VkBuffer buffer, VkDeviceMemory memory, VkDeviceSize offset)
+{
+   VkResult r = icd_BindBufferMemory(device, buffer, memory, offset);
+   if (r == VK_SUCCESS && icd_GetBufferMemoryRequirements) {
+      VkMemoryRequirements req;
+      icd_GetBufferMemoryRequirements(device, buffer, &req);
+      pthread_mutex_lock(&mem_lock);
+      res_add_locked((uint64_t)buffer, req.size);
+      pthread_mutex_unlock(&mem_lock);
+   }
+   return r;
+}
+
+static VKAPI_ATTR VkResult VKAPI_CALL
+shim_BindImageMemory(VkDevice device, VkImage image, VkDeviceMemory memory, VkDeviceSize offset)
+{
+   VkResult r = icd_BindImageMemory(device, image, memory, offset);
+   if (r == VK_SUCCESS && icd_GetImageMemoryRequirements) {
+      VkMemoryRequirements req;
+      icd_GetImageMemoryRequirements(device, image, &req);
+      pthread_mutex_lock(&mem_lock);
+      res_add_locked((uint64_t)image, req.size);
+      pthread_mutex_unlock(&mem_lock);
+   }
+   return r;
+}
+
+static VKAPI_ATTR VkResult VKAPI_CALL
+shim_BindBufferMemory2(VkDevice device, uint32_t count, const VkBindBufferMemoryInfo *infos)
+{
+   VkResult r = icd_BindBufferMemory2(device, count, infos);
+   if (r == VK_SUCCESS && icd_GetBufferMemoryRequirements) {
+      for (uint32_t i = 0; i < count; i++) {
+         VkMemoryRequirements req;
+         icd_GetBufferMemoryRequirements(device, infos[i].buffer, &req);
+         pthread_mutex_lock(&mem_lock);
+         res_add_locked((uint64_t)infos[i].buffer, req.size);
+         pthread_mutex_unlock(&mem_lock);
+      }
+   }
+   return r;
+}
+
+static VKAPI_ATTR VkResult VKAPI_CALL
+shim_BindImageMemory2(VkDevice device, uint32_t count, const VkBindImageMemoryInfo *infos)
+{
+   VkResult r = icd_BindImageMemory2(device, count, infos);
+   if (r == VK_SUCCESS && icd_GetImageMemoryRequirements) {
+      for (uint32_t i = 0; i < count; i++) {
+         VkMemoryRequirements req;
+         icd_GetImageMemoryRequirements(device, infos[i].image, &req);
+         pthread_mutex_lock(&mem_lock);
+         res_add_locked((uint64_t)infos[i].image, req.size);
+         pthread_mutex_unlock(&mem_lock);
+      }
+   }
+   return r;
+}
+
+static VKAPI_ATTR void VKAPI_CALL
+shim_DestroyBuffer(VkDevice device, VkBuffer buffer, const VkAllocationCallbacks *alloc)
+{
+   if (buffer) {
+      pthread_mutex_lock(&mem_lock);
+      res_remove_locked((uint64_t)buffer);
+      pthread_mutex_unlock(&mem_lock);
+   }
+   icd_DestroyBuffer(device, buffer, alloc);
+}
+
+static VKAPI_ATTR void VKAPI_CALL
+shim_DestroyImage(VkDevice device, VkImage image, const VkAllocationCallbacks *alloc)
+{
+   if (image) {
+      pthread_mutex_lock(&mem_lock);
+      res_remove_locked((uint64_t)image);
+      pthread_mutex_unlock(&mem_lock);
+   }
+   icd_DestroyImage(device, image, alloc);
 }
 
 // The ICD's entry points behind the wrappers (one device: the game's).
@@ -122,7 +386,19 @@ static PFN_vkVoidFunction wrap(const char *name, PFN_vkVoidFunction real)
    WRAP(AcquireNextImageKHR)
    WRAP(AcquireNextImage2KHR)
    WRAP(QueuePresentKHR)
+   WRAP(AllocateMemory)
+   WRAP(FreeMemory)
+   WRAP(GetPhysicalDeviceMemoryProperties)
+   WRAP(BindBufferMemory)
+   WRAP(BindImageMemory)
+   WRAP(BindBufferMemory2)
+   WRAP(BindImageMemory2)
+   WRAP(DestroyBuffer)
+   WRAP(DestroyImage)
 #undef WRAP
+   // Looked up for the accounting only; returned unwrapped.
+   if (!strcmp(name, "vkGetBufferMemoryRequirements")) icd_GetBufferMemoryRequirements = (void *)real;
+   if (!strcmp(name, "vkGetImageMemoryRequirements")) icd_GetImageMemoryRequirements = (void *)real;
    return real;
 }
 

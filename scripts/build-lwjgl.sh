@@ -170,6 +170,10 @@ for p in "$ROOT"/patches/lwjgl/"$SERIES"-*.patch; do
   git apply "$p"
 done
 rm -rf bin/classes/lwjgl bin/RELEASE
+# LWJGL's native build checks only the .c/.cpp files against their objects, so a
+# patched header (VMA's vk_mem_alloc.h, patches/lwjgl/3.4.3-0002) would not be
+# recompiled; drop VMA's objects and library so it always is.
+rm -rf bin/macos/*/vma "$NATIVE/vma"
 # 3.3.3 does not recognise JDKs newer than 21 and builds in "JDK 8 mode", where it
 # never applies the boot class path; apply it whenever JAVA8_HOME is set.
 if [ "$SERIES" = "3.3.3" ]; then
