@@ -11,7 +11,7 @@ You also need a Minecraft: Java Edition account (Microsoft account), and about 2
 
 ## Sign in and play
 1. **Account tab:** Sign in with Microsoft. Copy the code and open the sign-in page. Tokens are kept in the iOS Keychain; passwords never reach Voxelium.
-2. **Versions tab:** Install a version (1.13 – 26.1.2). For mods, pick Fabric, Quilt, Forge or NeoForge in the install sheet, or tap **Modpacks** to install a whole pack.
+2. **Versions tab:** Install a version (1.13 – 26.1.2, or 26.3 on iOS 26+). For mods, pick Fabric, Quilt, Forge or NeoForge in the install sheet, or tap **Modpacks** to install a whole pack.
 3. Under **Installed**, tap **Play → Launch Minecraft**.
 
 ## Mods, packs and shaders
@@ -42,7 +42,8 @@ Your Microsoft sign-in is kept in the iOS Keychain, not in this folder.
 Updating from 0.1.0: the first start moves everything from the old hidden folder into this one. Nothing is overwritten; the launcher log lists what moved.
 
 ## Known limits
-- Minecraft 26.2 and newer are not supported yet (26.2 renders black; 26.3+ needs Vulkan). Versions 1.12.2 and older are not supported.
+- Minecraft 26.2 is not supported (it renders black). 26.3 runs on Vulkan only, which needs iOS 26 or later. Versions 1.12.2 and older are not supported.
+- **Renderers:** on 1.17 – 26.1.2, Play offers MobileGlues (as in 1.0) or Vulkan (iOS 26+). Each renderer can start once per app launch; restart Voxelium from StikDebug to switch.
 - Forge and NeoForge are new: NeoForge for 1.21.1 and Forge for 1.20.1 are tested on an iPhone; other versions not yet. Their first launch takes a minute or two longer, because Voxelium finishes setting them up then (it patches Minecraft once). Forge is offered for Minecraft 1.17 and newer, NeoForge for 1.20.2 and newer.
 - Very large modpacks (hundreds of mods) do not fit in iPhone memory.
 - If StikDebug stops (for example after a long download), close Voxelium and start it from StikDebug again.

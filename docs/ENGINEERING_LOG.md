@@ -1618,3 +1618,28 @@ Requested by the user through the main session, as the candidate for Voxelium 2.
     - Fabric 26.2 was refused with its message (02:01:26).
     - Two starts at 03:25:08 and 03:49:00 stopped with "JIT is not enabled (no debugger attached)": the app was opened without StikDebug. The retries from StikDebug worked.
   - **NeoForge 1.21.1 on Vulkan (02:01:41)** stopped after the JVM's flags line, before the JIT probe, like the first NeoForge start on 2026-10-23 16:57; the app was relaunched. Cause not proven (StikDebug/JIT handshake?).
+
+## 2026-10-24 — Voxelium 2.0
+- **User approved 2.0:** "make v2.0 as one IPA with both renderers", merge the 26.3 branch into main, version 2.0, notes and licences, an IPA for a final phone check, no push (the user pushes).
+- **Merge:** `claude/mc263-stage3-07d0ce` (`b81189a`) into `main` as `e0e2aae`. There were no conflicts, since the branch already contained main's hotbar fix (`d602cd1`).
+- **One IPA, both renderers:**
+  - `scripts/build-ipa.sh` now passes the settings the experimental IPA used: `VOXELIUM_ZINK=YES`, `VOXELIUM_SDL3=YES`, the SDL3 header path and the `VOXELIUM_ZINK_EXPERIMENT` condition. It keeps the normal bundle ID.
+  - It also checks that `Frameworks/zink`, `Frameworks/sdl3/{libSDL3,libvulkan.1}.dylib`, `java/lwjgl-3.4.3` and the Vulkan code are in the app.
+  - The app still installs on iOS 16. SDL3 and KosmicKrisp have minos 26.0 and load only on the Vulkan path, which the Play menu offers on iOS 26+.
+- **Version 2.0:** `MARKETING_VERSION`, `LaunchPlanner.launcherVersion`, and the User-Agent `Voxelium/2.0 (…)`.
+- **Licences:** `collect-licenses.sh` now always lists SDL 3.4.14 (zlib), plus a new Mesa section (9b3209540c with `patches/mesa`): `docs/license.rst` and the SPDX texts its sources reference.
+  - The only GPL-2.0-only file in Mesa's `src`/`include` is `include/drm-uapi/sync_file.h`, a Linux UAPI header that isn't built for iOS.
+  - The LWJGL 3.4.3, VMA, shaderc, glslang, SPIRV-Tools and SPIRV-Cross sections came with Stage 2. The notices were regenerated, and both copies match.
+- **Docs:** [RELEASE_NOTES_2.0.md](RELEASE_NOTES_2.0.md); the README range, download name and roadmap; the install guide's renderers and limits.
+- `swift test` 121/121.
+- **IPA:** build 202610240359, 213,461,120 bytes (184.8 MB for 1.0), SHA-256 `e1d6f28dc6a4391893b60203c7d1f08275d584609dfaf03a26f6222b8b85bfe4`, at `build/ipa/Voxelium-2.0-unsigned.ipa`. Built from `e0e2aae` plus the uncommitted version, notices, docs and script changes.
+  - Checked inside: bundle ID `io.github.voxelium.launcher`, 2.0, minimum iOS 16.0; Zink, KosmicKrisp, SDL3 + shim and LWJGL 3.4.3 (19 files); notices identical to the repo; MobileGlues without diagnostics; no signing files.
+  - KosmicKrisp is bundled twice, once for Zink and once (with WSI) for SDL, which costs about 13 MB.
+  - **Not yet run on a device.**
+- **2.0 device pass, build 202610240359** (installed build confirmed with `devicectl device info apps` as 2.0 (202610240359); logs read 2026-10-24 04:18Z):
+  - **Fabric 1.21.11, Play with Vulkan (04:12:32Z):** "OpenGL Version: 4.6 (Core Profile) Mesa 27.0.0-devel"; joined at 04:12:59, stopped at 04:13:52; peak footprint 2,851 MB.
+  - **Fabric 1.21.11, Play with MobileGlues (04:14:01Z):** "OpenGL Version: 4.0.0 MobileGlues 1.3.3"; joined at 04:14:29, stopped at 04:14:41; peak 2,302 MB.
+  - **Fabric 26.3, Play with Vulkan (04:15:30Z):** Fabric 0.20.1 newly installed (5,201 files, 0 failed), with Sodium 0.9.2 and Iris 1.11.7 from the in-app browser. "Using graphics backend Vulkan, using drivers: 1.4.363 KosmicKrisp Mesa"; joined at 04:16:15, stopped at 04:16:38, "returned normally" (status 0); peak 2,035 MB.
+  - No exception, FATAL or hs_err in any run.
+  - **An earlier MobileGlues start (04:12:22Z) ended about 5 s in:** the JVM had been created (JIT mapping obtained, G1 started), and then the app was started again at 04:12:28. There was no crash report and no error. Cause unknown; it may have been closed by the user.
+  - Memory with Zink at the 56% "Large interface" resolution peaked at 2.85 GB of the roughly 3.4 GB limit, higher than the experimental run (1.40 GB at 03:50). The release notes already say Vulkan uses more memory.

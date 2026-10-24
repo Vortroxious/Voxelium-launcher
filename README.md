@@ -2,7 +2,7 @@
 
 An experimental iOS launcher for Minecraft: Java Edition, inspired by [ZalithLauncher2](https://github.com/ZalithLauncher/ZalithLauncher2) 2.6.1.
 
-> **Experimental.** Voxelium runs Minecraft: Java Edition **1.13 – 26.1.2** on an iPhone (tested on an iPhone 15 Pro Max / iOS 27): Java 8/17/21/25 in-process, OpenGL via MobileGlues or gl4es on ANGLE (Metal), with on-screen touch controls, custom layouts, haptics, sound and Microsoft sign-in. It needs JIT through StikDebug and is sideloaded (no App Store build). Performance is unmeasured; 26.2+ and 1.12.2 and older are not supported yet. See [docs/FINAL_BUILD_REPORT.md](docs/FINAL_BUILD_REPORT.md).
+> **Experimental.** Voxelium runs Minecraft: Java Edition **1.13 – 26.1.2 and 26.3** on an iPhone (tested on an iPhone 15 Pro Max / iOS 27): Java 8/17/21/25 in-process, OpenGL via MobileGlues or gl4es on ANGLE (Metal), or Vulkan (Mesa KosmicKrisp, with Zink for OpenGL versions; iOS 26+), with on-screen touch controls, custom layouts, haptics, sound and Microsoft sign-in. It needs JIT through StikDebug and is sideloaded (no App Store build). Performance is unmeasured; 26.2+ and 1.12.2 and older are not supported yet. See [docs/FINAL_BUILD_REPORT.md](docs/FINAL_BUILD_REPORT.md).
 
 ## Feature status
 | Feature | Status | Evidence |
@@ -67,7 +67,7 @@ This takes about 15 minutes the first time. You need a Mac for steps 1–3; afte
 | **Sideloadly**: installs apps on your iPhone with your Apple ID | [sideloadly.io](https://sideloadly.io/index.html) |
 | **idevice_pair**: makes the pairing file StikDebug needs | [github.com/jkcoxson/idevice_pair/releases](https://github.com/jkcoxson/idevice_pair/releases) |
 | **StikDebug** (`.ipa`): turns on JIT, which Java needs | [github.com/StikDebug/StikDebug/releases/latest](https://github.com/StikDebug/StikDebug/releases/latest) |
-| **Voxelium** (`Voxelium-1.0-unsigned.ipa`) | [github.com/Vortroxious/Voxelium-launcher/releases/latest](https://github.com/Vortroxious/Voxelium-launcher/releases/latest) |
+| **Voxelium** (`Voxelium-2.0-unsigned.ipa`) | [github.com/Vortroxious/Voxelium-launcher/releases/latest](https://github.com/Vortroxious/Voxelium-launcher/releases/latest) |
 | *Optional:* **GetMoreRam** (`.ipa`): only if the game keeps closing from low memory (see [Troubleshooting](#troubleshooting)) | [github.com/hugeBlack/GetMoreRam/releases](https://github.com/hugeBlack/GetMoreRam/releases) |
 
 Also: a USB cable for your iPhone, and an Apple ID (a free one works).
@@ -107,7 +107,7 @@ In **StikDebug**, open **Apps**, touch and hold **Voxelium**, choose **Assign Sc
 
 ### Step 6: Play
 1. **Account** tab: **Sign in with Microsoft**, copy the code and finish signing in on the page that opens.
-2. **Versions** tab: install a version (1.13 – 26.1.2). For mods, choose Fabric or Quilt when installing, or tap **Modpacks**.
+2. **Versions** tab: install a version (1.13 – 26.1.2, or 26.3 on iOS 26+). For mods, choose Fabric, Quilt, Forge or NeoForge when installing, or tap **Modpacks**.
 3. Under **Installed**, tap **Play → Launch Minecraft**.
 
 ### Troubleshooting
@@ -136,5 +136,6 @@ Design notes: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md). Progress and evidenc
 | Release 0.1 | Licences and credits, install guide, GitHub release | ✅ [Published](https://github.com/Vortroxious/Voxelium-launcher/releases/tag/v0.1.0) 2026-10-18 |
 | Release 0.1.1 | Data folder in the Files app, Worlds screen (import, share, delete) | ✅ [Published](https://github.com/Vortroxious/Voxelium-launcher/releases/tag/v0.1.1) 2026-10-18 |
 | Phase 3 | Forge / NeoForge | ✅ NeoForge 1.21.1 and Forge 1.20.1 (with Oculus shaders) work on device; modpacks and more versions to test |
-| Release 1.0 | Forge and NeoForge | ⏳ Being prepared ([release notes](docs/RELEASE_NOTES_1.0.md)) |
-| Later | CurseForge (with your own API key), Minecraft 26.2 and newer, game controllers and hardware keyboards, launcher update checks | Ideas |
+| Release 1.0 | Forge and NeoForge | ✅ [Published](https://github.com/Vortroxious/Voxelium-launcher/releases/tag/v1.0) 2026-10-21 |
+| Release 2.0 | Vulkan renderer (KosmicKrisp, Zink), Minecraft 26.3 (SDL3), renderer choice, bigger hotbar | ⏳ Being prepared ([release notes](docs/RELEASE_NOTES_2.0.md)) |
+| Later | CurseForge (with your own API key), Minecraft 26.2, game controllers and keyboards on the OpenGL path, launcher update checks | Ideas |

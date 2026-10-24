@@ -35,7 +35,7 @@ public struct LaunchPlanner: Sendable {
     public let paths: AppPaths
     public let platform: RulePlatform
     public var launcherName = "Voxelium"
-    public var launcherVersion = "1.0"
+    public var launcherVersion = "2.0"
 
     public init(paths: AppPaths, platform: RulePlatform = .iOSDefault) {
         self.paths = paths

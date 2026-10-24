@@ -94,15 +94,14 @@ section "FreeType 2.13.3 (libfreetype.dylib)" \
   "FreeType License (FTL), chosen from its FTL/GPL-2.0 dual licence. Portions of this software are copyright © The FreeType Project (www.freetype.org). All rights reserved." \
   "$DEPS/freetype/docs/FTL.TXT"
 section "OpenAL Soft 1.25.2 (libopenal.dylib)" "LGPL-2.0 or later. Dynamically linked; source: github.com/kcat/openal-soft, rebuild with scripts/build-openal.sh." \
-  "$DEPS/openal-soft/COPYING"
-# SDL3 is only in the experimental IPA so far (Minecraft 26.3 work, which also
-# carries the notice in Frameworks/sdl3/LICENSES); WITH_SDL3=YES adds it here
-# once the shipping app bundles it.
-if [ "${WITH_SDL3:-}" = "YES" ]; then
-  section "SDL 3.4.14 (libSDL3.dylib), libsdl-org/SDL 147a8ee32dbf, with patches/sdl3" \
-    "zlib. Source: github.com/libsdl-org/SDL, our changes in patches/sdl3/, rebuild with scripts/build-sdl3.sh." \
-    "$DEPS/sdl3/LICENSE.txt"
-fi
+# Voxelium 2.0 ships the Vulkan renderer: SDL3 (26.3+) and Mesa (KosmicKrisp, Zink, EGL).
+section "SDL 3.4.14 (libSDL3.dylib), libsdl-org/SDL 147a8ee32dbf, with patches/sdl3" \
+  "zlib. Source: github.com/libsdl-org/SDL, our changes in patches/sdl3/, rebuild with scripts/build-sdl3.sh." \
+  "$DEPS/sdl3/LICENSE.txt"
+MESA_LIC="$DEPS/zink-out/kosmickrisp/LICENSES"
+section "Mesa 27.0.0-devel 9b3209540c with patches/mesa (KosmicKrisp Vulkan driver, Zink, gallium, EGL, libGL; Frameworks/zink, Frameworks/sdl3)" \
+  "MIT for the code these libraries are built from; some files carry the other licences listed below (Mesa's docs/license.rst and the SPDX texts its sources reference). Source: gitlab.freedesktop.org/mesa/mesa, our changes in patches/mesa/, rebuild with scripts/build-zink.sh." \
+  "$MESA_LIC/mesa-license.rst" $(find "$MESA_LIC/mesa-licenses" -type f | sort)
 section "UniversalJIT26.js and UniversalJIT26Extension.js (Amethyst-iOS); JIT helpers in JITSupport.m adapted from Amethyst-iOS" \
   "GPL-3.0, the same licence as Voxelium (see LICENSE)." "$ROOT/LICENSE"
 
