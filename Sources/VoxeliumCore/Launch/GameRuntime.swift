@@ -65,5 +65,13 @@ public enum GameRuntime {
         "lwjgl-freetype", "lwjgl-jemalloc", "lwjgl-openal", "lwjgl-opengl", "lwjgl-stb",
     ]
 
+    /// The `org.lwjgl` artifacts a version lists ("lwjgl", "lwjgl-sdl", …).
+    public static func lwjglArtifacts(of version: VersionInfo) -> Set<String> {
+        Set(version.libraries.compactMap { lib -> String? in
+            let c = lib.name.split(separator: ":")
+            return c.count >= 3 && c[0] == "org.lwjgl" ? String(c[1]) : nil
+        })
+    }
+
     public static func needsLWJGL2Bridge(_ v: LWJGLVersion?) -> Bool { (v?.major ?? 3) < 3 }
 }

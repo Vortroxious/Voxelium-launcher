@@ -30,7 +30,11 @@ final class MinecraftLauncher: ObservableObject {
     /// One JVM per process: once Minecraft has been started, relaunch the app to start again.
     private static var started = false
 
-    func launch(versionID: String, paths: AppPaths, settings: LauncherSettings, accounts: AccountModel) async {
+    /// `renderer`: the experimental build's Play menu choice (MobileGlues, or Vulkan through
+    /// Zink for 1.17 – 26.1.2). Normal builds always use MobileGlues (gl4es for Java 8);
+    /// 26.3+ always runs its own Vulkan renderer.
+    func launch(versionID: String, paths: AppPaths, settings: LauncherSettings, accounts: AccountModel,
+                renderer: GameRenderer = .mobileGlues) async {
         guard !Self.started else {
             state = .finished(ok: false, message: "A JVM already ran in this launch. Close and relaunch the app.")
             return
@@ -150,15 +154,18 @@ final class MinecraftLauncher: ObservableObject {
             let useGL4ES = javaMajor == 8
             var glLibrary = frameworks.appendingPathComponent(useGL4ES ? "libgl4es.dylib" : "libmobileglues.dylib")
             #if VOXELIUM_ZINK_EXPERIMENT
-            // Experimental builds: desktop GL 4.6 through Zink on KosmicKrisp instead
-            // (VXGLFW shows its pbuffer on the layer). Not for gl4es versions, and not
+            // Experimental builds, "Play with Vulkan": desktop GL 4.6 through Zink on KosmicKrisp
+            // instead (VXGLFW shows its pbuffer on the layer). Not for gl4es versions, and not
             // after the Zink test ran in this process (Mesa is set up once).
             let zinkDir = frameworks.appendingPathComponent("zink", isDirectory: true)
-            let useZink = sdlVulkan == nil && ZinkRenderer.enabled && !useGL4ES && !ZinkSession.used
+            let useZink = sdlVulkan == nil && renderer == .vulkan && !useGL4ES && !ZinkSession.used
                 && ProcessInfo.processInfo.isOperatingSystemAtLeast(OperatingSystemVersion(majorVersion: 26, minorVersion: 0, patchVersion: 0))
                 && fm.fileExists(atPath: zinkDir.appendingPathComponent("libGL_mesa.dylib").path)
                 && fm.fileExists(atPath: zinkDir.appendingPathComponent("libvulkan_kosmickrisp.dylib").path)
             if useZink { glLibrary = zinkDir.appendingPathComponent("libGL_mesa.dylib") }
+            if renderer == .vulkan && sdlVulkan == nil && !useZink {
+                log.info("launch", "Vulkan (Zink) is not available for \(versionID) here; using \(useGL4ES ? "gl4es" : "MobileGlues")")
+            }
             #else
             let useZink = false
             #endif

@@ -170,16 +170,8 @@ final class ZinkTestModel: ObservableObject {
     }
 }
 
-/// Experimental builds: play Minecraft 1.17+ through Zink (desktop GL 4.6 on
-/// KosmicKrisp) instead of MobileGlues. Read by MinecraftLauncher at launch.
-enum ZinkRenderer {
-    static let defaultsKey = "VoxeliumZinkRenderer"
-    static var enabled: Bool { UserDefaults.standard.object(forKey: defaultsKey) as? Bool ?? true }
-}
-
 struct ZinkTestRows: View {
     @StateObject private var test = ZinkTestModel()
-    @AppStorage(ZinkRenderer.defaultsKey) private var playWithZink = true
     @State private var swapchainTest = false
     @State private var swapchainResult: Bool?
     @State private var swapchainReport = ""
@@ -207,9 +199,7 @@ struct ZinkTestRows: View {
                   systemImage: ok ? "checkmark.seal.fill" : "xmark.octagon.fill")
                 .foregroundStyle(ok ? Color.green : Color.red)
         }
-        Toggle("Play with Zink (experimental)", isOn: $playWithZink)
-            .disabled(!test.bundled)
-        Text("Minecraft 1.17+ renders with desktop GL 4.6 on Zink instead of MobileGlues. Needs iOS 26. Not in the same launch as the Zink test.")
+        Text("To play Minecraft 1.17 – 26.1.2 with Vulkan (desktop GL 4.6 through Zink), choose \"Play with Vulkan\" in a version's Play menu. Needs iOS 26; not in the same launch as the Zink test.")
             .font(.caption2).foregroundStyle(.secondary)
         if test.running {
             HStack { ProgressView(); Text("Running Zink test…") }

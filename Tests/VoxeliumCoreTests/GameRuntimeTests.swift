@@ -51,4 +51,19 @@ import Testing
         #expect(Set(GameRuntime.sdlVulkanLWJGLModules) == listed)
         #expect(!listed.contains("lwjgl-glfw"))
     }
+
+    @Test func rendererChoicePerVersion() throws {
+        // 26.3: SDL3 + its own Vulkan renderer only.
+        #expect(RendererChoice.of(try VersionInfo.decode(Fixture.data("26.3"))) == .vulkanOnly)
+        // 1.20.1 (Java 17, LWJGL 3.3): MobileGlues or Vulkan through Zink.
+        #expect(RendererChoice.of(try VersionInfo.decode(Fixture.data("1.20.1"))) == .mobileGluesOrVulkan)
+        // 1.12.2 (Java 8): one launch, as before (gl4es).
+        #expect(RendererChoice.of(try VersionInfo.decode(Fixture.data("1.12.2"))) == .single)
+        // 26.2: lwjgl-vulkan without SDL, refused by the launcher; one launch with its reason.
+        var json = try JSONSerialization.jsonObject(with: Fixture.data("26.3")) as! [String: Any]
+        json["libraries"] = (json["libraries"] as! [[String: Any]]).filter { ($0["name"] as! String).hasPrefix("org.lwjgl:lwjgl-sdl:") == false }
+        let v262 = try VersionInfo.decode(JSONSerialization.data(withJSONObject: json))
+        #expect(GameRuntime.lwjglArtifacts(of: v262).contains("lwjgl-vulkan"))
+        #expect(RendererChoice.of(v262) == .single)
+    }
 }

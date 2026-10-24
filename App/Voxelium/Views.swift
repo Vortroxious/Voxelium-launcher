@@ -85,9 +85,22 @@ struct VersionsView: View {
 
 /// Starts Minecraft for an installed version (vanilla or modded).
 @MainActor
-func launchVersion(_ id: String, model: LauncherModel, minecraft: MinecraftLauncher, accounts: AccountModel) {
+func launchVersion(_ id: String, model: LauncherModel, minecraft: MinecraftLauncher, accounts: AccountModel,
+                   renderer: GameRenderer? = nil) {
     guard let paths = model.paths else { return }
-    Task { await minecraft.launch(versionID: id, paths: paths, settings: model.settings, accounts: accounts) }
+    let renderer = renderer ?? RendererMemory.last(for: id) ?? .mobileGlues
+    Task { await minecraft.launch(versionID: id, paths: paths, settings: model.settings, accounts: accounts, renderer: renderer) }
+}
+
+/// The renderer last chosen for each version (experimental Play menu).
+enum RendererMemory {
+    private static func key(_ id: String) -> String { "VoxeliumRenderer." + id }
+    static func last(for id: String) -> GameRenderer? {
+        UserDefaults.standard.string(forKey: key(id)).flatMap(GameRenderer.init(rawValue:))
+    }
+    static func remember(_ renderer: GameRenderer, for id: String) {
+        UserDefaults.standard.set(renderer.rawValue, forKey: key(id))
+    }
 }
 
 struct InstalledRow: View {
@@ -100,6 +113,10 @@ struct InstalledRow: View {
     @State private var advice: ShaderLaunchAdvice?
     @State private var confirmDelete = false
     @State private var deleteError: String?
+    /// Which renderers this version can use (read from its version JSON when shown).
+    @State private var rendererChoice: RendererChoice = .single
+    /// The renderer picked in the Play menu, kept while the shader warning is open.
+    @State private var pendingRenderer: GameRenderer?
 
     /// One JVM per app launch: the running (or finished) game keeps its files open.
     private var gameActive: Bool {
@@ -126,7 +143,11 @@ struct InstalledRow: View {
             }
             Spacer()
             Menu {
+                #if VOXELIUM_ZINK_EXPERIMENT
+                rendererButtons
+                #else
                 Button("Launch Minecraft (needs JIT)") { launch() }
+                #endif
                 Button(version.isModded ? "Mods & packs…" : "Resource packs…") { showContent = true }
                 Button("Worlds…") { showWorlds = true }
                 Button("Prepare launch plan") { model.preparePlan(version.id) }
@@ -157,6 +178,13 @@ struct InstalledRow: View {
         }
         .sheet(isPresented: $showContent) { ContentLibraryView(version: version) }
         .sheet(isPresented: $showWorlds) { WorldsView(version: version) }
+        #if VOXELIUM_ZINK_EXPERIMENT
+        .task(id: version.id) {
+            if let paths = model.paths, let resolved = try? VersionResolver(paths: paths).resolve(version.id) {
+                rendererChoice = RendererChoice.of(resolved.info)
+            }
+        }
+        #endif
         .confirmationDialog("Render distance \(advice?.renderDistance ?? 0) with shaders", isPresented: Binding(
             get: { advice != nil }, set: { if !$0 { advice = nil } }), titleVisibility: .visible) {
             Button("Lower to \(ShaderLaunchAdvice.suggestedRenderDistance) and play") {
@@ -189,8 +217,58 @@ struct InstalledRow: View {
         return "This also deletes \(worldText), mods, shader packs and settings in its game folder. To keep a world, share it from Worlds… first. This can't be undone."
     }
 
+    #if VOXELIUM_ZINK_EXPERIMENT
+    /// Experimental build: the renderer is chosen when starting (it replaces the old
+    /// "Play with Zink" switch). Each GL stack starts once per app launch.
+    @ViewBuilder private var rendererButtons: some View {
+        let last = RendererMemory.last(for: version.id)
+        switch rendererChoice {
+        case .single:
+            Button("Launch Minecraft (needs JIT)") { launch() }
+        case .vulkanOnly:
+            Section {
+                rendererButton("Play with Vulkan", .vulkan, last: last)
+            } footer: {
+                Text("Minecraft 26.3 and later draw with Vulkan; MobileGlues can't run them.")
+            }
+        case .mobileGluesOrVulkan:
+            Section {
+                rendererButton("Play with MobileGlues", .mobileGlues, last: last)
+                    .disabled(mobileGluesBlocked != nil)
+                rendererButton("Play with Vulkan", .vulkan, last: last)
+                    .disabled(vulkanBlocked != nil)
+            } footer: {
+                if let reason = vulkanBlocked ?? mobileGluesBlocked { Text(reason) }
+            }
+        }
+    }
+
+    private func rendererButton(_ title: String, _ renderer: GameRenderer, last: GameRenderer?) -> some View {
+        Button { launch(renderer) } label: {
+            if last == renderer { Label(title, systemImage: "checkmark") } else { Text(title) }
+        }
+    }
+
+    /// Why "Play with Vulkan" (Zink on KosmicKrisp) can't be used now, or nil.
+    private var vulkanBlocked: String? {
+        if !VXZinkBundled() { return "Vulkan (Zink) is not in this build." }
+        if !ProcessInfo.processInfo.isOperatingSystemAtLeast(OperatingSystemVersion(majorVersion: 26, minorVersion: 0, patchVersion: 0)) {
+            return "Vulkan needs iOS 26 or later (Metal 4)."
+        }
+        if ZinkSession.used || SDLVulkanSession.used { return "Restart Voxelium to switch renderer (Vulkan was set up for a test in this launch)." }
+        return nil
+    }
+
+    /// Why "Play with MobileGlues" can't be used now, or nil.
+    private var mobileGluesBlocked: String? {
+        MobileGluesSession.used ? "Restart Voxelium to switch renderer (MobileGlues ran in this launch)." : nil
+    }
+    #endif
+
     /// Checks for a shader pack with a high render distance first (memory).
-    private func launch() {
+    private func launch(_ renderer: GameRenderer? = nil) {
+        pendingRenderer = renderer
+        if let renderer { RendererMemory.remember(renderer, for: version.id) }
         if let dir = model.gameDirectory(for: version.id), let found = ShaderLaunchAdvice.check(gameDirectory: dir) {
             model.log.info("launch", "Shader render-distance warning shown for \(version.id): \(found.shaderPack) at render distance \(found.renderDistance)")
             advice = found
@@ -199,7 +277,9 @@ struct InstalledRow: View {
         }
     }
 
-    private func start() { launchVersion(version.id, model: model, minecraft: minecraft, accounts: accounts) }
+    private func start() {
+        launchVersion(version.id, model: model, minecraft: minecraft, accounts: accounts, renderer: pendingRenderer)
+    }
 }
 
 struct VersionRow: View {

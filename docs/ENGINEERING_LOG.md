@@ -1591,3 +1591,30 @@ Requested by the user through the main session, after main's bigger-hotbar chang
   - World joined, quit with status 0.
   - Memory in the world: footprint 2112–2144 MB, GPU 802 MB, at the slightly higher resolution.
   - **The user confirmed:** the hotbar was bigger and the taps picked the right slots.
+
+## 2026-10-24 — Experimental build: choose the renderer when starting a game
+Requested by the user through the main session, as the candidate for Voxelium 2.0 (no push or merge before their approval).
+- **VoxeliumCore:** `GameRenderer` (`mobileGlues`, `vulkan`), `RendererChoice.of(version)` and `GameRuntime.lwjglArtifacts(of:)`; tests in `GameRuntimeTests.rendererChoicePerVersion`.
+  - `.vulkanOnly` for versions listing `lwjgl-sdl` (26.3+);
+  - `.single` for `lwjgl-vulkan` without SDL (26.2, refused with its reason) and for Java 8 versions (gl4es);
+  - `.mobileGluesOrVulkan` otherwise (1.17 – 26.1.2).
+- **Play menu (experimental build only, `#if VOXELIUM_ZINK_EXPERIMENT`):**
+  - 1.17 – 26.1.2: "Play with MobileGlues" and "Play with Vulkan" (Zink on KosmicKrisp).
+    - Vulkan is disabled, with the reason, when Zink isn't bundled, on iOS < 26, or after the Zink or SDL + Vulkan test ran in this launch.
+    - MobileGlues is disabled after a MobileGlues test.
+  - 26.3+: only "Play with Vulkan", with a footer saying MobileGlues can't run it.
+  - Java 8 versions and 26.2: the single "Launch Minecraft (needs JIT)" as before.
+  - The last choice per version is remembered (UserDefaults `VoxeliumRenderer.<id>`) and checkmarked; the version list's quick launch uses it, or MobileGlues.
+  - The shader render-distance warning still comes first.
+- **Launcher:** `MinecraftLauncher.launch(…, renderer:)` replaces the global `ZinkRenderer.enabled` switch, whose toggle is gone from the graphics tests; it used to default to Zink. A Vulkan request that can't be met is logged.
+- **The normal build is unchanged:** same single Launch item; the renderer argument is ignored without `VOXELIUM_ZINK_EXPERIMENT`. It compiles. `swift test`: 121 pass.
+- **Experimental build 202610240158** (SHA-256 `cae0c69a46aee1e5427cfc6ec9b5d2448ed973888dc7bbbbaa4cbb8c6f97b701`). Not yet run on the device.
+- **Device, build 202610240158** (devicectl-confirmed; logs copied about 03:55Z). Each start used the renderer picked in the Play menu:
+  - **03:49, Fabric 1.21.11, "Play with MobileGlues":** "OpenGL Version: 4.0.0 MobileGlues 1.3.3" on ANGLE Metal; world joined; peak 1715 MB.
+  - **03:50, Fabric 1.21.11, "Play with Vulkan":** "OpenGL Version: 4.6 (Core Profile) Mesa", "zink Vulkan 1.4 (Apple A17 Pro GPU (MESA_KOSMICKRISP))"; world joined; peak 1401 MB.
+  - **03:52, Fabric 26.3, "Play with Vulkan":** "Using graphics backend Vulkan … KosmicKrisp", A17 Pro GPU; world joined; stopped with status 0; peak 2158 MB.
+  - Earlier starts with the same build:
+    - Fabric 1.21.11 on Zink at 03:25 and 03:29 joined worlds.
+    - Fabric 26.2 was refused with its message (02:01:26).
+    - Two starts at 03:25:08 and 03:49:00 stopped with "JIT is not enabled (no debugger attached)": the app was opened without StikDebug. The retries from StikDebug worked.
+  - **NeoForge 1.21.1 on Vulkan (02:01:41)** stopped after the JVM's flags line, before the JIT probe, like the first NeoForge start on 2026-10-23 16:57; the app was relaunched. Cause not proven (StikDebug/JIT handshake?).
