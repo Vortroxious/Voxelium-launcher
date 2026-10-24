@@ -1519,3 +1519,9 @@ Same branch, on top of Stage 3 (`1b6f6f6`).
     - render scale applied (1398×645);
     - 1.21.11 controls on the shared code, on MobileGlues.
   - **Open:** 26.3 in a world uses 2.2–2.5 GB, GPU about 1 GB, more than 1.21.11 on Zink.
+- **Device: vanilla 26.3 (2026-10-24, build 202610232340, devicectl-confirmed; logs copied about 00:14Z):**
+  - "Graphics backend forced to vulkan by launch argument", "Using graphics backend Vulkan, using drivers: 1.4.363 KosmicKrisp Mesa 27.0.0-devel", "Using graphics device: Apple A17 Pro GPU (APPLE)".
+  - Controls at 932×430 pt / 1398×645 px. World joined at 00:11:48; peak 2359 MB (GPU 995 MB). Saved and quit, `Main.main returned normally`.
+  - Just before it, 26.2 was refused with its message, as intended ("Could not start 26.2: 26.2 is not supported yet…").
+  - Evidence: `docs/evidence/2026-10-24-minecraft-26.3-vanilla-vulkan-kosmickrisp-iphone15promax-ios27-build202610232340.log`.
+  - That completes the plan's device verification for vanilla 26.3: Vulkan backend on Apple A17 Pro GPU / KosmicKrisp, title screen, world join, touch controls, save and quit. Memory peak noted above.
