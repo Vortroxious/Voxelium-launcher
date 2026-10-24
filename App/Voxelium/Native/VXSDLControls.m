@@ -23,6 +23,7 @@ static void (*p_SendMouseButton)(uint8_t button, bool down);
 static void (*p_SendMouseMotion)(bool relative, float x, float y);
 static bool (*p_RelativeMouseMode)(void);
 static void (*p_RequestClose)(void);
+static float (*p_RenderScale)(void);
 // scripts/vulkan-shim.c
 static void (*p_SetVulkanPaused)(int paused);
 static BOOL gVulkanPaused;
@@ -43,6 +44,7 @@ static BOOL vxLoadSDL(void) {
     p_SendText = dlsym(h, "SDL_VoxeliumSendText");
     p_RelativeMouseMode = dlsym(h, "SDL_VoxeliumRelativeMouseMode");
     p_RequestClose = dlsym(h, "SDL_VoxeliumRequestClose");
+    p_RenderScale = dlsym(h, "SDL_VoxeliumRenderScale");
     p_SendKey = dlsym(h, "SDL_VoxeliumSendKey");
     bool (*addWatch)(bool (*)(void *, void *), void *) = dlsym(h, "SDL_AddEventWatch");
     if (addWatch) addWatch(vxEventWatch, NULL);
@@ -113,8 +115,11 @@ static uint8_t vxSDLButton(int button) {
     }
 }
 
-// The render scale SDL applies (patches/sdl3/0005 reads the same variable).
+// The render scale SDL applies.
 static CGFloat vxRenderScale(void) {
+    // SDL's own value (patches/sdl3/0005): VOXELIUM_RENDER_SCALE, snapped to Minecraft's
+    // GUI steps with "Large interface" (VOXELIUM_LARGE_INTERFACE).
+    if (p_RenderScale) return p_RenderScale();
     const char *s = getenv("VOXELIUM_RENDER_SCALE");
     double v = s ? atof(s) : 1.0;
     return (v > 0.1 && v <= 1.0) ? v : 1.0;

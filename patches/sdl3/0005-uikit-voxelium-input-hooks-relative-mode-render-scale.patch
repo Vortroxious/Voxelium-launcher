@@ -18,6 +18,9 @@ High-pixel-density windows (Minecraft's) use the screen's native scale
 times VOXELIUM_RENDER_SCALE (0.1 - 1, default 1) for the Metal view and
 SDL_GetWindowSizeInPixels, so the Vulkan swapchain follows the launcher's
 render-resolution setting.
+With VOXELIUM_LARGE_INTERFACE=1 the scale snaps to Minecraft's GUI steps
+as on the launcher's GLFW path (vxEffectiveRenderScale), from the screen's
+landscape size; SDL_VoxeliumRenderScale reports the result.
 The Metal view's scale is set through contentScaleFactor: UIKit resets a
 layer's contentsScale to the screen scale when its view joins a window, so
 the swapchain stayed full size while SDL reported the scaled size, and taps
@@ -108,10 +111,10 @@ index bef6303..8521fad 100644
   * on the main thread and waits for it; runs it directly when already there. */
 diff --git a/src/video/uikit/SDL_uikitvoxelium.m b/src/video/uikit/SDL_uikitvoxelium.m
 new file mode 100644
-index 0000000..3135248
+index 0000000..f9dcad7
 --- /dev/null
 +++ b/src/video/uikit/SDL_uikitvoxelium.m
-@@ -0,0 +1,92 @@
+@@ -0,0 +1,135 @@
 +/*
 +  Voxelium: input hooks for an app that draws its own touch controls over SDL's
 +  window (Minecraft 26.3 inside the Voxelium launcher). The controls turn touches
@@ -191,16 +194,59 @@ index 0000000..3135248
 +
 +/* Render resolution: the launcher's VOXELIUM_RENDER_SCALE (0.1 - 1, default 1)
 +   times the screen's native scale for high-pixel-density windows, so the
-+   Vulkan swapchain is that much smaller than the screen. */
++   Vulkan swapchain is that much smaller than the screen.
++
++   With VOXELIUM_LARGE_INTERFACE=1 ("Large interface" in the launcher) the scale
++   snaps to Minecraft's GUI steps, as VXGLFW's vxEffectiveRenderScale does on
++   the GLFW path (mirrored in LauncherSettings.effectiveRenderScale): its auto
++   GUI scale is the largest k with framebuffer height / k >= 240 and width / k
++   >= 320, so a framebuffer one pixel over 240k tall shows the biggest
++   interface. The nearest r_k = (240k + 1) / height with k >= 3 is used, never
++   below k = 3's (iPhone 15 Pro Max: 50% -> 55.9%, 721 px tall, GUI scale 3).
++   SDL's window fills the screen in landscape (the game's only orientation),
++   so the screen's landscape size is the game area, before and after rotation. */
 +float UIKit_VoxeliumRenderScale(void)
 +{
 +    static float scale;
 +    if (scale == 0.0f) {
 +        const char *s = SDL_getenv("VOXELIUM_RENDER_SCALE");
-+        float v = s ? (float)SDL_atof(s) : 1.0f;
-+        scale = (v > 0.1f && v <= 1.0f) ? v : 1.0f;
++        double r = s ? SDL_atof(s) : 1.0;
++        if (!(r > 0.1 && r <= 1.0)) {
++            r = 1.0;
++        }
++        const char *large = SDL_getenv("VOXELIUM_LARGE_INTERFACE");
++        if (large && large[0] == '1') {
++            UIScreen *screen = [UIScreen mainScreen];
++            CGSize pt = screen.bounds.size;
++            double native = screen.nativeScale;
++            double w = SDL_max(pt.width, pt.height) * native, h = SDL_min(pt.width, pt.height) * native;
++            double best = r, bestDiff = INFINITY;
++            for (int k = 3; k <= 16 && h > 0; k++) {
++                double rk = (240.0 * k + 1.0) / h;   // +1 px so rounding never drops a step
++                if (rk > 1.0 || w * rk / k < 320) {
++                    break;
++                }
++                if (k == 3 && r <= rk) {             // below k = 3's: raise to it
++                    best = rk;
++                    break;
++                }
++                double diff = SDL_fabs(rk - r) - (rk >= r ? 1e-6 : 0);   // ties go to the higher resolution
++                if (diff < bestDiff) {
++                    bestDiff = diff;
++                    best = rk;
++                }
++            }
++            r = best;
++        }
++        scale = (float)r;
 +    }
 +    return scale;
++}
++
++// The render scale in use (1 = native), for the app's touch controls.
++SDL_DECLSPEC float SDLCALL SDL_VoxeliumRenderScale(void)
++{
++    return UIKit_VoxeliumRenderScale();
 +}
 +
 +#endif // SDL_VIDEO_DRIVER_UIKIT

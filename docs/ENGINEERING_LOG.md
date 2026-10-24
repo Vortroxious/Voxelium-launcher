@@ -1575,3 +1575,19 @@ Same branch, on top of Stage 3 (`1b6f6f6`).
   - The launcher logged "Large interface: GUI Scale 2 → Auto". The game area is full screen (932×430 pt), and the scale switched to 0.559 after rotation (721 px tall, GUI scale 3).
   - The user joined a world (01:40:04Z), quit cleanly, and made 9 hotbar selections by touch.
   - The user reports the hotbar is now bigger and that they "always thought that the hotbar is small too".
+
+## 2026-10-24 — 26.3: "Large interface" render-scale snap on the SDL path
+Requested by the user through the main session, after main's bigger-hotbar change (`44391ca`) was merged into this branch (`d602cd1`). There, `vxEffectiveRenderScale` snaps the GLFW path's scale to Minecraft's GUI steps; on 26.3, SDL applied the plain `VOXELIUM_RENDER_SCALE`, so at 50% the framebuffer was 645 px tall and the GUI stayed at scale 2.
+- **patches/sdl3/0005:**
+  - `UIKit_VoxeliumRenderScale` (used for the Metal view's `contentScaleFactor` and for `SDL_GetWindowSizeInPixels`) applies the same rule when `VOXELIUM_LARGE_INTERFACE=1`: the nearest r_k = (240k+1)/height with k ≥ 3 (and width·r_k/k ≥ 320), never below k = 3's.
+  - It's computed from the screen's landscape size, so it's the same before and after rotation; SDL's window fills the screen in landscape.
+  - New export `SDL_VoxeliumRenderScale`; `build-sdl3.sh` checks it.
+  - iPhone 15 Pro Max: 0.50 → 721/1290 = 0.559; framebuffer 1562×720 px with SDL's truncation, so GUI scale 3.
+- **VXSDLControls:** pixels per point for hotbar taps now come from `SDL_VoxeliumRenderScale`, so taps and the picture use the same number.
+- **Experimental build 202610240147** (SHA-256 `2720d08fcdc986e2b628ec9df74df645047d96b7fbfc04ecfea2f5e9b2f8436c`). Not yet run on the device.
+- **Device, build 202610240147** (devicectl-confirmed; logs copied about 01:55Z). The run was **Fabric** 26.3 (`fabric-loader-0.19.5-26.3`), not vanilla; the render-scale path is the same.
+  - "[VXSDL] touch controls on the game window: 932x430 pt, framebuffer 1562x720 px (render scale 0.56)", as computed.
+  - Hotbar taps were mapped with GUI scale 3: "bottom touch at 462,413 pt (fb 1562x720, scale 1.68) -> hotbar slot 4", then slots 6 and 8; 3 hotbar selects, 16 touches.
+  - World joined, quit with status 0.
+  - Memory in the world: footprint 2112–2144 MB, GPU 802 MB, at the slightly higher resolution.
+  - **The user confirmed:** the hotbar was bigger and the taps picked the right slots.

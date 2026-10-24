@@ -78,7 +78,8 @@ minos=$(otool -l "$OUT/libSDL3.dylib" | awk '/LC_BUILD_VERSION/{f=1} f&&/minos/{
 # SDL_Voxelium*: patches/sdl3/0005, the touch controls' input hooks.
 for s in SDL_Init SDL_CreateWindow SDL_Vulkan_LoadLibrary SDL_Vulkan_CreateSurface SDL_PollEvent \
          SDL_VoxeliumSendKey SDL_VoxeliumSendText SDL_VoxeliumSendMouseButton SDL_VoxeliumSendMouseMotion \
-         SDL_VoxeliumSendMouseWheel SDL_VoxeliumRelativeMouseMode SDL_VoxeliumRequestClose; do
+         SDL_VoxeliumSendMouseWheel SDL_VoxeliumRelativeMouseMode SDL_VoxeliumRequestClose \
+         SDL_VoxeliumRenderScale; do
   # (grep -c, not -q: with pipefail an early grep exit fails nm with SIGPIPE.)
   [ "$(nm -gU "$OUT/libSDL3.dylib" | grep -c " _$s$")" -gt 0 ] || { echo "libSDL3.dylib does not export $s" >&2; exit 1; }
 done
