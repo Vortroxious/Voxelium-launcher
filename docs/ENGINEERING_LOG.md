@@ -1275,3 +1275,28 @@ Changes:
   - For Forge, the **shader warning was shown** ("BSL_v10.1.8.zip at render distance 12", 16:39:33Z) and the user chose "Play anyway". That confirms the Oculus settings fallback.
   - A second delete: "Deleted version Landscapes Reimagined Genesis 3.2 3.2" (16:38:21Z).
   - The `jna…tmp: dlopen` UnsatisfiedLinkError lines are Minecraft's hardware-info warnings, the same as in every Fabric run.
+
+## 2026-10-24 — Hotbar under the home bar, and too small
+- **Report (a player, through the user):** the hotbar is too small, and the iPhone's home bar (swipe bar) easily covers it.
+- **Home bar:**
+  - In landscape, the home indicator sits over the middle of Minecraft's hotbar, and the bottom-edge system gesture takes touches meant for it. The game's view controller already auto-hid the bar and deferred all screen edges, but iOS still draws the bar and still gives the edge to the system.
+  - `VXGLFWViewController` now has a black root view, and the game view ends at the bottom safe-area inset: 21 pt in landscape on Face ID iPhones, 0 on iPhones with a Home button. Minecraft therefore draws its hotbar just above the bar.
+  - The game view already reports size changes, so rotation and inset changes resize the framebuffer as before. The touch controls live inside the game view and move with it.
+- **Hotbar size:** Minecraft's auto GUI scale is the largest k with framebuffer height/k ≥ 240. At the default 50% the game framebuffer (iPhone 15 Pro Max) is 613 px tall, which gives GUI scale 2 with 133 px unused, about 27 pt hotbar slots. The largest possible is height/12, about 34 pt.
+  - The new **"Large interface" switch** (Account tab, on by default; `LauncherSettings.largeInterface`, read with a default for old settings files) snaps the render scale to the nearest resolution where the height is just enough for a GUI step k ≥ 3, and never below k = 3's.
+  - On this phone: 50% or 60% → 59% (721 px, scale 3, hotbar a quarter bigger), 75% → 78% (scale 4), 100% → 98% (scale 5).
+  - Implemented in `vxEffectiveRenderScale` (`VXGLFW.m`) and mirrored for the settings readout in `LauncherSettings.effectiveRenderScale`.
+- **Hotbar taps:** the hit test now uses the player's own `guiScale` from `options.txt` (`VOXELIUM_OPTIONS_PATH`, re-read at most every 2 s) instead of assuming auto. Its touch area reaches 6 GUI px above the drawn hotbar.
+- **Not covered:** Minecraft 26.3's SDL3 window (branch `mc263/integration` / Stage 3) needs the same two fixes in Stage 4: SDL's UIKit view and the home-indicator hint, plus the same render-scale snap.
+- **Tests:** `largeInterfaceSnapsToMinecraftsGUISteps`, and the default for old settings. `swift test` 117/117.
+- **IPA:** build 202610240126, version 1.0, 184,849,340 bytes, SHA-256 `ce7313e8825412accb26db84ffee37d3f1c5e1f4f3f2b31d9424dc74aa1b420d`, at `build/ipa/Voxelium-unsigned.ipa` (the 1.0 release IPA is unchanged). **Not yet run on a device.**
+- **Device check of build 202610240126 (Fabric 1.21.11, logs and the user's screenshots, 2026-10-24 01:32Z):**
+  - The home-bar gap worked: the game area was 932×410 pt, and the home bar sat in the black strip under the hotbar. **The user wants no black strip, so it is removed** and the game is full screen again, as in 1.0.
+  - The hotbar did not grow. That world's `options.txt` had **`guiScale:2`** (fixed, not Auto), so Minecraft kept scale 2 at the snapped higher resolution, and the hotbar even got slightly smaller on screen (about 22% of the width instead of 26%).
+  - **Fix:** with "Large interface" on, the launcher sets `guiScale:0` (Auto) before each launch (`GameOptions.useAutoGUIScale`, logged as "GUI Scale 2 → Auto").
+  - Without the gap, the snap on this phone is 50%/60% → 55.9% (721 px tall, scale 3), 75% → 74.5% (scale 4), 100% → 93.1% (scale 5). The layout code now logs when it changes the scale.
+- **Rebuilt IPA:** build 202610240136, 184,848,718 bytes, SHA-256 `2884246e782fa5cec99ef5a6682959905c0555ba85fb8d8ee4fa77a7e34b6424`, at `build/ipa/Voxelium-1.0-hotbar-test-unsigned.ipa`. `swift test` 118/118. Not yet run on a device.
+- **Device pass, build 202610240136** (installed build confirmed with `devicectl`; logs read 2026-10-24 01:41Z), Fabric 1.21.11:
+  - The launcher logged "Large interface: GUI Scale 2 → Auto". The game area is full screen (932×430 pt), and the scale switched to 0.559 after rotation (721 px tall, GUI scale 3).
+  - The user joined a world (01:40:04Z), quit cleanly, and made 9 hotbar selections by touch.
+  - The user reports the hotbar is now bigger and that they "always thought that the hotbar is small too".

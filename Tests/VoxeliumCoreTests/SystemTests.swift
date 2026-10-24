@@ -46,6 +46,52 @@ import Testing
         let s = store.load(log: Logger())
         #expect(s.playerName == "Old")
         #expect(s.maxMemoryMB == LauncherSettings().maxMemoryMB)
+        #expect(s.largeInterface)   // on for settings saved before the switch existed
+    }
+
+    /// Minecraft's auto GUI scale for a framebuffer (largest k with w/k ≥ 320, h/k ≥ 240).
+    func guiScale(_ w: Int, _ h: Int) -> Int {
+        var k = 1
+        while w / (k + 1) >= 320 && h / (k + 1) >= 240 { k += 1 }
+        return k
+    }
+
+    @Test func largeInterfaceSnapsToMinecraftsGUISteps() {
+        // iPhone 15 Pro Max in landscape: 932×430 pt at 3×.
+        let (w, h, n) = (932.0, 430.0, 3.0)
+        func used(_ r: Double, _ on: Bool = true) -> Double {
+            LauncherSettings.effectiveRenderScale(requested: r, largeInterface: on, gameWidth: w, gameHeight: h, nativeScale: n)
+        }
+        func fb(_ r: Double) -> (Int, Int) { (Int((w * n * r).rounded()), Int((h * n * r).rounded())) }
+        // 50% gives a 645 px tall framebuffer: GUI scale 2, with 165 px of the height unused
+        // (the hotbar measured 22–26% of the width on the phone).
+        #expect(guiScale(fb(0.5).0, fb(0.5).1) == 2)
+        // With the switch on it becomes the 721 px step (56%): GUI scale 3, a bigger hotbar.
+        #expect(abs(used(0.5) - 721.0 / 1290.0) < 1e-9)
+        #expect(guiScale(fb(used(0.5)).0, fb(used(0.5)).1) == 3)
+        // Others snap to the nearest step: 60% → the same 56%, 75% → 74.5% (scale 4), 100% → 93% (scale 5).
+        #expect(used(0.6) == used(0.5))
+        #expect(guiScale(fb(used(0.75)).0, fb(used(0.75)).1) == 4)
+        #expect(abs(used(1.0) - 1201.0 / 1290.0) < 1e-9 && guiScale(fb(used(1.0)).0, fb(used(1.0)).1) == 5)
+        // Off: exactly what was asked for.
+        #expect(used(0.5, false) == 0.5)
+        // Every snapped value fills the height: the hotbar is as big as the screen allows.
+        for r in stride(from: 0.25, through: 1.0, by: 0.05) {
+            let (fw, fh) = fb(used(r))
+            #expect(fh - guiScale(fw, fh) * 240 <= 2)
+        }
+    }
+
+    @Test func largeInterfaceSetsGUIScaleToAuto() throws {
+        let tmp = try TempDir()
+        try "renderDistance:8\nguiScale:2\nfov:0.0\n".write(to: tmp.url.appendingPathComponent("options.txt"), atomically: true, encoding: .utf8)
+        var options = GameOptions(gameDirectory: tmp.url)
+        #expect(try options.useAutoGUIScale() == 2)
+        #expect(try String(contentsOf: options.file, encoding: .utf8) == "renderDistance:8\nguiScale:0\nfov:0.0\n")
+        #expect(try options.useAutoGUIScale() == nil)   // already Auto
+        // No options.txt yet (first launch): nothing is written.
+        var fresh = GameOptions(gameDirectory: tmp.url.appendingPathComponent("new"))
+        #expect(try fresh.useAutoGUIScale() == nil && !fresh.exists)
     }
 
     @Test func corruptFileIsMovedAside() throws {

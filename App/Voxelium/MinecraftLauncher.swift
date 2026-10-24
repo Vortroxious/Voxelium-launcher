@@ -219,6 +219,16 @@ final class MinecraftLauncher: ObservableObject {
             // Render resolution (Account tab; default half the native pixels, since 2796x1290 is a lot for a phone GPU).
             let renderScale = min(max(settings.renderScale, LauncherSettings.renderScaleRange.lowerBound), LauncherSettings.renderScaleRange.upperBound)
             setenv("VOXELIUM_RENDER_SCALE", String(format: "%.2f", renderScale), 1)
+            // Largest Minecraft interface (Account tab switch); VXGLFW reads options.txt for
+            // the player's own GUI scale when mapping hotbar taps.
+            setenv("VOXELIUM_LARGE_INTERFACE", settings.largeInterface ? "1" : "0", 1)
+            if settings.largeInterface {
+                var gameOptions = GameOptions(gameDirectory: gameDir)
+                if let old = try gameOptions.useAutoGUIScale() {
+                    log.info("launch", "Large interface: GUI Scale \(old) → Auto in \(versionID)/options.txt")
+                }
+            }
+            setenv("VOXELIUM_OPTIONS_PATH", gameDir.appendingPathComponent("options.txt").path, 1)
 
             let logURL = paths.logsDir.appendingPathComponent("jvm.log")
             let header = "\n===== Minecraft \(versionID) \(ISO8601DateFormatter().string(from: Date())) java=\(javaMajor) heap=\(heap)M \(VXJVMBridge.jitDescription())\n"
