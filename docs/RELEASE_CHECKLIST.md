@@ -39,3 +39,15 @@ Status as of 2026-10-21.
 - ⏳ Commit, then tag `v1.0`.
 - 👤 Push `main` and `v1.0`. Create the GitHub Release **v1.0** with `Voxelium-1.0-unsigned.ipa` and `THIRD_PARTY_NOTICES.txt`, and paste the release notes (without their first line).
 - ✅ Licences: nothing new is bundled except `voxelium-boot.jar` (our own GPL-3.0 code). Forge, NeoForge and their installer tools are downloaded from their own Maven servers at install time, not shipped.
+
+# Release checklist (Voxelium 2.0)
+
+Status as of 2026-10-24.
+- ✅ Merged the 26.3 / Vulkan work into `main` (`e0e2aae`); version 2.0, licences (SDL, Mesa) and notes committed as `8369ada`, tagged `v2.0`.
+- ✅ Device pass on the release IPA (build 202610240359): Fabric 1.21.11 on MobileGlues and on Vulkan (Zink), Fabric 26.3 with Sodium + Iris on Vulkan. See the engineering log.
+- ✅ Pushed by the maintainer: GitHub's `main` and `v2.0` → `8369ada`.
+- ✅ GitHub Release **v2.0** published 2026-10-24 04:24Z, latest; `releases/latest` resolves to it. Assets, checked against GitHub's digests at 04:29Z:
+  - `Voxelium-2.0-unsigned.ipa`: 213,461,120 bytes, `e1d6f28d…bfe4` (the tested build);
+  - `Voxelium-2.0-unsigned.ipa.sha256`: 92 bytes, `5643a429…43e3`;
+  - `THIRD_PARTY_NOTICES.txt`: 401,252 bytes, `2656920b…0d74`, identical to the repository's. It was first attached as the 1.0 file and replaced by the maintainer.
+- The description was pasted as HTML (as for 1.0). The maintainer reports it renders correctly.
