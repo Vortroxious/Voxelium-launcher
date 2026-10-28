@@ -96,6 +96,7 @@ final class LauncherModel: ObservableObject {
             log.info("app", "Data directory: \(p.root.path)")
             log.info("app", "JIT/debugger attached: \(DeviceInfo.isDebuggerAttached)")
             log.info("app", "JIT: \(VXJVMBridge.jitDescription())")
+            log.info("app", "JIT: get-task-allow=\(JITCoordinator.getTaskAllow) (1 yes, 0 missing, -1 unknown), StikDebug installed: \(JITCoordinator.stikDebugInstalled)")
             log.info("app", "GLFW bridge: \(VXGLFWSelfCheck())")
             exportJITScript()
             startNetworkMonitor()

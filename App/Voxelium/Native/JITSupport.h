@@ -25,6 +25,22 @@ bool VXJITDebuggerAttached(void);
 /// A debugger is attached right now (getppid() is not launchd).
 bool VXJITDebuggerStillAttached(void);
 
+/// The app's own `get-task-allow` entitlement: 1 = true, 0 = missing or false,
+/// -1 = could not be read. Without it no debugger can attach, so no JIT.
+/// Uses Security framework SPI (SecTaskCopyValueForEntitlement), looked up at run time.
+int VXJITGetTaskAllow(void);
+
+/// Result of the JIT26 probe: one legacy `brk #0x69` request run under a temporary
+/// SIGTRAP handler, so it returns instead of crashing when no debugger is attached.
+typedef struct {
+    bool trapped;  ///< no debugger handled the breakpoint
+    void *value;   ///< x0 after the breakpoint (the script's reply)
+} VXJITProbeResult;
+
+/// Asks the attached JIT script to answer a probe. The bare universal script replies
+/// VXJIT26UniversalProbeReply and allocates nothing. Not thread-safe: one probe at a time.
+VXJITProbeResult VXJIT26Probe(void);
+
 // StikDebug JIT26 breakpoint calls. Each one traps (crashes the app) unless a
 // debugger running UniversalJIT26.js is attached right now.
 

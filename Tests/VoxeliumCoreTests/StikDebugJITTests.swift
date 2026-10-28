@@ -21,7 +21,7 @@ import Testing
         // Bytes that give "+", "/" and "=" in standard base64.
         let script = Data((0..<1000).map { UInt8(truncatingIfNeeded: $0 * 7 + 251) }) + Data("}?>".utf8)
         let url = StikDebugJIT.enableJITURL(bundleID: "io.github.voxelium.launcher.ABCDE12345", pid: 4242, script: script)
-        #expect(url.scheme == "stikjit" && url.host == "enable-jit")
+        #expect(url.scheme == "stikdebug" && url.host == "enable-jit")
         let raw = try #require(URLComponents(url: url, resolvingAgainstBaseURL: false)?.queryItems?.first { $0.name == "script-data" }?.value)
         #expect(!raw.contains("+") && !raw.contains("/") && !raw.contains("="))
         let d = decodeLikeStikDebug(url)
@@ -32,6 +32,12 @@ import Testing
 
     @Test func noScriptWhenNotNeeded() {
         let url = StikDebugJIT.enableJITURL(bundleID: "a.b", pid: 1, script: nil)
+        #expect(url.absoluteString == "stikdebug://enable-jit?bundle-id=a.b&pid=1")
+    }
+
+    @Test func olderSchemeStillAvailable() {
+        let url = StikDebugJIT.enableJITURL(bundleID: "a.b", pid: 1, script: nil, scheme: "stikjit")
         #expect(url.absoluteString == "stikjit://enable-jit?bundle-id=a.b&pid=1")
+        #expect(StikDebugJIT.schemes == ["stikdebug", "stikjit"])
     }
 }

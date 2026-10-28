@@ -12,10 +12,16 @@ import Foundation
 ///   UniversalJIT26.js). Without it StikDebug uses the script assigned to the app, if any.
 ///
 /// StikDebug asks the user to confirm unless they turned that off in its settings.
+///
+/// StikDebug registers both `stikdebug` and `stikjit` (its Info.plist at 2026-10-19).
+/// StikJIT's integration guide documents `stikdebug`, so Voxelium tries that first and
+/// `stikjit` (the one tested with 2.2) if iOS can't open it.
 public enum StikDebugJIT {
-    public static func enableJITURL(bundleID: String, pid: Int32, script: Data?) -> URL {
+    public static let schemes = ["stikdebug", "stikjit"]
+
+    public static func enableJITURL(bundleID: String, pid: Int32, script: Data?, scheme: String = schemes[0]) -> URL {
         var c = URLComponents()
-        c.scheme = "stikjit"
+        c.scheme = scheme
         c.host = "enable-jit"
         var items = [URLQueryItem(name: "bundle-id", value: bundleID), URLQueryItem(name: "pid", value: String(pid))]
         if let script, !script.isEmpty {

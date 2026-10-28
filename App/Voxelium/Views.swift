@@ -22,11 +22,30 @@ struct VersionsView: View {
                     EmptyView()
                 case .starting(let m), .running(let m):
                     Section { HStack { ProgressView(); Text(m).font(.callout) } }
+                case .waitingForJIT(let m):
+                    Section {
+                        HStack { ProgressView(); Text(m).font(.callout) }
+                        Button("Cancel", role: .cancel) { minecraft.cancelJITWait() }
+                    }
+                case .jitProblem(let p):
+                    Section {
+                        Label(p.title, systemImage: "bolt.slash").foregroundStyle(.red)
+                        Text(p.message).font(.caption)
+                        if p.showsSetupGuide {
+                            Link(destination: setupGuideURL) { Label("Open the setup guide", systemImage: "book") }
+                        }
+                    }
                 case .finished(let ok, let m):
                     Section {
                         Label(ok ? "Minecraft exited" : "Minecraft did not start", systemImage: ok ? "checkmark.circle" : "xmark.octagon")
                             .foregroundStyle(ok ? Color.primary : Color.red)
                         Text(m).font(.caption)
+                    }
+                }
+                if JITCoordinator.getTaskAllow == 0 {
+                    Section {
+                        Label(JITProblem.missingGetTaskAllow.title, systemImage: "exclamationmark.triangle").foregroundStyle(.orange)
+                        Text(JITProblem.missingGetTaskAllow.message).font(.caption)
                     }
                 }
                 if let problem = model.manifestProblem {
@@ -83,6 +102,9 @@ struct VersionsView: View {
     }
 }
 
+/// README section on installing Voxelium, StikDebug and LocalDevVPN.
+let setupGuideURL = URL(string: "https://github.com/Vortroxious/Voxelium-launcher#installing-on-your-iphone")!
+
 /// Starts Minecraft for an installed version (vanilla or modded).
 @MainActor
 func launchVersion(_ id: String, model: LauncherModel, minecraft: MinecraftLauncher, accounts: AccountModel,
@@ -121,7 +143,7 @@ struct InstalledRow: View {
     /// One JVM per app launch: the running (or finished) game keeps its files open.
     private var gameActive: Bool {
         switch minecraft.state {
-        case .starting, .running: true
+        case .starting, .running, .waitingForJIT: true
         default: false
         }
     }
@@ -468,6 +490,12 @@ struct DiagnosticsView: View {
                     }
                     LabeledContent("Debugger attached (JIT prerequisite)", value: DeviceInfo.isDebuggerAttached ? "Yes" : "No")
                 }
+                Section("JIT") {
+                    LabeledContent("get-task-allow", value: ["Unknown", "Missing", "Yes"][Int(JITCoordinator.getTaskAllow) + 1])
+                    LabeledContent("JIT script needed (TXM)", value: VXJITNeedsScript() ? "Yes" : "No")
+                    LabeledContent("StikDebug installed", value: JITCoordinator.stikDebugInstalled ? "Yes" : "No")
+                    Link(destination: setupGuideURL) { Label("Setup guide", systemImage: "book") }
+                }
                 Section {
                     NavigationLink { AboutView() } label: { Label("About Voxelium & licences", systemImage: "info.circle") }
                 }
@@ -482,7 +510,7 @@ struct DiagnosticsView: View {
                     }
                 }
                 Section("Status") {
-                    Text("This build downloads and verifies game files and starts Minecraft Java (Java 17 versions, offline profile) in the app. Starting the game needs JIT: open the app from StikDebug.")
+                    Text("This build downloads and verifies game files and starts Minecraft Java (Java 17 versions, offline profile) in the app. Starting the game needs JIT: Play asks StikDebug for it, or open Voxelium from StikDebug.")
                         .font(.footnote)
                 }
                 if let root = model.paths?.root {

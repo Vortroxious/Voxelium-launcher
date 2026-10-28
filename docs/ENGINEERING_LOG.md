@@ -1742,3 +1742,24 @@ Requested by the user through the main session, as the candidate for Voxelium 2.
   - Play asked StikDebug at 14:27:31Z (pid 35878, with UniversalJIT26.js), and JIT was on at 14:27:35Z.
   - Fabric 1.21.11 started; the user quit from the title screen ("Stopping!" at 14:27:55, without joining a world). The log then shows "Java called exit(0): closing the app to the Home Screen". Peak 1,024 MB; no exception.
   - Joining a world with this exact build wasn't repeated. The same flow on build 202610241404 joined one, and the game code is the same as 2.1's.
+
+## 2026-10-28 — JIT research; Phase 1: a sturdier StikDebug hand-off
+- **Research:** [JIT_INTEGRATION_PLAN.md](JIT_INTEGRATION_PLAN.md). JIT still needs an outside debugger. StikJIT's "Built-in" helper extension is the only route to a JIT without the app switch; it is a later phase.
+- **Phase 1 (user: "Phase 1 first"):**
+  - `JITReadiness.swift` (VoxeliumCore): `JITProblem` (one title and message per cause), `JITReadiness.evaluate` and `JITWait` (poll, `nudge()`, `cancel()`). Tests: `JITReadinessTests`, `JITWaitTests`.
+  - `JITCoordinator.swift` (app) replaces `enableJITThroughStikDebug`:
+    - On TXM devices "ready" now also means UniversalJIT26.js answers the probe, so a debugger that attached earlier without the script triggers a new request instead of failing in the JVM bridge.
+    - Opens `stikdebug://enable-jit` first and `stikjit://` if iOS refuses. StikDebug 3.1.14 handles both the same way (`HomeView.handleExternalURL` checks only the host).
+    - Checks again as soon as Voxelium returns to the foreground, and after 5 s back without JIT says so. The Versions tab has **Cancel** while waiting.
+  - `get-task-allow` is read with SecTask SPI (`VXJITGetTaskAllow`, via dlsym). If it's missing, Voxelium warns on the Versions tab and stops at Play.
+  - `VXJIT26Probe` moved to `JITSupport.m`; `JVMBridge.m` now logs "JIT26 probe: sending" before the probe and flushes, so a start that ends inside the probe shows where. Its NoJIT messages describe the hand-off instead of assigning scripts in StikDebug.
+  - `App/Voxelium-Info.plist` (merged into the generated one): `LSApplicationQueriesSchemes` `stikdebug`, `stikjit`, for the "StikDebug installed" check. The Diagnostics tab has a JIT section.
+  - Found while checking the plist: the app has never had `UIFileSharingEnabled`. Xcode ignores `INFOPLIST_KEY_UIFileSharingEnabled`; 2.2 has only `LSSupportsOpeningDocumentsInPlace`.
+- **Test IPA:** build 202610281436, SHA-256 `8dd8e7536e9a69801a43bb6f6d6ecb1b4d62fdf7cf68d65ee2110b2de0ad1c73`, at `build/ipa/Voxelium-2.2-jit-phase1-test-unsigned.ipa`. `swift test` 134/134.
+- **Device pass, build 202610281436** (devicectl-confirmed; StikDebug 3.1.14; logs read 2026-10-28 15:02Z):
+  - Start-up: `get-task-allow=1`, StikDebug installed: true.
+  - **Cancel:** StikDebug opened at 14:49:47Z; cancelled after 11.6 s, no error.
+  - **Declined:** 14:50:14Z; "JIT wasn't turned on" after 120 s.
+  - **LocalDevVPN off:** 14:52:43Z; Voxelium stayed in the background. On return the check reported "JIT wasn't turned on" (385.7 s, measured with a clock that keeps running while the app is suspended).
+  - **Hand-off:** Play at 14:59:14Z, JIT on after **3.9 s**. In jvm.log: "JIT26 probe: sending (debuggerNow=1)", "debugger replied (x0=0xcccccccc690000e0)", then the 240 MB mapping. Fabric 1.21.11 (Zink) joined a world at 14:59:50 and quit to the Home Screen at 15:00:22. The coordinator's own probe at Play did not disturb the bridge's second probe.
+  - **Opened from StikDebug:** 15:00:33Z (`CS_DEBUGGED=1`). Play started the game 3 s later without a trip to StikDebug. Joined at 15:01:02 and quit to the Home Screen at 15:01:09.

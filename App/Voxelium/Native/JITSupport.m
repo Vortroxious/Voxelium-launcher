@@ -10,7 +10,9 @@
 #include <dirent.h>
 #include <dlfcn.h>
 #include <limits.h>
+#include <signal.h>
 #include <sys/mman.h>
+#include <sys/ucontext.h>
 #include <unistd.h>
 #include "JITSupport.h"
 
@@ -27,6 +29,43 @@ bool VXJITDebuggerAttached(void) {
 bool VXJITDebuggerStillAttached(void) {
     // getppid() is launchd (1) unless a debugger is attached right now.
     return getppid() != 1;
+}
+
+// SecTask SPI, the check StikJIT's integration guide uses. Looked up with dlsym so a
+// missing symbol reads as "unknown" instead of failing to load.
+int VXJITGetTaskAllow(void) {
+    void *(*createFromSelf)(CFAllocatorRef) = dlsym(RTLD_DEFAULT, "SecTaskCreateFromSelf");
+    CFTypeRef (*copyValue)(void *, CFStringRef, CFErrorRef *) = dlsym(RTLD_DEFAULT, "SecTaskCopyValueForEntitlement");
+    if (!createFromSelf || !copyValue) return -1;
+    void *task = createFromSelf(NULL);
+    if (!task) return -1;
+    CFTypeRef value = copyValue(task, CFSTR("get-task-allow"), NULL);
+    int result = value == kCFBooleanTrue ? 1 : 0;
+    if (value) CFRelease(value);
+    CFRelease(task);
+    return result;
+}
+
+static volatile sig_atomic_t probeTrapped;
+
+// Runs only if no debugger consumed the breakpoint: skip the brk and return NULL.
+static void probeTrapHandler(int sig, siginfo_t *info, void *ctx) {
+    ucontext_t *uc = ctx;
+    uc->uc_mcontext->__ss.__pc += 4;
+    uc->uc_mcontext->__ss.__x[0] = 0;
+    probeTrapped = 1;
+}
+
+VXJITProbeResult VXJIT26Probe(void) {
+    struct sigaction sa = {0}, old = {0};
+    sa.sa_sigaction = probeTrapHandler;
+    sa.sa_flags = SA_SIGINFO;
+    sigemptyset(&sa.sa_mask);
+    probeTrapped = 0;
+    sigaction(SIGTRAP, &sa, &old);
+    void *value = VXJIT26CreateRegionLegacy((size_t)getpagesize());
+    sigaction(SIGTRAP, &old, NULL);
+    return (VXJITProbeResult){ .trapped = probeTrapped != 0, .value = value };
 }
 
 // Before JIT is granted this fails on every device; it is only meaningful

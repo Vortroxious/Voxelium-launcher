@@ -183,33 +183,6 @@ static void *jvmThread(void *p) {
     return NULL;
 }
 
-typedef struct {
-    bool trapped;
-    void *value;
-} VXJITProbeResult;
-
-static volatile sig_atomic_t probeTrapped;
-
-// Runs only if no debugger consumed the breakpoint: skip the brk and return NULL.
-static void probeTrapHandler(int sig, siginfo_t *info, void *ctx) {
-    ucontext_t *uc = ctx;
-    uc->uc_mcontext->__ss.__pc += 4;
-    uc->uc_mcontext->__ss.__x[0] = 0;
-    probeTrapped = 1;
-}
-
-static VXJITProbeResult VXJITProbeLegacy(void) {
-    struct sigaction sa = {0}, old = {0};
-    sa.sa_sigaction = probeTrapHandler;
-    sa.sa_flags = SA_SIGINFO;
-    sigemptyset(&sa.sa_mask);
-    probeTrapped = 0;
-    sigaction(SIGTRAP, &sa, &old);
-    void *value = VXJIT26CreateRegionLegacy((size_t)getpagesize());
-    sigaction(SIGTRAP, &old, NULL);
-    return (VXJITProbeResult){ .trapped = probeTrapped != 0, .value = value };
-}
-
 static char *dupString(NSString *s) { return strdup(s.UTF8String); }
 
 @implementation VXJVMBridge
@@ -238,7 +211,7 @@ static char *dupString(NSString *s) { return strdup(s.UTF8String); }
     // needs executable memory: without CS_DEBUGGED it would crash.
     if (!VXJITDebuggerAttached()) {
         atomic_store(&started, false);
-        return result(VXJVMStatusNoJIT, @"JIT is not enabled (no debugger attached). Launch this app from StikDebug, then try again. %@", jit);
+        return result(VXJVMStatusNoJIT, @"JIT is not on (no debugger attached). Tap Play again so Voxelium can ask StikDebug, or open Voxelium from StikDebug. %@", jit);
     }
 
     NSString *libjvm = [javaHome stringByAppendingPathComponent:@"lib/server/libjvm.dylib"];
@@ -274,18 +247,22 @@ static char *dupString(NSString *s) { return strdup(s.UTF8String); }
         // 1. probe. The bare universal script answers 0x69 with a fixed value;
         //    no debugger at all would normally kill the app, so the probe runs
         //    under a temporary SIGTRAP handler that turns that into an error.
-        VXJITProbeResult probe = VXJITProbeLegacy();
+        // Logged before and after, so a start that ends inside the probe shows where.
+        printf("[JVMBridge] JIT26 probe: sending (debuggerNow=%d)\n", VXJITDebuggerStillAttached());
+        fflush(stdout);
+        VXJITProbeResult probe = VXJIT26Probe();
         printf("[JVMBridge] JIT26 probe: %s (x0=%p)\n", probe.trapped ? "no debugger caught the breakpoint" : "debugger replied", probe.value);
+        fflush(stdout);
         if (probe.trapped) {
             restoreOutput();
             atomic_store(&started, false);
-            return result(VXJVMStatusNoJIT, @"StikDebug is not attached any more (the JIT breakpoint was not handled). Make sure UniversalJIT26.js is assigned to this app in StikDebug, launch it from StikDebug, and run the test again. %@", jit);
+            return result(VXJVMStatusNoJIT, @"StikDebug's JIT script is not attached any more (the JIT breakpoint was not handled). Tap Play again so Voxelium can ask StikDebug once more. %@", jit);
         }
         if ((uint32_t)(uintptr_t)probe.value != VXJIT26UniversalProbeReply) {
             if (probe.value) munmap(probe.value, (size_t)getpagesize());
             restoreOutput();
             atomic_store(&started, false);
-            return result(VXJVMStatusNoJIT, @"StikDebug is running a different JIT script for this app (probe returned %p). Assign UniversalJIT26.js from this app's Documents and launch again.", probe.value);
+            return result(VXJVMStatusNoJIT, @"StikDebug ran a different JIT script for Voxelium (probe returned %p). In StikDebug, remove any script assigned to Voxelium, then close Voxelium and tap Play again.", probe.value);
         }
         // 2. teach the script to really allocate on 0x69, and detach after it.
         NSString *extPath = [NSBundle.mainBundle pathForResource:@"UniversalJIT26Extension" ofType:@"js"];
@@ -298,6 +275,7 @@ static char *dupString(NSString *s) { return strdup(s.UTF8String); }
         VXJIT26SendScript(ext.UTF8String, strlen(ext.UTF8String));
         VXJIT26SetDetachAfterFirstBr(true);
         printf("[JVMBridge] JIT26 extension sent; debugger will detach after the JVM's mapping request\n");
+        fflush(stdout);
         // libjvm falls back to this when it cannot find DeviceHasTXM().
         setenv("XNU_HAS_TXM", "1", 1);
         // 3. bad accesses must reach HotSpot's signal handlers, not a debugger
