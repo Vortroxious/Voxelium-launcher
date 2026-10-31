@@ -2,11 +2,16 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
-	<!-- Merged with the generated Info.plist. Lets canOpenURL tell whether StikDebug is installed. -->
+	<!-- Merged with the generated Info.plist. -->
+	<!-- Lets canOpenURL tell whether StikDebug is installed. -->
 	<key>LSApplicationQueriesSchemes</key>
 	<array>
 		<string>stikdebug</string>
 		<string>stikjit</string>
 	</array>
+	<!-- The data folder (Documents) in Finder and Files. Xcode ignores INFOPLIST_KEY_UIFileSharingEnabled,
+	     so it is set here. Documents holds no secrets: Microsoft tokens are in the Keychain. -->
+	<key>UIFileSharingEnabled</key>
+	<true/>
 </dict>
 </plist>
