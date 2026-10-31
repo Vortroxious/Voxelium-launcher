@@ -1816,3 +1816,20 @@ Requested by the user through the main session, as the candidate for Voxelium 2.
   - **LiveContainer** (AGPL-3.0): `JITHelperSpike.m` is our own code. It calls the private NSExtension methods by selector name; LiveContainer's `AppSceneViewController.m` uses them through its `FoundationPrivate.h` interface. Only the method names and the extension-point idea are shared, and the comment credits it.
   - The StikJIT call in `JITHelper.swift` follows the public API in StikJIT's INTEGRATION.md.
   - The plan doc now says the Developer Disk Image comes from a GitHub mirror (`doronz88/DeveloperDiskImage`), not from Apple's servers.
+- **More phone tests** (build 202610311354, logs read 2026-10-31 14:40Z):
+  - **After a restart** (Voxelium pid 427, so a fresh boot):
+    - The first Play, at 14:37:45Z, came before LocalDevVPN was connected. The helper reported `Timed out connecting to 10.7.0.1:49152`, which is a different wording from before, and `fromHelperError` still showed "LocalDevVPN isn't connected" (5.4 s).
+    - The second Play, at 14:37:59Z: JIT on after 1.7 s; the world joined at 14:38:16Z and quit cleanly.
+    - The helper found the disk image already mounted: no download or mount stage, just "Device ready". So on this iOS 27 phone the image (the cryptex DDI) was usable straight after the restart, and **the download and mount path is still untested**. It needs a phone that has never had a disk image mounted.
+  - **No pairing file** (deleted in the JIT tab at 14:38:47Z): Play logged "No pairing file imported: asking StikDebug instead" and opened StikDebug. JIT was on after 17.4 s; the world joined at 14:39:32Z and quit cleanly.
+  - Still not tested: "Import a pairing file" (needs StikDebug uninstalled), an invalid pairing file, and the first download of the disk image.
+- **Invalid pairing file** (14:44Z): `broken-pairing-TEST.plist` is a property-list dictionary with made-up keys. Importing it worked, since import only checks the format.
+  - Play failed after 0.4 s with the raw text `failed to read pairing file: Plist(Error { … missing field \`public_key\` … }) (idevice code 5/0)`, shown under "The built-in JIT helper failed". It's correct but unreadable for players.
+  - Re-importing the real file (501 bytes) gave JIT on after 1.5 s.
+  - StikDebug was uninstalled by then (`StikDebug installed: false` at 14:43:38Z), so the "Import a pairing file" case can now be tested.
+- **Pairing-file messages** (build 202610311446, SHA-256 `ad315e07c9f4e33ed9cb364bb13b53fa2ad8ac0434e7f415ede62583ebe80115`):
+  - `fromHelperError` now turns pairing failures ("pairing", "InvalidHostID", "pair verify") into `.pairingFileInvalid`: "This pairing file doesn't work", with the setup guide and an Import button. A connection failure still counts as the VPN being off. 136 tests pass.
+  - Device check, 14:52Z, StikDebug uninstalled:
+    - The broken file gave "This pairing file doesn't work" after 0.4 s.
+    - With the pairing file deleted, Play logged "Built-in JIT is on but no pairing file is imported, and StikDebug isn't installed": the **"Import a pairing file"** problem.
+  - Both messages are now tested on the phone. Only the first download of the disk image is left; the user will borrow a second iPhone for it.

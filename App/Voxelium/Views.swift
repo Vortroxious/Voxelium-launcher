@@ -36,7 +36,7 @@ struct VersionsView: View {
                             Link(destination: setupGuideURL) { Label("Open the setup guide", systemImage: "book") }
                         }
                         #if VOXELIUM_JIT_HELPER_SPIKE
-                        if p == .pairingFileMissing {
+                        if p == .pairingFileMissing || p == .pairingFileInvalid {
                             Button { showJITSettings = true } label: { Label("Import a pairing file", systemImage: "doc.badge.plus") }
                         }
                         #endif

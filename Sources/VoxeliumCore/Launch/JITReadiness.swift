@@ -16,6 +16,9 @@ public enum JITProblem: Equatable, Sendable {
     /// Built-in JIT (spike) is chosen but no pairing file is imported, and StikDebug
     /// isn't installed to fall back on.
     case pairingFileMissing
+    /// The built-in JIT helper (spike) couldn't use the imported pairing file: it isn't
+    /// one, or it no longer matches this iPhone.
+    case pairingFileInvalid
     /// The built-in JIT helper (spike) couldn't connect to the iPhone's developer services:
     /// LocalDevVPN is off or not connected.
     case vpnNotConnected
@@ -23,11 +26,14 @@ public enum JITProblem: Equatable, Sendable {
     case helperFailed(String)
 
     /// The problem for an error the helper reported. Connection failures become
-    /// `.vpnNotConnected`; anything else is shown as the helper wrote it.
+    /// `.vpnNotConnected`, pairing failures `.pairingFileInvalid`; anything else is shown
+    /// as the helper wrote it.
     public static func fromHelperError(_ error: String) -> JITProblem {
         let e = error.lowercased()
         let connectFailure = ["timeout", "timed out", "refused", "unreachable", "no route"].contains { e.contains($0) }
-        return e.contains("connect") && connectFailure ? .vpnNotConnected : .helperFailed(error)
+        if e.contains("connect") && connectFailure { return .vpnNotConnected }
+        if ["pairing", "invalidhostid", "pair verify"].contains(where: { e.contains($0) }) { return .pairingFileInvalid }
+        return .helperFailed(error)
     }
 
     public var title: String {
@@ -38,6 +44,7 @@ public enum JITProblem: Equatable, Sendable {
         case .scriptNotAttached: "StikDebug's JIT script didn't start"
         case .wrongScript: "StikDebug ran a different JIT script"
         case .pairingFileMissing: "Import a pairing file"
+        case .pairingFileInvalid: "This pairing file doesn't work"
         case .vpnNotConnected: "LocalDevVPN isn't connected"
         case .helperFailed: "The built-in JIT helper failed"
         }
@@ -57,6 +64,8 @@ public enum JITProblem: Equatable, Sendable {
             "StikDebug answered with another JIT script (reply 0x\(String(reply, radix: 16, uppercase: true))). In StikDebug, remove any script you assigned to Voxelium, then close Voxelium and tap Play again."
         case .pairingFileMissing:
             "Voxelium turns on JIT itself, and needs this iPhone's pairing file for that. Make one on a computer (see the setup guide), import it in the JIT tab, then tap Play again."
+        case .pairingFileInvalid:
+            "The imported pairing file isn't a valid pairing file for this iPhone, or it's out of date (after resetting trust or erasing the iPhone, for example). Make a new one on a computer (see the setup guide), import it in the JIT tab, then tap Play again."
         case .vpnNotConnected:
             "Voxelium turns on JIT through LocalDevVPN, and couldn't reach it. Open LocalDevVPN, connect it (it should say Connected), then tap Play again."
         case .helperFailed(let reason):
@@ -67,7 +76,7 @@ public enum JITProblem: Equatable, Sendable {
     /// Show a link to the install guide with the message.
     public var showsSetupGuide: Bool {
         switch self {
-        case .stikDebugMissing, .timedOut, .missingGetTaskAllow, .pairingFileMissing, .vpnNotConnected: true
+        case .stikDebugMissing, .timedOut, .missingGetTaskAllow, .pairingFileMissing, .pairingFileInvalid, .vpnNotConnected: true
         case .scriptNotAttached, .wrongScript, .helperFailed: false
         }
     }

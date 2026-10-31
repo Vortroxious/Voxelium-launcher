@@ -24,12 +24,21 @@ import Testing
     }
 
     @Test func everyProblemExplainsItself() {
-        let all: [JITProblem] = [.stikDebugMissing, .timedOut, .missingGetTaskAllow, .scriptNotAttached, .wrongScript(reply: 0xAB), .pairingFileMissing, .vpnNotConnected, .helperFailed("No route to 10.7.0.1.")]
+        let all: [JITProblem] = [.stikDebugMissing, .timedOut, .missingGetTaskAllow, .scriptNotAttached, .wrongScript(reply: 0xAB), .pairingFileMissing, .pairingFileInvalid, .vpnNotConnected, .helperFailed("No route to 10.7.0.1.")]
         for p in all {
             #expect(!p.title.isEmpty && p.message.count > 40)
         }
         #expect(JITProblem.wrongScript(reply: 0xAB).message.contains("0xAB"))
         #expect(JITProblem.stikDebugMissing.showsSetupGuide && !JITProblem.scriptNotAttached.showsSetupGuide)
+    }
+
+    @Test func helperPairingFailuresMeanABadPairingFile() {
+        // As logged on the iPhone with a made-up pairing file (2026-10-31).
+        let broken = #"The device is not ready for JIT: failed to read pairing file: Plist(Error { inner: ErrorImpl { kind: Serde("missing field `public_key`"), file_position: None } }) (idevice code 5/0)."#
+        #expect(JITProblem.fromHelperError(broken) == .pairingFileInvalid)
+        #expect(JITProblem.fromHelperError("lockdown: InvalidHostID") == .pairingFileInvalid)
+        // A connection failure wins: the pairing file can't be checked without the VPN.
+        #expect(JITProblem.fromHelperError("Timed out connecting to 10.7.0.1:49152") == .vpnNotConnected)
     }
 
     @Test func helperConnectionFailuresMeanTheVPNIsOff() {
@@ -39,7 +48,7 @@ import Testing
         #expect(JITProblem.fromHelperError("connect: Connection refused") == .vpnNotConnected)
         #expect(JITProblem.fromHelperError("connect: No route to host") == .vpnNotConnected)
         // Other helper errors keep their own text.
-        #expect(JITProblem.fromHelperError("Pairing file is invalid") == .helperFailed("Pairing file is invalid"))
+        #expect(JITProblem.fromHelperError("DDI mount failed") == .helperFailed("DDI mount failed"))
         #expect(JITProblem.fromHelperError("Operation timed out waiting for the script") == .helperFailed("Operation timed out waiting for the script"))
     }
 }
