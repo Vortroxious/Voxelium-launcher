@@ -31,8 +31,13 @@ struct ContentView: View {
                 .tabItem { Label("Controls", systemImage: "gamecontroller") }
             DiagnosticsView()
                 .tabItem { Label("Diagnostics", systemImage: "stethoscope") }
+            #if VOXELIUM_JIT_HELPER_SPIKE
+            BuiltInJITView()
+                .tabItem { Label("JIT", systemImage: "bolt") }
+            #else
             LogView()
                 .tabItem { Label("Logs", systemImage: "doc.plaintext") }
+            #endif
         }
     }
 }

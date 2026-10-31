@@ -62,8 +62,16 @@ final class JITCoordinator {
         }
 
         #if VOXELIUM_JIT_HELPER_SPIKE
-        if BuiltInJITSpike.useForPlay, let pairing = BuiltInJITSpike.pairingData {
-            return await ensureWithHelper(pairing: pairing, status: status)
+        if BuiltInJITSpike.useForPlay {
+            if let pairing = BuiltInJITSpike.pairingData {
+                return await ensureWithHelper(pairing: pairing, status: status)
+            }
+            // No pairing file: StikDebug can still turn on JIT if it's installed.
+            guard Self.stikDebugInstalled else {
+                log.error("jit", "Built-in JIT is on but no pairing file is imported, and StikDebug isn't installed")
+                return .problem(.pairingFileMissing)
+            }
+            log.info("jit", "No pairing file imported: asking StikDebug instead")
         }
         #endif
 
@@ -179,7 +187,7 @@ extension JITCoordinator {
 
         let started = Date()
         let outcome = await wait.run(timeout: .seconds(180), poll: .milliseconds(200)) {
-            if let reason = failure.reason { return .problem(.helperFailed(reason)) }
+            if let reason = failure.reason { return .problem(.fromHelperError(reason)) }
             return await Self.readiness()
         }
         let seconds = String(format: "%.1f", Date().timeIntervalSince(started))

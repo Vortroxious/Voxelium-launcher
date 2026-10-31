@@ -47,15 +47,56 @@ enum BuiltInJITSpike {
     }
 }
 
-/// Diagnostics section: pairing file, the Play switch, and the helper check.
+/// The JIT tab (it replaces Logs in the test build; Logs moved to Diagnostics). Also shown
+/// as a sheet from Play's "Import a pairing file" problem.
+struct BuiltInJITView: View {
+    var showsDone = false
+    @Environment(\.dismiss) private var dismiss
+
+    var body: some View {
+        NavigationStack {
+            List {
+                JITHelperSpikeSection()
+                Section {
+                    Label("LocalDevVPN connected", systemImage: "network")
+                    Label("Internet the first time (Voxelium downloads the developer disk image once)", systemImage: "arrow.down.circle")
+                } header: {
+                    Text("Before you tap Play")
+                } footer: {
+                    Text("The developer disk image adds the debugger service that turns on JIT. It stays mounted until the iPhone restarts; the next Play mounts it again.")
+                }
+                Section {
+                    Text("The pairing file lets Voxelium talk to this iPhone's developer services. Make it once on a computer with the iPhone connected by cable, put it in Files, then import it above. It's kept in the Keychain; you can delete the copy in Files afterwards.")
+                        .font(.callout)
+                    Link(destination: setupGuideURL) { Label("Setup guide", systemImage: "book") }
+                } header: {
+                    Text("Getting a pairing file")
+                }
+            }
+            .navigationTitle("JIT")
+            .toolbar {
+                if showsDone { Button("Done") { dismiss() } }
+            }
+        }
+    }
+}
+
+/// The pairing file, the Play switch, and the helper check.
 struct JITHelperSpikeSection: View {
     @State private var lines: [String] = []
     @State private var importing = false
     @State private var hasPairing = BuiltInJITSpike.pairingData != nil
     @State private var useForPlay = BuiltInJITSpike.useForPlay
 
+    private var method: String {
+        if useForPlay && hasPairing { return "Built-in StikJIT" }
+        if JITCoordinator.stikDebugInstalled { return "StikDebug" }
+        return useForPlay ? "Nothing yet: import a pairing file" : "Nothing: StikDebug isn't installed"
+    }
+
     var body: some View {
         Section {
+            LabeledContent("Play turns on JIT with", value: method)
             LabeledContent("Pairing file", value: hasPairing ? "Imported" : "None")
             Button { importing = true } label: {
                 Label(hasPairing ? "Replace the pairing file" : "Import the pairing file", systemImage: "doc.badge.plus")
@@ -89,9 +130,9 @@ struct JITHelperSpikeSection: View {
                     .foregroundStyle(line.contains("FAIL") ? Color.red : Color.primary)
             }
         } header: {
-            Text("Built-in JIT (test)")
+            Text("Built-in StikJIT (test)")
         } footer: {
-            Text("With a pairing file imported and the switch on, Play turns on JIT here, without StikDebug. LocalDevVPN must be connected.")
+            Text("With a pairing file imported and the switch on, Play turns on JIT here, without StikDebug. Without a pairing file, Play uses StikDebug if it's installed.")
         }
         .fileImporter(isPresented: $importing, allowedContentTypes: [.item]) { result in
             switch result {

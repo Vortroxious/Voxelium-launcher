@@ -1795,3 +1795,11 @@ Requested by the user through the main session, as the candidate for Voxelium 2.
   - Fabric 1.21.11 (4 mods, MobileGlues) loaded and joined a new world at 13:38:45Z. It saved and quit at 13:39:07Z (`exit(0)`), with a `[VXMEM]` peak of 1593 MB.
   - Seen but harmless: JNA's `UnsatisfiedLinkError` in Minecraft's system report, which it catches. The helper log shows two legacy `brk #0x69` traps answered `0xE0000069` before the extension script was loaded; Voxelium's own probe after that got the right reply.
 - **Result: step 2 passes.** Play turns on JIT from inside Voxelium, with no switch to StikDebug, in under 2 s. Not tested yet: a first run that downloads the DDI, VPN off, a stale or missing pairing file, and Play after the helper was used once in the same launch.
+- **VPN off** (13:42Z, build 202610311153): the helper failed after 5.7 s with `failed to create RSD tunnel: InternalError("connect: Operation Timeout")`, and the player saw that raw text.
+  - Fix: `JITProblem.fromHelperError` turns the helper's connection failures (connect plus timeout, refused, unreachable or no route) into the new `.vpnNotConnected`: "LocalDevVPN isn't connected", with the setup guide link. Other helper errors keep their text. 135 tests pass.
+  - Device check (build 202610311345, SHA-256 `a594d7713592f3291d1daa13aa03a973f95fb0b55e249418078765d98022d5de`, 13:50:55Z, VPN off): "LocalDevVPN isn't connected after 5.4 s".
+- **JIT tab** (build 202610311354, SHA-256 `a133aedcb3fbe2a4fb2ca691ab85b3ea895c7b80a75db762eea80532ac51e003`, user request):
+  - In the test build, the JIT tab replaces the Logs tab. It holds the pairing file, the Play switch, the helper check, what Play needs, and how to get a pairing file. Logs moved to Diagnostics → Logs.
+  - With built-in JIT on and no pairing file, Play falls back to StikDebug if it's installed. Otherwise it shows the new `JITProblem.pairingFileMissing` ("Import a pairing file"), with a button that opens the JIT tab as a sheet.
+  - Device check, 14:01Z: the pairing file survived the reinstall (Keychain). Play → JIT on after 1.8 s with the helper; Fabric 1.21.11 joined a world (`[VXMEM]` peak 1583 MB) and quit.
+  - Not tested: the "Import a pairing file" message, which needs StikDebug to be uninstalled.

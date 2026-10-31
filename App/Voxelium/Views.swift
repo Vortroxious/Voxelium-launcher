@@ -6,6 +6,7 @@ struct VersionsView: View {
     @EnvironmentObject var minecraft: MinecraftLauncher
     @State private var installTarget: InstallTarget?
     @State private var showModpacks = false
+    @State private var showJITSettings = false
 
     /// What the install sheet is for: a Minecraft version, preselecting a loader.
     struct InstallTarget: Identifiable {
@@ -34,6 +35,11 @@ struct VersionsView: View {
                         if p.showsSetupGuide {
                             Link(destination: setupGuideURL) { Label("Open the setup guide", systemImage: "book") }
                         }
+                        #if VOXELIUM_JIT_HELPER_SPIKE
+                        if p == .pairingFileMissing {
+                            Button { showJITSettings = true } label: { Label("Import a pairing file", systemImage: "doc.badge.plus") }
+                        }
+                        #endif
                     }
                 case .finished(let ok, let m):
                     Section {
@@ -98,6 +104,9 @@ struct VersionsView: View {
                 InstallVersionSheet(entry: target.entry, initialLoader: target.loader)
             }
             .sheet(isPresented: $showModpacks, onDismiss: { model.refreshInstalled() }) { ModpackBrowseView() }
+            #if VOXELIUM_JIT_HELPER_SPIKE
+            .sheet(isPresented: $showJITSettings) { BuiltInJITView(showsDone: true) }
+            #endif
         }
     }
 }
@@ -496,10 +505,10 @@ struct DiagnosticsView: View {
                     LabeledContent("StikDebug installed", value: JITCoordinator.stikDebugInstalled ? "Yes" : "No")
                     Link(destination: setupGuideURL) { Label("Setup guide", systemImage: "book") }
                 }
-                #if VOXELIUM_JIT_HELPER_SPIKE
-                JITHelperSpikeSection()
-                #endif
                 Section {
+                    #if VOXELIUM_JIT_HELPER_SPIKE
+                    NavigationLink { LogList() } label: { Label("Logs", systemImage: "doc.plaintext") }
+                    #endif
                     NavigationLink { AboutView() } label: { Label("About Voxelium & licences", systemImage: "info.circle") }
                 }
                 JavaTestSection(test: javaTest, paths: model.paths)
@@ -526,21 +535,26 @@ struct DiagnosticsView: View {
 }
 
 struct LogView: View {
+    var body: some View {
+        NavigationStack { LogList() }
+    }
+}
+
+/// The log, newest first; pushed from Diagnostics in the JIT test build.
+struct LogList: View {
     @EnvironmentObject var model: LauncherModel
     @State private var entries: [LogEntry] = []
 
     var body: some View {
-        NavigationStack {
-            List(Array(entries.enumerated().reversed()), id: \.offset) { _, e in
-                VStack(alignment: .leading) {
-                    Text("[\(e.level.description)] \(e.category)").font(.caption.bold()).foregroundStyle(color(e.level))
-                    Text(e.message).font(.caption.monospaced()).textSelection(.enabled)
-                }
+        List(Array(entries.enumerated().reversed()), id: \.offset) { _, e in
+            VStack(alignment: .leading) {
+                Text("[\(e.level.description)] \(e.category)").font(.caption.bold()).foregroundStyle(color(e.level))
+                Text(e.message).font(.caption.monospaced()).textSelection(.enabled)
             }
-            .navigationTitle("Logs")
-            .toolbar { Button("Refresh") { entries = model.log.snapshot } }
-            .onAppear { entries = model.log.snapshot }
         }
+        .navigationTitle("Logs")
+        .toolbar { Button("Refresh") { entries = model.log.snapshot } }
+        .onAppear { entries = model.log.snapshot }
     }
 
     func color(_ l: LogLevel) -> Color {

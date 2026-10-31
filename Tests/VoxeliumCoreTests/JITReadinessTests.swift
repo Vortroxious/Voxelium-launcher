@@ -24,12 +24,23 @@ import Testing
     }
 
     @Test func everyProblemExplainsItself() {
-        let all: [JITProblem] = [.stikDebugMissing, .timedOut, .missingGetTaskAllow, .scriptNotAttached, .wrongScript(reply: 0xAB), .helperFailed("No route to 10.7.0.1.")]
+        let all: [JITProblem] = [.stikDebugMissing, .timedOut, .missingGetTaskAllow, .scriptNotAttached, .wrongScript(reply: 0xAB), .pairingFileMissing, .vpnNotConnected, .helperFailed("No route to 10.7.0.1.")]
         for p in all {
             #expect(!p.title.isEmpty && p.message.count > 40)
         }
         #expect(JITProblem.wrongScript(reply: 0xAB).message.contains("0xAB"))
         #expect(JITProblem.stikDebugMissing.showsSetupGuide && !JITProblem.scriptNotAttached.showsSetupGuide)
+    }
+
+    @Test func helperConnectionFailuresMeanTheVPNIsOff() {
+        // As logged on the iPhone with LocalDevVPN off (2026-10-31).
+        let off = #"The device is not ready for JIT: failed to create RSD tunnel: InternalError("connect: Operation Timeout") (idevice code 16/0)."#
+        #expect(JITProblem.fromHelperError(off) == .vpnNotConnected)
+        #expect(JITProblem.fromHelperError("connect: Connection refused") == .vpnNotConnected)
+        #expect(JITProblem.fromHelperError("connect: No route to host") == .vpnNotConnected)
+        // Other helper errors keep their own text.
+        #expect(JITProblem.fromHelperError("Pairing file is invalid") == .helperFailed("Pairing file is invalid"))
+        #expect(JITProblem.fromHelperError("Operation timed out waiting for the script") == .helperFailed("Operation timed out waiting for the script"))
     }
 }
 
