@@ -61,6 +61,12 @@ final class JITCoordinator {
             return .problem(.missingGetTaskAllow)
         }
 
+        #if VOXELIUM_JIT_HELPER_SPIKE
+        if BuiltInJITSpike.useForPlay, let pairing = BuiltInJITSpike.pairingData {
+            return await ensureWithHelper(pairing: pairing, status: status)
+        }
+        #endif
+
         let bundleID = Bundle.main.bundleIdentifier ?? "io.github.voxelium.launcher"
         let needsScript = VXJITNeedsScript()
         let script: Data? = needsScript
@@ -132,3 +138,70 @@ final class JITCoordinator {
 private final class ReturnTime {
     var date: Date?
 }
+
+#if VOXELIUM_JIT_HELPER_SPIKE
+extension JITCoordinator {
+    /// Spike (docs/JIT_INTEGRATION_PLAN.md, Phase 2): JIT from the built-in helper
+    /// extension (StikJIT), with no switch to StikDebug. Readiness is the same check as
+    /// for StikDebug; the helper's own answer only matters when it fails, because on TXM
+    /// devices it answers only after the JIT script detached, which is after the JVM
+    /// got its code cache.
+    func ensureWithHelper(pairing: Data, status: @escaping (String) -> Void) async -> Outcome {
+        guard let script = Bundle.main.url(forResource: "UniversalJIT26", withExtension: "js").flatMap({ try? Data(contentsOf: $0) }) else {
+            return .problem(.helperFailed("UniversalJIT26.js is missing from the app."))
+        }
+        let needsScript = VXJITNeedsScript()
+        let log = Logger.shared
+        log.info("jit", "Asking the built-in helper for JIT (pid \(getpid()), \(needsScript ? "script forced (TXM)" : "no script needed"))")
+        status("Turning on JIT with the built-in helper…")
+        let wait = JITWait()
+        self.wait = wait
+        defer { self.wait = nil }
+        let failure = HelperFailure()
+        VXJITHelperEnableJIT(getpid(), pairing, script, needsScript, { stage in
+            MainActor.assumeIsolated {
+                let text = BuiltInJITSpike.stageText(stage)
+                log.info("jit", "Helper stage \(stage): \(text)")
+                status(text)
+            }
+        }, { ok, error, lines in
+            MainActor.assumeIsolated {
+                for line in lines { log.info("jit", "Helper: \(line)") }
+                if ok {
+                    log.info("jit", "Helper finished: JIT script done")
+                } else {
+                    log.error("jit", "Helper failed: \(error ?? "?")")
+                    failure.reason = error ?? "The helper gave no reason."
+                    wait.nudge()
+                }
+            }
+        })
+
+        let started = Date()
+        let outcome = await wait.run(timeout: .seconds(180), poll: .milliseconds(200)) {
+            if let reason = failure.reason { return .problem(.helperFailed(reason)) }
+            return await Self.readiness()
+        }
+        let seconds = String(format: "%.1f", Date().timeIntervalSince(started))
+        switch outcome {
+        case .ready:
+            log.info("jit", "JIT is on (built-in helper) after \(seconds) s: \(VXJVMBridge.jitDescription())")
+            return .ready
+        case .cancelled:
+            return .cancelled
+        case .problem(let p):
+            log.error("jit", "\(p.title) after \(seconds) s: \(VXJVMBridge.jitDescription())")
+            return .problem(p)
+        case .timedOut:
+            log.error("jit", "No JIT from the helper after \(seconds) s: \(VXJVMBridge.jitDescription())")
+            return .problem(.helperFailed("JIT wasn't on after 3 minutes."))
+        }
+    }
+}
+
+/// The helper's failure, if it reports one while Voxelium waits.
+@MainActor
+private final class HelperFailure {
+    var reason: String?
+}
+#endif

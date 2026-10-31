@@ -1,0 +1,59 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<!-- scripts/build-jit-helper.sh sets CFBundleIdentifier, the versions and the SDK keys. -->
+	<key>CFBundleDevelopmentRegion</key>
+	<string>en</string>
+	<key>CFBundleDisplayName</key>
+	<string>Voxelium JIT Helper</string>
+	<key>CFBundleExecutable</key>
+	<string>VoxeliumJITHelper</string>
+	<key>CFBundleInfoDictionaryVersion</key>
+	<string>6.0</string>
+	<key>CFBundleName</key>
+	<string>VoxeliumJITHelper</string>
+	<key>CFBundlePackageType</key>
+	<string>XPC!</string>
+	<key>CFBundleSupportedPlatforms</key>
+	<array>
+		<string>iPhoneOS</string>
+	</array>
+	<key>UIDeviceFamily</key>
+	<array>
+		<integer>1</integer>
+		<integer>2</integer>
+	</array>
+	<!-- The same extension point and context classes as LiveContainer's LiveProcess
+	     (AGPL-3.0, LiveProcess/Info.plist), which its host starts with NSExtension.
+	     FALSEPREDICATE keeps it out of every system menu. -->
+	<key>NSExtension</key>
+	<dict>
+		<key>NSExtensionAttributes</key>
+		<dict>
+			<key>NSExtensionActivationRule</key>
+			<string>FALSEPREDICATE</string>
+		</dict>
+		<key>NSExtensionPointIdentifier</key>
+		<string>com.apple.ar.viewer</string>
+		<key>NSExtensionPrincipalClass</key>
+		<string>VXJITHelperHandler</string>
+		<key>NSExtensionContextClass</key>
+		<string>NSExtensionContext</string>
+		<key>NSExtensionContextHostClass</key>
+		<string>NSExtensionContext</string>
+	</dict>
+	<key>NSAppTransportSecurity</key>
+	<dict>
+		<key>NSAllowsLocalNetworking</key>
+		<true/>
+	</dict>
+	<!-- StikJIT looks up the device's Remote Pairing service (RSD port) with Bonjour. -->
+	<key>NSBonjourServices</key>
+	<array>
+		<string>_remotepairing._tcp</string>
+	</array>
+	<key>NSLocalNetworkUsageDescription</key>
+	<string>Voxelium's JIT helper connects to this iPhone's developer services through LocalDevVPN.</string>
+</dict>
+</plist>

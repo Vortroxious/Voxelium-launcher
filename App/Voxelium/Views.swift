@@ -496,6 +496,9 @@ struct DiagnosticsView: View {
                     LabeledContent("StikDebug installed", value: JITCoordinator.stikDebugInstalled ? "Yes" : "No")
                     Link(destination: setupGuideURL) { Label("Setup guide", systemImage: "book") }
                 }
+                #if VOXELIUM_JIT_HELPER_SPIKE
+                JITHelperSpikeSection()
+                #endif
                 Section {
                     NavigationLink { AboutView() } label: { Label("About Voxelium & licences", systemImage: "info.circle") }
                 }

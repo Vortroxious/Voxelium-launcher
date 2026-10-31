@@ -9,6 +9,22 @@ OUT="$ROOT/build"
 CONFIG="${CONFIG:-Release}"
 DERIVED="$OUT/DerivedData"
 IPA_DIR="$OUT/ipa"
+IPA_NAME="Voxelium-unsigned.ipa"
+# Spike (docs/JIT_INTEGRATION_PLAN.md, Phase 2 step 1): VOXELIUM_JIT_HELPER_SPIKE=1 builds
+# "Voxelium JIT Test" under its own bundle ID with the JIT helper extension, in its own
+# DerivedData so normal builds never contain the extension.
+SPIKE="${VOXELIUM_JIT_HELPER_SPIKE:-0}"
+SPIKE_SETTINGS=()
+SWIFT_CONDITIONS='$(inherited) VOXELIUM_ZINK_EXPERIMENT'
+GCC_DEFINES='$(inherited) VOXELIUM_ZINK_EXPERIMENT=1'
+if [ "$SPIKE" = 1 ]; then
+  DERIVED="$OUT/DerivedData-jitspike"
+  IPA_NAME="Voxelium-jitspike-unsigned.ipa"
+  SWIFT_CONDITIONS="$SWIFT_CONDITIONS VOXELIUM_JIT_HELPER_SPIKE"
+  GCC_DEFINES="$GCC_DEFINES VOXELIUM_JIT_HELPER_SPIKE=1"
+  SPIKE_SETTINGS=(PRODUCT_BUNDLE_IDENTIFIER=io.github.voxelium.launcher.jitspike
+                  "INFOPLIST_KEY_CFBundleDisplayName=Voxelium JIT Test")
+fi
 
 cd "$ROOT"
 mkdir -p "$IPA_DIR" "$OUT/logs"
@@ -35,8 +51,9 @@ xcodebuild \
   VOXELIUM_ZINK=YES \
   VOXELIUM_SDL3=YES \
   HEADER_SEARCH_PATHS='$(inherited) $(PROJECT_DIR)/../build/deps/sdl3-out/include' \
-  SWIFT_ACTIVE_COMPILATION_CONDITIONS='$(inherited) VOXELIUM_ZINK_EXPERIMENT' \
-  GCC_PREPROCESSOR_DEFINITIONS='$(inherited) VOXELIUM_ZINK_EXPERIMENT=1' \
+  SWIFT_ACTIVE_COMPILATION_CONDITIONS="$SWIFT_CONDITIONS" \
+  GCC_PREPROCESSOR_DEFINITIONS="$GCC_DEFINES" \
+  ${SPIKE_SETTINGS[@]+"${SPIKE_SETTINGS[@]}"} \
   build > "$OUT/logs/xcodebuild-$CONFIG.log" 2>&1 && XCB=0 || XCB=$?
 # (Checking PIPESTATUS after "| grep ... || true" read the status of "true", so a
 # failed build used to go on and package the previous .app.)
@@ -52,11 +69,18 @@ for need in Frameworks/zink Frameworks/sdl3/libSDL3.dylib Frameworks/sdl3/libvul
 done
 [ "$(grep -a -c "VOXELIUM_SDL_VULKAN_OK" "$APP/Voxelium")" -gt 0 ] || { echo "Vulkan code not compiled in (VOXELIUM_ZINK_EXPERIMENT or SDL headers missing)"; exit 1; }
 
+if [ "$SPIKE" = 1 ]; then
+  echo "==> JIT helper extension (spike)"
+  "$ROOT/scripts/build-jit-helper.sh" "$APP"
+else
+  [ ! -e "$APP/PlugIns/VoxeliumJITHelper.appex" ] || { echo "the normal app must not contain the JIT helper"; exit 1; }
+fi
+
 echo "==> packaging"
 STAGE="$(mktemp -d)"
 mkdir -p "$STAGE/Payload"
 cp -R "$APP" "$STAGE/Payload/"
-IPA="$IPA_DIR/Voxelium-unsigned.ipa"
+IPA="$IPA_DIR/$IPA_NAME"
 rm -f "$IPA"
 (cd "$STAGE" && /usr/bin/zip -qry "$IPA" Payload)
 rm -rf "$STAGE"
@@ -85,6 +109,6 @@ SIGN=$(codesign -dv "$APP" 2>&1 | head -1 || true)
   echo "codesign=$SIGN"
   echo "commit=$(git rev-parse --verify -q HEAD || echo none)$(git diff --quiet HEAD 2>/dev/null || echo " (working tree has uncommitted changes)")"
   echo "xcode=$(xcodebuild -version | tr '\n' ' ')"
-} | tee "$IPA_DIR/Voxelium-unsigned.ipa.info"
-echo "$SHA  Voxelium-unsigned.ipa" > "$IPA_DIR/Voxelium-unsigned.ipa.sha256"
+} | tee "$IPA_DIR/$IPA_NAME.info"
+echo "$SHA  $IPA_NAME" > "$IPA_DIR/$IPA_NAME.sha256"
 unzip -l "$IPA" | tail -1

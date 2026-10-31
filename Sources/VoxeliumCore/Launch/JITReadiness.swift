@@ -13,6 +13,8 @@ public enum JITProblem: Equatable, Sendable {
     case scriptNotAttached
     /// A different JIT script answered the probe (its reply is kept for the log).
     case wrongScript(reply: UInt64)
+    /// The built-in JIT helper (spike) reported an error.
+    case helperFailed(String)
 
     public var title: String {
         switch self {
@@ -21,6 +23,7 @@ public enum JITProblem: Equatable, Sendable {
         case .missingGetTaskAllow: "This install can't get JIT"
         case .scriptNotAttached: "StikDebug's JIT script didn't start"
         case .wrongScript: "StikDebug ran a different JIT script"
+        case .helperFailed: "The built-in JIT helper failed"
         }
     }
 
@@ -36,6 +39,8 @@ public enum JITProblem: Equatable, Sendable {
             "StikDebug attached to Voxelium but its JIT script isn't running, and this iPhone needs it. Tap Play again so Voxelium can ask StikDebug once more. If it keeps happening, update StikDebug."
         case .wrongScript(let reply):
             "StikDebug answered with another JIT script (reply 0x\(String(reply, radix: 16, uppercase: true))). In StikDebug, remove any script you assigned to Voxelium, then close Voxelium and tap Play again."
+        case .helperFailed(let reason):
+            "\(reason) Check that LocalDevVPN is connected and the pairing file is current, then close Voxelium and tap Play again. To use StikDebug instead, turn off the built-in helper in Diagnostics."
         }
     }
 
@@ -43,7 +48,7 @@ public enum JITProblem: Equatable, Sendable {
     public var showsSetupGuide: Bool {
         switch self {
         case .stikDebugMissing, .timedOut, .missingGetTaskAllow: true
-        case .scriptNotAttached, .wrongScript: false
+        case .scriptNotAttached, .wrongScript, .helperFailed: false
         }
     }
 }

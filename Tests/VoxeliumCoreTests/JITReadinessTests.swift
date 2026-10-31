@@ -24,7 +24,7 @@ import Testing
     }
 
     @Test func everyProblemExplainsItself() {
-        let all: [JITProblem] = [.stikDebugMissing, .timedOut, .missingGetTaskAllow, .scriptNotAttached, .wrongScript(reply: 0xAB)]
+        let all: [JITProblem] = [.stikDebugMissing, .timedOut, .missingGetTaskAllow, .scriptNotAttached, .wrongScript(reply: 0xAB), .helperFailed("No route to 10.7.0.1.")]
         for p in all {
             #expect(!p.title.isEmpty && p.message.count > 40)
         }

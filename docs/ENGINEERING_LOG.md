@@ -1763,3 +1763,35 @@ Requested by the user through the main session, as the candidate for Voxelium 2.
   - **LocalDevVPN off:** 14:52:43Z; Voxelium stayed in the background. On return the check reported "JIT wasn't turned on" (385.7 s, measured with a clock that keeps running while the app is suspended).
   - **Hand-off:** Play at 14:59:14Z, JIT on after **3.9 s**. In jvm.log: "JIT26 probe: sending (debuggerNow=1)", "debugger replied (x0=0xcccccccc690000e0)", then the 240 MB mapping. Fabric 1.21.11 (Zink) joined a world at 14:59:50 and quit to the Home Screen at 15:00:22. The coordinator's own probe at Play did not disturb the bridge's second probe.
   - **Opened from StikDebug:** 15:00:33Z (`CS_DEBUGGED=1`). Play started the game 3 s later without a trip to StikDebug. Joined at 15:01:02 and quit to the Home Screen at 15:01:09.
+
+## 2026-10-31 — Spike: a JIT helper extension (Phase 2, step 1), on `spike/jit-helper`
+- **Question:** can Built-in StikJIT's two-process design work for Voxelium's players? Does Sideloadly with a free Apple ID install an app with an extension, can Voxelium start it, and can the extension reach the device's services?
+- **Built:**
+  - `App/JITHelper` (`main.m`, `Info.plist`), compiled by `scripts/build-jit-helper.sh` into `PlugIns/VoxeliumJITHelper.appex`. Its entry point is `NSExtensionMain`; it uses extension point `com.apple.ar.viewer` with `FALSEPREDICATE`, as LiveContainer's LiveProcess does.
+  - The helper reports its pid, the host pid it received, TCP connects to 10.7.0.1:62078 (lockdownd) and :49152 (StikJIT's default RSD port), and its own get-task-allow. It answers both through the request's completion and through a Darwin notification.
+  - `JITHelperSpike.m` (host) starts the helper with the private `NSExtension` API (`extensionWithIdentifier:error:`, `beginExtensionRequestWithInputItems:completion:`, `pidForRequestIdentifier:`), as LiveContainer does. Diagnostics → "JIT helper test" shows each step.
+  - `VOXELIUM_JIT_HELPER_SPIKE=1 scripts/build-ipa.sh` builds "Voxelium JIT Test" (`io.github.voxelium.launcher.jitspike`) in its own DerivedData. The normal build now checks that it has no helper.
+- **IPA:** build 202610311141, SHA-256 `66ae53402c59fb8d38d1c5c4cc09ad1449d313f51f9b89108e6b070d5e88bae0`, at `build/ipa/Voxelium-jitspike-unsigned.ipa`.
+- **Device pass** (iPhone 15 Pro Max, iOS 27.0; installed with Sideloadly and the free Apple ID; devicectl shows "Voxelium JIT Test" 202610311141 next to Voxelium 202610281436; logs read 2026-10-31 11:4xZ). With LocalDevVPN on, at 11:44:34Z:
+  1. The extension survived signing. Sideloadly renamed it consistently: app `io.github.voxelium.launcher.jitspike.BANQ4R4Z6N`, helper `….BANQ4R4Z6N.JITHelper`.
+  2. `NSExtension extensionWithIdentifier:` found it.
+  3. The helper started as its own process (pid 62678; Voxelium was 62675).
+  4. It received the host pid. Both TCP connects (62078 and 49152) **connected** from inside the extension, and its get-task-allow is yes. Both reply channels arrived.
+  - The VPN-off comparison run is not in the log.
+- **Result: step 1 passes.** Next is step 2: StikJIT in the helper, attaching to the host pid with Voxelium's script.
+
+## 2026-10-31 — Spike: StikJIT in the helper (Phase 2, step 2), on `spike/jit-helper`
+- **Built:**
+  - `App/JITHelper/JITHelper.swift` replaces `main.m`. It compiles StikJIT (MPL-2.0, pinned at `0129e21955011a9aee47706d7ce178683208e88a`, fetched by `scripts/build-jit-helper.sh`) into the extension.
+  - The `enableJIT` request gets the host pid, the pairing file and `UniversalJIT26Extension.js` with `forceScript`. The helper posts its progress stages (1–8) as Darwin notifications and replies with StikJIT's log.
+  - In the test app, Diagnostics → "Built-in JIT (test)" imports the pairing file into the Keychain (`io.github.voxelium.jithelper`; never Documents, never logged) and has the "Use the built-in helper for Play" switch.
+  - With both set, `JITCoordinator.ensureJIT` asks the helper instead of opening StikDebug. A failure shows `JITProblem.helperFailed`.
+- **IPA:** build 202610311153, SHA-256 `ada1758b972b25cfb6f75575e76a6e642fdf722706b53beb20afd4cd713a7a16`, at `build/ipa/Voxelium-jitspike-step2-202610311153-unsigned.ipa`.
+  - Installing took several tries. Sideloadly's Refresh re-signs its own cached copy of the IPA (step 1), and one Start targeted the Mac ("Apple Silicon"). The phone build was checked with devicectl before testing.
+- **Device pass** (iPhone 15 Pro Max, iOS 27.0, TXM; devicectl shows "Voxelium JIT Test" 202610311153; logs read 2026-10-31 13:39Z). LocalDevVPN was on; StikDebug was installed but not opened.
+  - 13:38:00Z: pairing file imported (501 bytes).
+  - 13:38:04Z: Play asked the built-in helper. Stages 1 → 2 → 6 → 7: the DDI was already mounted, so there was no download.
+  - **JIT on after 1.8 s** (`CS_DEBUGGED=1`). The JIT26 probe got `0x690000E0`. The script blessed 15360 pages (240 MB) at `0x1218d0000` and detached.
+  - Fabric 1.21.11 (4 mods, MobileGlues) loaded and joined a new world at 13:38:45Z. It saved and quit at 13:39:07Z (`exit(0)`), with a `[VXMEM]` peak of 1593 MB.
+  - Seen but harmless: JNA's `UnsatisfiedLinkError` in Minecraft's system report, which it catches. The helper log shows two legacy `brk #0x69` traps answered `0xE0000069` before the extension script was loaded; Voxelium's own probe after that got the right reply.
+- **Result: step 2 passes.** Play turns on JIT from inside Voxelium, with no switch to StikDebug, in under 2 s. Not tested yet: a first run that downloads the DDI, VPN off, a stale or missing pairing file, and Play after the helper was used once in the same launch.
