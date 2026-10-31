@@ -1803,3 +1803,16 @@ Requested by the user through the main session, as the candidate for Voxelium 2.
   - With built-in JIT on and no pairing file, Play falls back to StikDebug if it's installed. Otherwise it shows the new `JITProblem.pairingFileMissing` ("Import a pairing file"), with a button that opens the JIT tab as a sheet.
   - Device check, 14:01Z: the pairing file survived the reinstall (Keychain). Play → JIT on after 1.8 s with the helper; Fabric 1.21.11 joined a world (`[VXMEM]` peak 1583 MB) and quit.
   - Not tested: the "Import a pairing file" message, which needs StikDebug to be uninstalled.
+- **Licences for the helper** (user request):
+  - **StikJIT** (MPL-2.0) is compiled in unmodified from the pinned commit. Its notice links to the source at that commit (MPL §3.2).
+  - **`libidevice_ffi.a`**, prebuilt in StikJIT, is idevice **v0.1.68** (MIT). StikJIT last updated it on 2026-09-24. All 111 crate paths in the binary match v0.1.68's Cargo.lock exactly; master doesn't match.
+    - `scripts/idevice-crates.txt` pins the dependency closure of idevice-ffi from that lock, without Windows, WASM and Android-only crates: 278 crates with their checksums.
+    - `scripts/fetch-idevice-licenses.sh` downloads each crate from crates.io, checks the checksum, and keeps its licence files.
+    - `scripts/idevice-notices.py` prints each licence text once. 14 crates ship no licence file; they get the standard text of their declared licence (MIT or BSD-3-Clause) with their Cargo.toml authors.
+    - All the crates are permissive: MIT, Apache-2.0, BSD, ISC, Zlib, Unicode-3.0, CDLA-Permissive-2.0, and one MPL-2.0. aws-lc 0.39.0 (in aws-lc-sys) brings its own Apache-2.0, ISC and OpenSSL texts.
+  - `collect-licenses.sh` adds the StikJIT, idevice and crate sections when StikJIT has been fetched.
+    - A full rerun isn't possible right now: the folder cleanup removed sources it reads (libffi tarballs, the LWJGL source, …). So the same block was run on its own and appended. That is what a full run writes, since the block comes last.
+    - The notices in the test IPA (build 202610311430) are identical to the repo's.
+  - **LiveContainer** (AGPL-3.0): `JITHelperSpike.m` is our own code. It calls the private NSExtension methods by selector name; LiveContainer's `AppSceneViewController.m` uses them through its `FoundationPrivate.h` interface. Only the method names and the extension-point idea are shared, and the comment credits it.
+  - The StikJIT call in `JITHelper.swift` follows the public API in StikJIT's INTEGRATION.md.
+  - The plan doc now says the Developer Disk Image comes from a GitHub mirror (`doronz88/DeveloperDiskImage`), not from Apple's servers.

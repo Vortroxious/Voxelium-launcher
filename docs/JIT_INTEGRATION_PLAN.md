@@ -136,7 +136,7 @@ The rest of this plan does not add JIT itself. It does three things:
   - Ship exactly one developer-chosen script, bundled in the app.
   - Never accept a script from the user, a URL or the network. This is also StikJIT's rule [S2].
 - **The incoming link.** Any app can open `stikjit://enable-jit` for Voxelium's bundle ID. StikDebug's confirmation (on by default) protects against that. Recommend users keep it on.
-- **Developer Disk Image downloads.** StikJIT fetches the image from Apple, needing the network. Voxelium itself sends nothing to new servers.
+- **Developer Disk Image downloads.** StikJIT fetches the image from a GitHub mirror of Apple's files (`github.com/doronz88/DeveloperDiskImage`, `PersonalizedImages/`), needing the network. Voxelium itself sends nothing to new servers. (Corrected 2026-10-31: an earlier version said "from Apple".)
 
 ---
 
@@ -187,7 +187,7 @@ The rest of this plan does not add JIT itself. It does three things:
 - LocalDevVPN (the tunnel);
 - the pairing file, made once on a computer with `idevice_pair` or similar;
 - Developer Mode;
-- Apple's Developer Disk Image servers;
+- the Developer Disk Image mirror on GitHub (`doronz88/DeveloperDiskImage`), which StikJIT downloads from; the image is Apple's, Voxelium doesn't ship it;
 - the signing tool (Sideloadly, SideStore);
 - StikDebug, for the link method.
 

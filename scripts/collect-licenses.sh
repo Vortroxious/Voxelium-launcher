@@ -104,6 +104,21 @@ section "Mesa 27.0.0-devel 9b3209540c with patches/mesa (KosmicKrisp Vulkan driv
   "$MESA_LIC/mesa-license.rst" $(find "$MESA_LIC/mesa-licenses" -type f | sort)
 section "UniversalJIT26.js and UniversalJIT26Extension.js (Amethyst-iOS); JIT helpers in JITSupport.m adapted from Amethyst-iOS" \
   "GPL-3.0, the same licence as Voxelium (see LICENSE)." "$ROOT/LICENSE"
+# The built-in JIT helper (VoxeliumJITHelper.appex) is added only when
+# scripts/build-jit-helper.sh has fetched StikJIT (the app bundles it only then).
+if [ -d "$DEPS/stikjit-src" ]; then
+  STIKJIT_COMMIT="$(cat "$DEPS/stikjit-src/.voxelium-commit")"
+  [ -d "$DEPS/idevice-licenses" ] || { echo "StikJIT is fetched but the idevice licences are not; run scripts/fetch-idevice-licenses.sh" >&2; exit 1; }
+  python3 "$ROOT/scripts/idevice-notices.py" "$DEPS/idevice-licenses" "$DEPS/idevice-crates" "$TMP/idevice-crates.txt"
+  section "StikJIT $STIKJIT_COMMIT (in VoxeliumJITHelper.appex)" \
+    "MPL-2.0. Unmodified; its source is at github.com/StikDebug/StikJIT/tree/$STIKJIT_COMMIT, built with scripts/build-jit-helper.sh." \
+    "$DEPS/stikjit-src/LICENSE"
+  section "idevice v0.1.68 (libidevice_ffi, prebuilt in StikJIT), github.com/jkcoxson/idevice" "MIT" \
+    "$DEPS/idevice-licenses/idevice-LICENSE.txt"
+  section "Rust crates in libidevice_ffi (crate list in scripts/idevice-crates.txt)" \
+    "MIT, Apache-2.0, BSD, ISC and others, per crate below. Sources: crates.io at the versions listed." \
+    "$TMP/idevice-crates.txt"
+fi
 
 cp "$OUT" "$ROOT/App/Voxelium/Resources/THIRD_PARTY_NOTICES.txt"
 echo "wrote $OUT ($(wc -l < "$OUT") lines) and App/Voxelium/Resources/THIRD_PARTY_NOTICES.txt"
