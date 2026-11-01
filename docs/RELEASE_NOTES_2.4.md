@@ -16,12 +16,14 @@
 
 ## Fixed
 - **Taps stopped working in Minecraft's menus** after F11 on a Bluetooth keyboard (or the Fullscreen option) turned on Minecraft's fullscreen. Voxelium now turns fullscreen off before each start; on an iPhone the game always fills the screen anyway.
+- **Forge and NeoForge versions failed their first start** when Voxelium had been reinstalled (updated) between installing the version and playing it. Their one-time setup now follows the app's data folder.
 
 ## Tested
 On an iPhone 15 Pro Max with iOS 27.0, with test builds of this release:
 - CurseForge search with the built-in key.
 - The update notice: a build reporting version 2.2 showed "Voxelium 2.3 is available".
 - Fabric 1.21.11 with fullscreen on in its options: Voxelium turned it off, and taps worked again.
+- CurseForge installs into NeoForge 1.21.11: Sound Physics Remastered and Architectury API. NeoForge 1.21.11, installed before a reinstall, then set itself up, joined a world and quit cleanly.
 
 Everything else is unchanged from [2.3](RELEASE_NOTES_2.3.md).
 

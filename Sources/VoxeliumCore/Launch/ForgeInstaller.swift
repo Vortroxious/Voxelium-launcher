@@ -150,6 +150,24 @@ public struct ForgeInstaller: Sendable {
         return url
     }
 
+    /// iOS gives an app a new data folder (`…/Data/Application/<UUID>`) when it's reinstalled,
+    /// as Sideloadly does on every install, but the plan holds absolute paths from install
+    /// time: a version installed and first started after a reinstall failed with
+    /// NoSuchFileException (NeoForge 21.11.48, 2026-11-01). Before the processors run, any
+    /// earlier data folder in the plan is pointed at the current one (`root`'s). Returns
+    /// true when the plan changed.
+    @discardableResult
+    public static func relocatePlan(_ plan: URL, root: URL) throws -> Bool {
+        let container = #"(?:/private)?/var/mobile/Containers/Data/Application/[0-9A-Fa-f-]{36}"#
+        guard let range = root.path.range(of: container, options: .regularExpression) else { return false }
+        let current = NSRegularExpression.escapedTemplate(for: String(root.path[range]))
+        let text = try String(contentsOf: plan, encoding: .utf8)
+        let fixed = text.replacingOccurrences(of: container, with: current, options: .regularExpression)
+        guard fixed != text else { return false }
+        try Data(fixed.utf8).write(to: plan, options: .atomic)
+        return true
+    }
+
     /// True once the processors ran successfully (Boot.java writes `<plan>.done`).
     public static func processorsDone(_ plan: URL) -> Bool {
         FileManager.default.fileExists(atPath: plan.path + ".done")

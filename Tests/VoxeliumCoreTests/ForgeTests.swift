@@ -203,6 +203,25 @@ import Testing
         #expect(!(try GameFilePlanner(paths: paths).installItems(for: resolved.info)).contains { $0.destination.path == patched })
     }
 
+    /// A reinstall moves the app's data folder; the plan's absolute paths follow it.
+    @Test func planFollowsTheDataFolderAfterAReinstall() throws {
+        let tmp = try TempDir()
+        let old = "/var/mobile/Containers/Data/Application/42A862FD-17CD-4443-B473-D879924F733E/Documents"
+        let new = "/var/mobile/Containers/Data/Application/57EA4D63-CCB1-4D5B-B57B-0B7988A54FF2/Documents"
+        let plan = tmp.url.appendingPathComponent(ForgeInstaller.planFileName)
+        try "processor installertools DOWNLOAD_MOJMAPS\njar \(old)/minecraft/libraries/net/neoforged/installertools-4.0.6-fatjar.jar\narg /private\(old)/minecraft/versions/1.21.11/1.21.11.jar\narg --side\n"
+            .write(to: plan, atomically: true, encoding: .utf8)
+        #expect(try ForgeInstaller.relocatePlan(plan, root: URL(fileURLWithPath: new)))
+        let text = try String(contentsOf: plan, encoding: .utf8)
+        #expect(!text.contains("42A862FD"))
+        #expect(text.contains("jar \(new)/minecraft/libraries/net/neoforged/installertools-4.0.6-fatjar.jar"))
+        #expect(text.contains("arg \(new)/minecraft/versions/1.21.11/1.21.11.jar"))
+        #expect(text.hasSuffix("arg --side\n"))
+        // Already current: nothing to write. A root outside an app container (macOS tests): no change.
+        #expect(try !ForgeInstaller.relocatePlan(plan, root: URL(fileURLWithPath: new)))
+        #expect(try !ForgeInstaller.relocatePlan(plan, root: tmp.url))
+    }
+
     @Test func forgeOnlyFrom117() async throws {
         #expect(ModLoader.forge.isAvailable(minecraft: "1.17.1"))
         #expect(ModLoader.forge.isAvailable(minecraft: "1.20.1"))

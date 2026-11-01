@@ -1911,3 +1911,10 @@ Requested by the user through the main session, as the candidate for Voxelium 2.
   - VXGLFW's `glfwSetWindowMonitor` does nothing, and its video mode is in pixels (2796×1290) while touches are in points. So in fullscreen Minecraft scales every tap to about a third of the way in, and no Minecraft button can be clicked. Voxelium's own buttons, which are UIKit, kept working. Other versions without fullscreen were fine.
   - Fix: `GameOptions.turnOffFullscreen()` before every start (tested).
   - **Device** (build 202611011247): logged "Fullscreen was on … turned off", and taps worked again.
+- **CurseForge installs on the phone:**
+  - Sound Physics Remastered 1.5.2 and Architectury API 19.0.1 installed into NeoForge 1.21.11 (12:55Z, 12:56Z). `.voxelium-curseforge.json` recorded both, with mod and file ids.
+- **Forge/NeoForge setup after a reinstall:**
+  - NeoForge 21.11.48 had been installed but never started. Its first start failed in `Boot.runProcessors` with NoSuchFileException.
+  - Cause: `voxelium-processors.txt` held absolute paths in the app's old data folder (`…/Application/42A862FD-…`). iOS gives the app a new one on every reinstall (now `…/57EA4D63-…`).
+  - Fix: `ForgeInstaller.relocatePlan` rewrites any `/var/mobile/Containers/Data/Application/<UUID>` in a plan that hasn't run yet to the current one (tested). 151 tests pass.
+  - **Device** (build 202611011258): logged "setup plan pointed at this install's data folder"; both setup steps ran in 7.3 s; NeoForge joined a world at 13:02:31Z and quit cleanly.

@@ -106,6 +106,10 @@ final class MinecraftLauncher: ObservableObject {
             // Forge and NeoForge start through voxelium-boot.jar, which runs their installer
             // processors in this JVM on the first launch (ForgeInstaller, ForgeLaunch).
             let forgePlan = ForgeLaunch.processorPlan(for: resolved, paths: paths)
+            if let forgePlan, !ForgeInstaller.processorsDone(forgePlan),
+               (try? ForgeInstaller.relocatePlan(forgePlan, root: paths.root)) == true {
+                log.info("launch", "Mod loader setup plan pointed at this install's data folder (the app was reinstalled since)")
+            }
 
             // Java: the smallest bundled runtime that satisfies the version (8, 17, 21, 25).
             let major = GameRuntime.javaMajor(for: version)
