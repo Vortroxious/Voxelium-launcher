@@ -19,7 +19,10 @@
 - **Forge and NeoForge versions failed their first start** when Voxelium had been reinstalled (updated) between installing the version and playing it. Their one-time setup now follows the app's data folder.
 
 ## Tested
-On an iPhone 15 Pro Max with iOS 27.0, with test builds of this release:
+On an iPhone 15 Pro Max with iOS 27.0:
+- **The release IPA** (build 202611011304), installed over the test builds: JIT on in 1.5 s, NeoForge 1.21.11 with the CurseForge mods joined a world and quit cleanly.
+
+With test builds of this release:
 - CurseForge search with the built-in key.
 - The update notice: a build reporting version 2.2 showed "Voxelium 2.3 is available".
 - Fabric 1.21.11 with fullscreen on in its options: Voxelium turned it off, and taps worked again.

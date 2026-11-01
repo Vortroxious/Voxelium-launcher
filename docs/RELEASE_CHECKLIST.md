@@ -81,3 +81,18 @@ Status as of 2026-11-01.
 - ✅ Device pass on that exact IPA (installed build confirmed as 202611010403 with `devicectl`, 2026-11-01 04:07–04:08Z): built-in helper, JIT on in 1.8 s; Fabric 1.21.11 joined a world (peak 2188 MB) and quit cleanly. The beta of the same code also passed the Airplane Mode prompt on mobile data (2.1 s).
 - ✅ Committed and tagged `v2.3`.
 - 👤 Push `main` and `v2.3`. Create the GitHub Release **v2.3** with `build/ipa/Voxelium-2.3-unsigned.ipa`, its `.sha256` and `build/ipa/THIRD_PARTY_NOTICES.txt` (1.07 MB; check it isn't an older, smaller notices file), and paste the release notes.
+
+# Release checklist (Voxelium 2.4)
+
+Status as of 2026-11-01.
+- ✅ Browse CurseForge, update checks, the fullscreen fix (`f01c0d2`) and the Forge/NeoForge plan fix (`51f5176`) on `main`. Version 2.4, including `LaunchPlanner.launcherVersion` and the User-Agent (`005be18`). Release notes: [RELEASE_NOTES_2.4.md](RELEASE_NOTES_2.4.md).
+- ✅ `swift test`: 151 tests pass.
+- ✅ Release IPA from a clean tree at `005be18`: `build/ipa/Voxelium-2.4-unsigned.ipa`, build 202611011304, 215,985,946 bytes, SHA-256 `a19b3c69901a056085932f94bd06f5128dd7a6e46b53aee7a70c50391b45aea7`.
+  - No diagnostics in MobileGlues (`MG-GLERR` count 0).
+  - App and helper at version 2.4; the User-Agent is 2.4.
+  - Notices identical to the repository's `THIRD_PARTY_NOTICES.txt` (unchanged since 2.3).
+  - No signing, pairing or key files.
+  - The CurseForge API key is in Info.plist (`VoxeliumCurseForgeKey`), as the maintainer agreed. It comes from the git-ignored `Config/curseforge.key` and is in no tracked file.
+- ✅ Device pass on that exact IPA (installed build confirmed as 202611011304 with `devicectl`, 2026-11-01 13:06Z): JIT on in 1.5 s; NeoForge 1.21.11 with CurseForge-installed mods joined a world (peak 1512 MB) and quit cleanly. Earlier test builds of the same features passed CurseForge search and install, the update notice and the fullscreen fix.
+- ✅ Committed and tagged `v2.4`.
+- 👤 Push `main` and `v2.4`. Create the GitHub Release **v2.4** with `build/ipa/Voxelium-2.4-unsigned.ipa`, its `.sha256` and `build/ipa/THIRD_PARTY_NOTICES.txt` (1.07 MB), and paste the release notes.

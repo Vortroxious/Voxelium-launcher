@@ -1918,3 +1918,6 @@ Requested by the user through the main session, as the candidate for Voxelium 2.
   - Cause: `voxelium-processors.txt` held absolute paths in the app's old data folder (`…/Application/42A862FD-…`). iOS gives the app a new one on every reinstall (now `…/57EA4D63-…`).
   - Fix: `ForgeInstaller.relocatePlan` rewrites any `/var/mobile/Containers/Data/Application/<UUID>` in a plan that hasn't run yet to the current one (tested). 151 tests pass.
   - **Device** (build 202611011258): logged "setup plan pointed at this install's data folder"; both setup steps ran in 7.3 s; NeoForge joined a world at 13:02:31Z and quit cleanly.
+- **Release IPA** `Voxelium-2.4-unsigned.ipa` (build 202611011304, from `005be18`, SHA-256 `a19b3c69…aea7`):
+  - It passed the release checks (see `docs/RELEASE_CHECKLIST.md`).
+  - On the iPhone 15 Pro Max (13:06Z), JIT was on in 1.5 s, and NeoForge 1.21.11 joined a world and quit cleanly.
