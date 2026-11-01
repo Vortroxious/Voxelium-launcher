@@ -187,7 +187,7 @@ extension ModLoaderInstaller {
 
 enum HTTPHeaders {
     /// The User-Agent that Fabric, Quilt, Modrinth, CurseForge and GitHub ask clients to send.
-    static let userAgent = "Voxelium/2.3 (iOS Minecraft launcher; github.com/Vortroxious/Voxelium-launcher)"
+    static let userAgent = "Voxelium/2.4 (iOS Minecraft launcher; github.com/Vortroxious/Voxelium-launcher)"
 }
 
 extension HTTPClient {
