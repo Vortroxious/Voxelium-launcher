@@ -1885,3 +1885,29 @@ Requested by the user through the main session, as the candidate for Voxelium 2.
 - **Release IPA** `Voxelium-2.3-unsigned.ipa` (build 202611010403, from `6b71f74`, SHA-256 `7bd8ea5d…86fc`):
   - It passed the release checks (see `docs/RELEASE_CHECKLIST.md`).
   - On the iPhone 15 Pro Max (04:07Z), JIT was on after 1.8 s on Wi-Fi, and Fabric 1.21.11 joined a world and quit cleanly.
+
+## 2026-11-01 — Voxelium 2.4 work: CurseForge, update checks, fullscreen fix (branch `features-2.4`)
+- **Update checks:**
+  - `UpdateCheck` (VoxeliumCore) reads GitHub's `releases/latest` with Voxelium's User-Agent and compares versions numerically (`isNewer`; drafts and pre-releases are ignored).
+  - `UpdateModel` checks at start and when the network returns, at most once every 24 h. It shows a row in the Versions tab ("Not now" hides that version), and Diagnostics gets "Check for updates" plus an automatic-check switch.
+  - **Device:** a test build reporting 2.2 logged "Voxelium 2.3 is available" (11:15Z).
+- **CurseForge:**
+  - `CurseForgeAPI` (`x-api-key`, game 432; classes 6 mods, 12 resource packs, 6552 shaders; loaders Forge 1, Fabric 4, Quilt 5 then 4, NeoForge 6). `CurseForgeInstaller` follows required dependencies and lists conflicts.
+  - Files are fetched only from their `downloadUrl`. Files whose author turned off third-party downloads get an "Open on CurseForge" link instead.
+  - Installs are recorded in `.voxelium-curseforge.json`, since CurseForge files can't be matched by SHA-1 lookup.
+  - UI: "Browse CurseForge" below "Browse Modrinth" in the + menu.
+- **CurseForge API key:**
+  - Built in at build time from the git-ignored `Config/curseforge.key` (or `CURSEFORGE_API_KEY`), added to Info.plist as `VoxeliumCurseForgeKey`. It's never in the repo or the logs. The maintainer accepted that it's readable inside released IPAs, as with other launchers' keys.
+  - A player's own key (Keychain) is the fallback.
+  - The key the maintainer first saved was rich text (`curseforge.key.txt.rtf`, not ignored). It was converted to plain text, and `.gitignore` now ignores all of `Config/`.
+  - A brand-new key answered 403 "API Key missing or invalid" on `/v1/mods/search` only, while `/games`, `/mods/{id}` and files worked. Minutes later search worked. The app now tells a key that can't search (`searchNotAllowed`) apart from a wrong one.
+- **Shared User-Agent:** all User-Agent strings now come from one constant, `HTTPHeaders.userAgent`. 150 tests pass.
+- **Game controllers, mouse and keyboard: tried and removed.**
+  - A GameController-based mapping (controller → keys and look, GCMouse, GLFW gamepad API for Controlify) was built. The Bluetooth keyboard already worked through the existing `UIPress` path.
+  - With a mouse (Logitech G502), iOS 27 showed its own pointer without AssistiveTouch, sent no GCMouse button events while unlocked, and delivered clicks as touches.
+  - After that, no tap reached Minecraft's buttons, fingers included. The maintainer asked for all input changes to be removed, and they were. The touch code is back to 2.3's.
+- **The real cause of the dead taps: Minecraft's fullscreen.**
+  - Fabric 1.21.11's `options.txt` had `fullscreen:true`: F11 on the Bluetooth keyboard toggles it.
+  - VXGLFW's `glfwSetWindowMonitor` does nothing, and its video mode is in pixels (2796×1290) while touches are in points. So in fullscreen Minecraft scales every tap to about a third of the way in, and no Minecraft button can be clicked. Voxelium's own buttons, which are UIKit, kept working. Other versions without fullscreen were fine.
+  - Fix: `GameOptions.turnOffFullscreen()` before every start (tested).
+  - **Device** (build 202611011247): logged "Fullscreen was on … turned off", and taps worked again.

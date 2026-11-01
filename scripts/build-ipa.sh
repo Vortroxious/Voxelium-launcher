@@ -18,6 +18,10 @@ mkdir -p "$IPA_DIR" "$OUT/logs"
 # Unique, increasing build number (CFBundleVersion), visible in
 # `xcrun devicectl device info apps`, so the installed build can be identified.
 BUILD_NUMBER="${BUILD_NUMBER:-$(date -u +%Y%m%d%H%M)}"
+# Optional: MARKETING_VERSION=2.2 makes a test build report an older version (e.g. to see
+# the launcher's update notice). Release builds leave it unset.
+VERSION_SETTINGS=()
+[ -n "${MARKETING_VERSION:-}" ] && VERSION_SETTINGS=(MARKETING_VERSION="$MARKETING_VERSION")
 
 # The Forge/NeoForge entry point is small and quick to build, so always rebuild it.
 echo "==> voxelium-boot.jar"
@@ -40,6 +44,7 @@ xcodebuild \
   HEADER_SEARCH_PATHS='$(inherited) $(PROJECT_DIR)/../build/deps/sdl3-out/include' \
   SWIFT_ACTIVE_COMPILATION_CONDITIONS="$SWIFT_CONDITIONS" \
   GCC_PREPROCESSOR_DEFINITIONS="$GCC_DEFINES" \
+  ${VERSION_SETTINGS[@]+"${VERSION_SETTINGS[@]}"} \
   build > "$OUT/logs/xcodebuild-$CONFIG.log" 2>&1 && XCB=0 || XCB=$?
 # (Checking PIPESTATUS after "| grep ... || true" read the status of "true", so a
 # failed build used to go on and package the previous .app.)
@@ -54,6 +59,22 @@ for need in Frameworks/zink Frameworks/sdl3/libSDL3.dylib Frameworks/sdl3/libvul
   [ -e "$APP/$need" ] || { echo "missing $need in the app (Vulkan renderer); build its deps first"; exit 1; }
 done
 [ "$(grep -a -c "VOXELIUM_SDL_VULKAN_OK" "$APP/Voxelium")" -gt 0 ] || { echo "Vulkan code not compiled in (VOXELIUM_ZINK_EXPERIMENT or SDL headers missing)"; exit 1; }
+
+# CurseForge API key (2.4): from CURSEFORGE_API_KEY or Config/curseforge.key (git-ignored),
+# added to the app's Info.plist so Browse CurseForge needs no key from the player. Never
+# printed. Without one, players enter their own key in the app.
+CF_KEY="${CURSEFORGE_API_KEY:-}"
+if [ -z "$CF_KEY" ] && [ -f "$ROOT/Config/curseforge.key" ]; then
+  CF_KEY="$(tr -d ' \t\r\n' < "$ROOT/Config/curseforge.key")"
+fi
+plutil -remove VoxeliumCurseForgeKey "$APP/Info.plist" > /dev/null 2>&1 || true
+if [ -n "$CF_KEY" ]; then
+  plutil -replace VoxeliumCurseForgeKey -string "$CF_KEY" "$APP/Info.plist"
+  CF_STATUS="built in"
+else
+  CF_STATUS="none (players enter their own)"
+fi
+unset CF_KEY
 
 # 2.3: the built-in JIT helper (StikJIT in an app extension), so Play needs no StikDebug.
 echo "==> JIT helper extension"
@@ -90,6 +111,7 @@ SIGN=$(codesign -dv "$APP" 2>&1 | head -1 || true)
   echo "archs=$ARCHS"
   echo "macho_platform=$PLATFORM (2 = iOS)"
   echo "codesign=$SIGN"
+  echo "curseforge_key=$CF_STATUS"
   echo "commit=$(git rev-parse --verify -q HEAD || echo none)$(git diff --quiet HEAD 2>/dev/null || echo " (working tree has uncommitted changes)")"
   echo "xcode=$(xcodebuild -version | tr '\n' ' ')"
 } | tee "$IPA_DIR/$IPA_NAME.info"

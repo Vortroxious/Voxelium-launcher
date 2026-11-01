@@ -4,6 +4,7 @@ import VoxeliumCore
 struct VersionsView: View {
     @EnvironmentObject var model: LauncherModel
     @EnvironmentObject var minecraft: MinecraftLauncher
+    @EnvironmentObject var updates: UpdateModel
     @State private var installTarget: InstallTarget?
     @State private var showModpacks = false
     @State private var showJITSettings = false
@@ -18,6 +19,16 @@ struct VersionsView: View {
     var body: some View {
         NavigationStack {
             List {
+                if let release = updates.banner {
+                    Section {
+                        Link(destination: release.htmlUrl) {
+                            Label("Voxelium \(release.version) is available", systemImage: "arrow.down.app")
+                        }
+                        Button("Not now") { updates.dismiss(release) }
+                    } footer: {
+                        Text("You have \(UpdateModel.currentVersion). Download the new IPA from the release page and install it with Sideloadly using the same Apple ID; your versions and worlds stay.")
+                    }
+                }
                 switch minecraft.state {
                 case .idle:
                     EmptyView()
@@ -481,6 +492,7 @@ struct AccountView: View {
 
 struct DiagnosticsView: View {
     @EnvironmentObject var model: LauncherModel
+    @EnvironmentObject var updates: UpdateModel
     @StateObject private var javaTest = JavaTestModel()
     @StateObject private var graphicsTest = GraphicsTestModel()
 
@@ -494,6 +506,24 @@ struct DiagnosticsView: View {
                         LabeledContent("Available to app", value: ByteCountFormatter.string(fromByteCount: Int64(avail), countStyle: .memory))
                     }
                     LabeledContent("Debugger attached (JIT prerequisite)", value: DeviceInfo.isDebuggerAttached ? "Yes" : "No")
+                }
+                Section {
+                    LabeledContent("Voxelium", value: UpdateModel.currentVersion)
+                    Button { Task { await updates.check() } } label: { Label("Check for updates", systemImage: "arrow.triangle.2.circlepath") }
+                        .disabled(updates.status == .checking)
+                    switch updates.status {
+                    case .idle: EmptyView()
+                    case .checking: HStack(spacing: 8) { ProgressView(); Text("Checking GitHub…").font(.callout) }
+                    case .upToDate: Text("Voxelium is up to date.").font(.callout)
+                    case .available(let r):
+                        Link(destination: r.htmlUrl) { Label("Voxelium \(r.version) is available", systemImage: "arrow.down.app") }
+                    case .failed(let why): Text("Couldn't check: \(why)").font(.callout).foregroundStyle(.red)
+                    }
+                    Toggle("Check for updates automatically", isOn: $updates.automatic)
+                } header: {
+                    Text("Updates")
+                } footer: {
+                    Text("Voxelium asks GitHub once a day for the latest release. Nothing about you is sent, and nothing is downloaded or installed by itself.")
                 }
                 Section("JIT") {
                     LabeledContent("get-task-allow", value: ["Unknown", "Missing", "Yes"][Int(JITCoordinator.getTaskAllow) + 1])

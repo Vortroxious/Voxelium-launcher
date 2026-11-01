@@ -291,6 +291,10 @@ final class MinecraftLauncher: ObservableObject {
                 }
             }
             setenv("VOXELIUM_OPTIONS_PATH", gameDir.appendingPathComponent("options.txt").path, 1)
+            var fullscreenOptions = GameOptions(gameDirectory: gameDir)
+            if (try? fullscreenOptions.turnOffFullscreen()) == true {
+                log.info("launch", "Fullscreen was on in \(versionID)/options.txt (F11?): turned off, or taps miss Minecraft's buttons")
+            }
 
             let logURL = paths.logsDir.appendingPathComponent("jvm.log")
             let header = "\n===== Minecraft \(versionID) \(ISO8601DateFormatter().string(from: Date())) java=\(javaMajor) heap=\(heap)M \(VXJVMBridge.jitDescription())\n"

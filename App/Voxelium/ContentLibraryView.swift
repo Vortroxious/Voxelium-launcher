@@ -16,6 +16,7 @@ struct ContentLibraryView: View {
     @State private var message: (text: String, isError: Bool)?
     @State private var pendingDelete: ContentItem?
     @State private var browsing = false
+    @State private var browsingCurseForge = false
     @State private var iris: IrisSettings?
     /// Newer Modrinth versions of installed files, by file path.
     @State private var updates: [String: ModUpdate] = [:]
@@ -67,7 +68,7 @@ struct ContentLibraryView: View {
                 }
                 Section {
                     if items.isEmpty {
-                        Text("No \(kind.title.lowercased()) yet. Tap + to browse Modrinth or import .\(kind.fileExtension) files from Files.")
+                        Text("No \(kind.title.lowercased()) yet. Tap + to browse Modrinth or CurseForge, or import .\(kind.fileExtension) files from Files.")
                             .foregroundStyle(.secondary)
                     }
                     ForEach(items) { item in row(item) }
@@ -85,12 +86,16 @@ struct ContentLibraryView: View {
                 ToolbarItem(placement: .primaryAction) {
                     Menu {
                         Button { browsing = true } label: { Label("Browse Modrinth", systemImage: "globe") }
+                        Button { browsingCurseForge = true } label: { Label("Browse CurseForge", systemImage: "flame") }
                         Button { importing = true } label: { Label("Import from Files", systemImage: "folder") }
                     } label: { Label("Add", systemImage: "plus") }
                 }
             }
             .navigationDestination(isPresented: $browsing) {
                 ModrinthBrowseView(version: version, kind: kind) { reload() }
+            }
+            .navigationDestination(isPresented: $browsingCurseForge) {
+                CurseForgeBrowseView(version: version, kind: kind) { reload() }
             }
             .fileImporter(isPresented: $importing, allowedContentTypes: allowedTypes, allowsMultipleSelection: true) { result in
                 importFiles(result)

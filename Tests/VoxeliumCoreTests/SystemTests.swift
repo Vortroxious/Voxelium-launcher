@@ -94,6 +94,19 @@ import Testing
         #expect(try fresh.useAutoGUIScale() == nil && !fresh.exists)
     }
 
+    /// F11 on a hardware keyboard turned on Minecraft's fullscreen, after which no tap hit
+    /// a Minecraft button (Fabric 1.21.11, 2026-11-01): the launcher turns it off again.
+    @Test func fullscreenIsTurnedOff() throws {
+        let tmp = try TempDir()
+        try "fov:0.0\nfullscreen:true\nguiScale:0\n".write(to: tmp.url.appendingPathComponent("options.txt"), atomically: true, encoding: .utf8)
+        var options = GameOptions(gameDirectory: tmp.url)
+        #expect(try options.turnOffFullscreen())
+        #expect(try String(contentsOf: options.file, encoding: .utf8) == "fov:0.0\nfullscreen:false\nguiScale:0\n")
+        #expect(try !options.turnOffFullscreen())   // already off
+        var fresh = GameOptions(gameDirectory: tmp.url.appendingPathComponent("new"))
+        #expect(try !fresh.turnOffFullscreen() && !fresh.exists)
+    }
+
     @Test func corruptFileIsMovedAside() throws {
         let tmp = try TempDir()
         let store = SettingsStore(paths: tmp.paths)

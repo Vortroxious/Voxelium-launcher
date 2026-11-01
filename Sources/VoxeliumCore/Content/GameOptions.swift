@@ -56,6 +56,18 @@ public struct GameOptions: Sendable, Equatable {
         return old
     }
 
+    /// Minecraft's fullscreen (F11 on a hardware keyboard, or Video Settings) back off.
+    /// On the iPhone the window always fills the screen; in fullscreen Minecraft takes its
+    /// size from the display mode, in pixels, while touches arrive in points, so every tap
+    /// lands about a third of the way in and no Minecraft button can be clicked (seen with
+    /// Fabric 1.21.11, 2026-11-01). Returns true when it was on.
+    @discardableResult
+    public mutating func turnOffFullscreen() throws -> Bool {
+        guard values["fullscreen"]?.trimmingCharacters(in: .whitespaces) == "true" else { return false }
+        try set("fullscreen", "false")
+        return true
+    }
+
     static func parse(_ text: String) -> [String: String] {
         var out: [String: String] = [:]
         for line in text.components(separatedBy: .newlines) {

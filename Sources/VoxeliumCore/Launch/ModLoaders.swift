@@ -185,12 +185,17 @@ extension ModLoaderInstaller {
     }
 }
 
+enum HTTPHeaders {
+    /// The User-Agent that Fabric, Quilt, Modrinth, CurseForge and GitHub ask clients to send.
+    static let userAgent = "Voxelium/2.3 (iOS Minecraft launcher; github.com/Vortroxious/Voxelium-launcher)"
+}
+
 extension HTTPClient {
-    /// A plain GET with the User-Agent that Fabric, Quilt and Modrinth ask clients to send.
+    /// A plain GET with Voxelium's User-Agent.
     func get(_ url: URL) async throws -> JSONResponse {
         var r = URLRequest(url: url)
         r.setValue("application/json", forHTTPHeaderField: "Accept")
-        r.setValue("Voxelium/2.3 (iOS Minecraft launcher; github.com/Vortroxious/Voxelium-launcher)", forHTTPHeaderField: "User-Agent")
+        r.setValue(HTTPHeaders.userAgent, forHTTPHeaderField: "User-Agent")
         return try await send(r)
     }
 }

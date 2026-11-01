@@ -129,13 +129,18 @@ struct ModrinthBrowseView: View {
     }
 }
 
+/// One search result (Modrinth or CurseForge): icon, title, summary, author, downloads.
 struct HitRow: View {
-    let hit: ModrinthAPI.SearchHit
+    let title: String
+    let description: String
+    let author: String?
+    let downloads: Int
+    let iconURL: URL?
     let installed: Bool
 
     var body: some View {
         HStack(alignment: .top, spacing: 12) {
-            AsyncImage(url: hit.iconUrl.flatMap(URL.init(string:))) { image in
+            AsyncImage(url: iconURL) { image in
                 image.resizable().scaledToFit()
             } placeholder: {
                 Image(systemName: "shippingbox").foregroundStyle(.secondary)
@@ -144,16 +149,23 @@ struct HitRow: View {
             .clipShape(RoundedRectangle(cornerRadius: 8))
             VStack(alignment: .leading, spacing: 3) {
                 HStack {
-                    Text(hit.title).font(.headline).lineLimit(1)
+                    Text(title).font(.headline).lineLimit(1)
                     if installed { Text("Installed").font(.caption2.bold()).foregroundStyle(.green) }
                 }
-                Text(hit.description).font(.caption).foregroundStyle(.secondary).lineLimit(2)
-                Text([hit.author.map { "by \($0)" }, "\(hit.downloads.formatted(.number.notation(.compactName))) downloads"]
+                Text(description).font(.caption).foregroundStyle(.secondary).lineLimit(2)
+                Text([author.map { "by \($0)" }, "\(downloads.formatted(.number.notation(.compactName))) downloads"]
                         .compactMap { $0 }.joined(separator: " · "))
                     .font(.caption2).foregroundStyle(.secondary)
             }
         }
         .contentShape(Rectangle())
+    }
+}
+
+extension HitRow {
+    init(hit: ModrinthAPI.SearchHit, installed: Bool) {
+        self.init(title: hit.title, description: hit.description, author: hit.author, downloads: hit.downloads,
+                  iconURL: hit.iconUrl.flatMap(URL.init(string:)), installed: installed)
     }
 }
 

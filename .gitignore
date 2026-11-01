@@ -12,3 +12,5 @@ xcuserdata/
 *.cer
 .DS_Store
 .oauth_client_id.txt
+# Local secrets, e.g. the CurseForge API key (Config/curseforge.key; scripts/build-ipa.sh adds it to the app). Never commit them.
+Config/

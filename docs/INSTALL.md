@@ -15,7 +15,7 @@ You also need a Minecraft: Java Edition account (Microsoft account), and about 2
 3. Under **Installed**, tap **Play → Launch Minecraft**.
 
 ## Mods, packs and shaders
-- Installed version → **Play → Mods & packs…**. Tap **+** to browse Modrinth or import files. Switch mods on and off, and update them when Voxelium finds newer versions.
+- Installed version → **Play → Mods & packs…**. Tap **+** to browse Modrinth or CurseForge, or import files. Switch mods on and off, and update them when Voxelium finds newer versions.
 - Shader packs need **Iris** (offered when missing). BSL and MakeUp Ultra Fast work. Packs that need compute shaders, such as Photon, cannot run on iOS's OpenGL ES 3.0.
 - **Memory:** keep the render distance at **8–10** with shaders. Higher values can use more memory than iOS allows, and the game closes. The gauge under **More** in game turns orange, then red, as memory fills.
 
