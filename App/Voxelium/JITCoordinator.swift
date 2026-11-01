@@ -212,6 +212,9 @@ extension JITCoordinator {
         let failure = HelperFailure()
         VXJITHelperEnableJIT(getpid(), pairing, script, needsScript, { stage in
             MainActor.assumeIsolated {
+                // The helper reports a stage with every progress update; log only changes.
+                guard stage != failure.lastStage else { return }
+                failure.lastStage = stage
                 let text = BuiltInJITSpike.stageText(stage)
                 log.info("jit", "Helper stage \(stage): \(text)")
                 status(text)
@@ -251,10 +254,11 @@ extension JITCoordinator {
     }
 }
 
-/// The helper's failure, if it reports one while Voxelium waits.
+/// The helper's failure, if it reports one while Voxelium waits, and the last stage it reported.
 @MainActor
 private final class HelperFailure {
     var reason: String?
+    var lastStage: Int32?
 }
 
 /// The current `NetworkRoute`, kept up to date by an NWPathMonitor (started at app launch).

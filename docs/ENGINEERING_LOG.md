@@ -1851,3 +1851,12 @@ Requested by the user through the main session, as the candidate for Voxelium 2.
   - `AccountModel.refreshEarly` runs one refresh at a time and pauses 5 minutes after a failure. Play waits for a refresh that's already running.
   - 137 tests pass. **Not checked on the phone:** the user accepted the build without a device run.
   - The old test IPAs were moved to the Trash at the user's request. `build/ipa` keeps the release IPAs and this build.
+- **First download of the disk image, on a second iPhone** (logs read 2026-11-01 ~03:40Z):
+  - The phone is an iPhone 14 Pro Max (iPhone15,3) on iOS 26.1, TXM. It had never had a disk image mounted: before the test, CoreDevice listed `ddiServicesAvailable: false`.
+  - Build 202611010211 was installed with Sideloadly on the user's Apple ID (`devicectl device info apps` confirmed it), with that phone's own pairing file (501 bytes) and Wi-Fi plus LocalDevVPN.
+  - Play at 03:30:02Z, Fabric 1.21.11:
+    - The helper downloaded BuildManifest.plist, Image.dmg and Image.dmg.trustcache, mounted the image, verified the mount, and attached.
+    - **JIT on after 40.0 s**, including the download. Later Plays skip the download.
+    - The world joined at 03:31:29Z, peak memory was 1555 MB, and the game quit cleanly with `exit(0)` at 03:32:22Z.
+  - Every path of the built-in helper has now passed on a phone.
+  - **Found:** the stage callback fires for every progress update, so "Helper stage 4: Mounting…" was logged 241 times. Only changes should be logged.
