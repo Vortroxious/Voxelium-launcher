@@ -51,28 +51,15 @@ final class MinecraftLauncher: ObservableObject {
         if case .starting = state { return }
         if case .waitingForJIT = state { return }
 
-        // Java needs JIT. Opened from the Home Screen, ask StikDebug to turn it on for this
-        // running app first; it switches back here when done (opening Voxelium from
-        // StikDebug, as before, skips this). JITCoordinator also asks again when the
-        // debugger was attached earlier but the JIT script has gone (TXM devices).
-        state = .starting("Checking JIT…")
-        switch await jit.ensureJIT(status: { [weak self] in self?.state = .waitingForJIT($0) }) {
-        case .ready:
-            state = .starting("Starting \(versionID)…")
-        case .cancelled:
-            state = .idle
-            return
-        case .problem(let p):
-            state = .jitProblem(p)
-            return
-        }
-
         // Who plays: the Microsoft account (token refreshed if needed) or the offline profile.
+        // Checked before JIT: on mobile data, JIT needs Airplane Mode, so the network may be
+        // gone once JIT is on. Without internet the saved sign-in is used (single-player).
         let identity: LaunchIdentity
+        var playingOffline = false
         if settings.useMicrosoftAccount, accounts.account != nil {
             state = .starting("Checking your Microsoft sign-in…")
             do {
-                identity = try await accounts.launchIdentity()
+                (identity, playingOffline) = try await accounts.launchIdentity()
             } catch {
                 state = .finished(ok: false, message: "Microsoft sign-in: \(error). Sign in again on the Account tab, or choose the offline profile.")
                 log.error("launch", "Microsoft token refresh failed: \(error)")
@@ -84,6 +71,26 @@ final class MinecraftLauncher: ObservableObject {
                 return
             }
             identity = OfflineIdentity.identity(for: settings.playerName)
+        }
+
+        // Java needs JIT. Opened from the Home Screen, ask StikDebug to turn it on for this
+        // running app first; it switches back here when done (opening Voxelium from
+        // StikDebug, as before, skips this). JITCoordinator also asks again when the
+        // debugger was attached earlier but the JIT script has gone (TXM devices).
+        state = .starting("Checking JIT…")
+        switch await jit.ensureJIT(status: { [weak self] in self?.state = .waitingForJIT($0) }) {
+        case .ready:
+            var note = playingOffline ? " Offline: single-player works; servers and Realms need internet." : ""
+            #if VOXELIUM_JIT_HELPER_SPIKE
+            if jit.airplaneModeAsked { note = " JIT is on: you can turn Airplane Mode off now." + note }
+            #endif
+            state = .starting("Starting \(versionID)…" + note)
+        case .cancelled:
+            state = .idle
+            return
+        case .problem(let p):
+            state = .jitProblem(p)
+            return
         }
         guard !Self.started else { return }
         guard let res = Bundle.main.resourceURL, let frameworks = Bundle.main.privateFrameworksURL else { return }

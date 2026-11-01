@@ -16,6 +16,8 @@ public enum JITProblem: Equatable, Sendable {
     /// Built-in JIT (spike) is chosen but no pairing file is imported, and StikDebug
     /// isn't installed to fall back on.
     case pairingFileMissing
+    /// On mobile data, the player didn't turn on Airplane Mode (or join Wi-Fi) in time.
+    case needsAirplaneMode
     /// The built-in JIT helper (spike) couldn't use the imported pairing file: it isn't
     /// one, or it no longer matches this iPhone.
     case pairingFileInvalid
@@ -45,6 +47,7 @@ public enum JITProblem: Equatable, Sendable {
         case .wrongScript: "StikDebug ran a different JIT script"
         case .pairingFileMissing: "Import a pairing file"
         case .pairingFileInvalid: "This pairing file doesn't work"
+        case .needsAirplaneMode: "Turn on Airplane Mode for JIT"
         case .vpnNotConnected: "LocalDevVPN isn't connected"
         case .helperFailed: "The built-in JIT helper failed"
         }
@@ -66,6 +69,8 @@ public enum JITProblem: Equatable, Sendable {
             "Voxelium turns on JIT itself, and needs this iPhone's pairing file for that. Make one on a computer (see the setup guide), import it in the JIT tab, then tap Play again."
         case .pairingFileInvalid:
             "The imported pairing file isn't a valid pairing file for this iPhone, or it's out of date (after resetting trust or erasing the iPhone, for example). Make a new one on a computer (see the setup guide), import it in the JIT tab, then tap Play again."
+        case .needsAirplaneMode:
+            "On mobile data, LocalDevVPN can't reach this iPhone's developer services. Tap Play, turn on Airplane Mode (or join Wi-Fi) when Voxelium asks, and turn it off again once JIT is on, about 2 seconds later."
         case .vpnNotConnected:
             "Voxelium turns on JIT through LocalDevVPN, and couldn't reach it. Open LocalDevVPN, connect it (it should say Connected), then tap Play again."
         case .helperFailed(let reason):
@@ -77,7 +82,7 @@ public enum JITProblem: Equatable, Sendable {
     public var showsSetupGuide: Bool {
         switch self {
         case .stikDebugMissing, .timedOut, .missingGetTaskAllow, .pairingFileMissing, .pairingFileInvalid, .vpnNotConnected: true
-        case .scriptNotAttached, .wrongScript, .helperFailed: false
+        case .scriptNotAttached, .wrongScript, .helperFailed, .needsAirplaneMode: false
         }
     }
 }

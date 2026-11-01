@@ -1833,3 +1833,21 @@ Requested by the user through the main session, as the candidate for Voxelium 2.
     - The broken file gave "This pairing file doesn't work" after 0.4 s.
     - With the pairing file deleted, Play logged "Built-in JIT is on but no pairing file is imported, and StikDebug isn't installed": the **"Import a pairing file"** problem.
   - Both messages are now tested on the phone. Only the first download of the disk image is left; the user will borrow a second iPhone for it.
+
+## 2026-11-01 — JIT on mobile data (spike, `spike/jit-helper`)
+- **Problem (user report):** away from Wi-Fi, LocalDevVPN only works with Airplane Mode on. In Airplane Mode JIT came on (1.5 s), but the Microsoft token refresh that followed failed with `-1009` and the launch stopped.
+- **Fix (build 202611010154, SHA-256 `a304b35cf437ac987dd0faa93a60b9905ca6d472483c253c57d409ebab15ba97`):**
+  - The sign-in is checked **before** JIT.
+  - When the refresh fails because there's no internet, Play uses the saved sign-in, as the official launcher's offline play does: single-player works, servers and Realms need the network. The account must already have been signed in.
+  - The app refreshes the token early (under 12 hours left) when it becomes active or comes back online. `MicrosoftAuth.validAccount` has a `margin` parameter for this.
+- **Device runs** (02:02–02:06Z):
+  1. Airplane Mode on: "playing with the saved sign-in" (the token had expired at 01:00Z), JIT on after 1.8 s, and the world joined. authlib logged the expected failures to reach Mojang's servers.
+  2. Mobile data only, after switching Airplane Mode on and off once (SideStore's tunnel trick): the token refreshed online, then the helper timed out on `10.7.0.1:49152`. **Mobile data alone doesn't work on iOS 27**, not even after that trick; StikJIT's README already says Wi-Fi or Airplane Mode is needed.
+  3. Airplane Mode on → JIT on after 1.4 s → back online one second later (Airplane Mode off). The world joined: once JIT is on, the network can come back.
+- **Found:** the early refresh ran twice at start-up (on becoming active and on the network change) and again right before Play, and Microsoft answered 429 "Too many sign-in attempts". It needs a single refresh at a time and a pause after a failure.
+- **Guided Airplane Mode and a single early refresh** (build 202611010211, SHA-256 `e691c285aa3653923fd4e8697f13afbb222c9f388cfb81fb37444be8c1d9bf58`):
+  - `NetworkRoute` (VoxeliumCore, tested) sorts the network into Wi-Fi or cable, mobile data only, or offline. `NetworkRouteMonitor` (an NWPathMonitor started at launch) logs what iOS reports, because a VPN can change which interfaces show.
+  - With the built-in helper on mobile data only, Play asks "turn on Airplane Mode", waits up to 2 minutes (Cancel works), then asks the helper. If the helper still times out on mobile data, it asks once more and retries. The game start then says "JIT is on: you can turn Airplane Mode off now". After 2 minutes it shows `JITProblem.needsAirplaneMode`.
+  - `AccountModel.refreshEarly` runs one refresh at a time and pauses 5 minutes after a failure. Play waits for a refresh that's already running.
+  - 137 tests pass. **Not checked on the phone:** the user accepted the build without a device run.
+  - The old test IPAs were moved to the Trash at the user's request. `build/ipa` keeps the release IPAs and this build.

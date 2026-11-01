@@ -22,6 +22,10 @@ final class AccountModel: ObservableObject {
     private let keychain = KeychainStore(service: "io.github.voxelium.microsoft")
     private let log = Logger.shared
     private var task: Task<Void, Never>?
+    /// The early refresh in flight, and when the last one failed: one at a time, and none
+    /// for 5 minutes after a failure (several in a row got HTTP 429 from Microsoft).
+    private var earlyRefresh: Task<Void, Never>?
+    private var earlyRefreshFailed: Date?
 
     init() {
         let id = Bundle.main.url(forResource: "microsoft-client-id", withExtension: "txt")
@@ -114,14 +118,48 @@ final class AccountModel: ObservableObject {
     }
 
     /// A launch identity with a valid Minecraft token (refreshed when near expiry).
-    func launchIdentity() async throws -> LaunchIdentity {
+    /// Without internet (Airplane Mode for JIT on mobile data) it uses the saved sign-in,
+    /// as the official launcher's offline play does: single-player works, servers and
+    /// Realms check the token and need a refresh first. `offline` says which it was.
+    func launchIdentity() async throws -> (identity: LaunchIdentity, offline: Bool) {
+        await earlyRefresh?.value  // its result is saved; don't ask Microsoft twice
         guard let account else { throw AuthError.signInAgain }
-        let valid = try await auth(for: account).validAccount(account)
-        if valid != account {
-            try save(valid)
-            log.info("account", "Refreshed the Minecraft token for \(valid.username)")
+        do {
+            let valid = try await auth(for: account).validAccount(account)
+            if valid != account {
+                try save(valid)
+                log.info("account", "Refreshed the Minecraft token for \(valid.username)")
+            }
+            return (valid.identity, false)
+        } catch where LauncherModel.looksOffline(error) {
+            log.warning("account", "No internet to refresh the Minecraft token for \(account.username) (expires \(account.minecraftTokenExpiry)): playing with the saved sign-in")
+            return (account.identity, true)
         }
-        return valid.identity
+    }
+
+    /// Refreshes the Minecraft token while the app is open and online, when it has less
+    /// than 12 hours left, so a later Play in Airplane Mode has a current one. Failures
+    /// are only logged: Play tries again.
+    func refreshEarly() async {
+        guard let account, signIn == .idle, earlyRefresh == nil,
+              account.minecraftTokenExpiry.timeIntervalSinceNow < 12 * 3600 else { return }
+        if let failed = earlyRefreshFailed, Date().timeIntervalSince(failed) < 300 { return }
+        let auth = auth(for: account)
+        let refresh = Task {
+            do {
+                let valid = try await auth.validAccount(account, margin: 12 * 3600)
+                earlyRefreshFailed = nil
+                guard valid != account, self.account == account else { return }
+                try save(valid)
+                log.info("account", "Refreshed the Minecraft token for \(valid.username) early (was valid until \(account.minecraftTokenExpiry))")
+            } catch {
+                earlyRefreshFailed = Date()
+                log.info("account", "Early token refresh skipped: \(error)")
+            }
+        }
+        earlyRefresh = refresh
+        await refresh.value
+        earlyRefresh = nil
     }
 
     private func save(_ acc: MicrosoftAccount) throws {

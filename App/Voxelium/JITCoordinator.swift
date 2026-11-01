@@ -1,4 +1,5 @@
 import Foundation
+import Network
 import UIKit
 import VoxeliumCore
 
@@ -27,6 +28,10 @@ final class JITCoordinator {
 
     private let log = Logger.shared
     private var wait: JITWait?
+    #if VOXELIUM_JIT_HELPER_SPIKE
+    /// The last Play asked for Airplane Mode (mobile data): the game start says it can go off.
+    private(set) var airplaneModeAsked = false
+    #endif
 
     func cancel() { wait?.cancel() }
 
@@ -155,6 +160,45 @@ extension JITCoordinator {
     /// devices it answers only after the JIT script detached, which is after the JVM
     /// got its code cache.
     func ensureWithHelper(pairing: Data, status: @escaping (String) -> Void) async -> Outcome {
+        airplaneModeAsked = false
+        let route = NetworkRouteMonitor.shared
+        log.info("jit", "Network for JIT: \(route.description)")
+        // On mobile data the tunnel can't connect: ask for Airplane Mode first.
+        if route.route == .mobileDataOnly, let stop = await waitForAirplaneMode(status: status) { return stop }
+        let first = await runHelper(pairing: pairing, status: status)
+        // The route may have been misread, or changed: retry once after Airplane Mode.
+        if first == .problem(.vpnNotConnected), !airplaneModeAsked, route.route == .mobileDataOnly {
+            if let stop = await waitForAirplaneMode(status: status) { return stop }
+            return await runHelper(pairing: pairing, status: status)
+        }
+        return first
+    }
+
+    /// Asks for Airplane Mode (or Wi-Fi) and waits until mobile data is no longer the only
+    /// route. Returns nil to go on, or why to stop.
+    private func waitForAirplaneMode(status: @escaping (String) -> Void) async -> Outcome? {
+        airplaneModeAsked = true
+        log.info("jit", "On mobile data only: asking for Airplane Mode")
+        status("You're on mobile data: turn on Airplane Mode. Voxelium goes on by itself; you can turn it off again once JIT is on.")
+        let away = JITWait()
+        wait = away
+        defer { wait = nil }
+        let route = NetworkRouteMonitor.shared
+        switch await away.run(timeout: .seconds(120), poll: .milliseconds(250), check: {
+            route.route == .mobileDataOnly ? .needsDebugger : .ready
+        }) {
+        case .ready:
+            log.info("jit", "Network for JIT now: \(route.description)")
+            return nil
+        case .cancelled: return .cancelled
+        case .timedOut:
+            log.error("jit", "Still on mobile data after 2 minutes")
+            return .problem(.needsAirplaneMode)
+        case .problem(let p): return .problem(p)
+        }
+    }
+
+    private func runHelper(pairing: Data, status: @escaping (String) -> Void) async -> Outcome {
         guard let script = Bundle.main.url(forResource: "UniversalJIT26", withExtension: "js").flatMap({ try? Data(contentsOf: $0) }) else {
             return .problem(.helperFailed("UniversalJIT26.js is missing from the app."))
         }
@@ -211,5 +255,37 @@ extension JITCoordinator {
 @MainActor
 private final class HelperFailure {
     var reason: String?
+}
+
+/// The current `NetworkRoute`, kept up to date by an NWPathMonitor (started at app launch).
+final class NetworkRouteMonitor: @unchecked Sendable {
+    static let shared = NetworkRouteMonitor()
+    private let monitor = NWPathMonitor()
+    private let lock = NSLock()
+    private var current: (route: NetworkRoute, detail: String)?
+
+    private init() {
+        monitor.pathUpdateHandler = { [weak self] path in
+            let route = NetworkRoute.of(satisfied: path.status == .satisfied, wifi: path.usesInterfaceType(.wifi),
+                                        wired: path.usesInterfaceType(.wiredEthernet), cellular: path.usesInterfaceType(.cellular))
+            // For the log: what iOS reports, since a VPN can change which interfaces show.
+            let detail = "\(path.status), interfaces \(path.availableInterfaces.map { "\($0.name)/\($0.type)" })"
+            self?.lock.lock()
+            self?.current = (route, detail)
+            self?.lock.unlock()
+        }
+        monitor.start(queue: DispatchQueue(label: "Voxelium.route"))
+    }
+
+    /// nil until iOS reports the first path (a moment after start).
+    var route: NetworkRoute? {
+        lock.lock(); defer { lock.unlock() }
+        return current?.route
+    }
+
+    var description: String {
+        lock.lock(); defer { lock.unlock() }
+        return current.map { "\($0.route) (\($0.detail))" } ?? "unknown yet"
+    }
 }
 #endif

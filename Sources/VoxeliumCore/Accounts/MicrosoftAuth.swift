@@ -174,8 +174,12 @@ public struct MicrosoftAuth: Sendable {
 
     /// A launch-ready account: reuses the Minecraft token while it has more than
     /// an hour left, otherwise refreshes the whole chain.
-    public func validAccount(_ account: MicrosoftAccount, now: Date = Date()) async throws -> MicrosoftAccount {
-        if account.minecraftTokenExpiry.timeIntervalSince(now) > 3600 { return account }
+    /// The account with a Minecraft token that's good for more than `margin` seconds,
+    /// refreshed if needed. The app refreshes early (12 hours) while it's online, so Play
+    /// rarely needs the network.
+    public func validAccount(_ account: MicrosoftAccount, now: Date = Date(),
+                             margin: TimeInterval = 3600) async throws -> MicrosoftAccount {
+        if account.minecraftTokenExpiry.timeIntervalSince(now) > margin { return account }
         return try await minecraftAccount(from: refresh(account.microsoftRefreshToken), now: now)
     }
 

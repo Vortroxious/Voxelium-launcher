@@ -24,12 +24,19 @@ import Testing
     }
 
     @Test func everyProblemExplainsItself() {
-        let all: [JITProblem] = [.stikDebugMissing, .timedOut, .missingGetTaskAllow, .scriptNotAttached, .wrongScript(reply: 0xAB), .pairingFileMissing, .pairingFileInvalid, .vpnNotConnected, .helperFailed("No route to 10.7.0.1.")]
+        let all: [JITProblem] = [.stikDebugMissing, .timedOut, .missingGetTaskAllow, .scriptNotAttached, .wrongScript(reply: 0xAB), .pairingFileMissing, .pairingFileInvalid, .needsAirplaneMode, .vpnNotConnected, .helperFailed("No route to 10.7.0.1.")]
         for p in all {
             #expect(!p.title.isEmpty && p.message.count > 40)
         }
         #expect(JITProblem.wrongScript(reply: 0xAB).message.contains("0xAB"))
         #expect(JITProblem.stikDebugMissing.showsSetupGuide && !JITProblem.scriptNotAttached.showsSetupGuide)
+    }
+
+    @Test func networkRouteForJIT() {
+        #expect(NetworkRoute.of(satisfied: true, wifi: true, wired: false, cellular: true) == .local)
+        #expect(NetworkRoute.of(satisfied: false, wifi: true, wired: false, cellular: false) == .local)  // Wi-Fi without internet
+        #expect(NetworkRoute.of(satisfied: true, wifi: false, wired: false, cellular: true) == .mobileDataOnly)
+        #expect(NetworkRoute.of(satisfied: false, wifi: false, wired: false, cellular: false) == .offline)  // Airplane Mode
     }
 
     @Test func helperPairingFailuresMeanABadPairingFile() {

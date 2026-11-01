@@ -159,6 +159,12 @@ final class SleepLog: @unchecked Sendable {
         #expect(try await auth(idle).validAccount(fresh, now: now) == fresh)
         #expect(idle.requests.isEmpty)
 
+        // The early refresh (while the app is open) asks for a new token sooner.
+        let early = MockHTTP()
+        early.on("\(Self.ms)/token", 200, ["access_token": "ms2", "refresh_token": "r2"])
+        happyChain(early)
+        #expect(try await auth(early).validAccount(fresh, now: now, margin: 12 * 3600).microsoftRefreshToken == "r2")
+
         let http = MockHTTP()
         http.on("\(Self.ms)/token", 200, ["access_token": "ms2", "refresh_token": "r2"])
         happyChain(http)
