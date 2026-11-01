@@ -1882,3 +1882,6 @@ Requested by the user through the main session, as the candidate for Voxelium 2.
     - **JIT on after 2.1 s.**
   - Fabric 1.21.11 joined a world at 03:54:20Z (peak memory 2514 MB) and quit cleanly with `exit(0)`.
   - The stage log now has one line per stage (no repeats).
+- **Release IPA** `Voxelium-2.3-unsigned.ipa` (build 202611010403, from `6b71f74`, SHA-256 `7bd8ea5d…86fc`):
+  - It passed the release checks (see `docs/RELEASE_CHECKLIST.md`).
+  - On the iPhone 15 Pro Max (04:07Z), JIT was on after 1.8 s on Wi-Fi, and Fabric 1.21.11 joined a world and quit cleanly.

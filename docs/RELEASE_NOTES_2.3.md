@@ -17,7 +17,10 @@
 - **Logs** moved to **Diagnostics → Logs**; the JIT tab took their place.
 
 ## Tested
-With the built-in helper (test builds of this release):
+With the built-in helper:
+- **The release IPA** (build 202611010403) on an iPhone 15 Pro Max, iOS 27.0: installed over 2.2, JIT on in 1.8 s on Wi-Fi, Fabric 1.21.11 joined a world and quit cleanly.
+
+With test builds of this release:
 - **iPhone 15 Pro Max, iOS 27.0:** JIT on in 1.5–1.8 s; Fabric 1.21.11 joined a world. Also tested: after a restart, without LocalDevVPN, without a pairing file (StikDebug, then the "Import a pairing file" message), with a broken pairing file, in Airplane Mode with the saved sign-in, and with Airplane Mode turned off right after JIT.
 - **iPhone 14 Pro Max, iOS 26.1**, which had never had a developer disk image: the helper downloaded and mounted it, JIT was on after 40 s, and Fabric 1.21.11 joined a world.
 

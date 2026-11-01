@@ -67,3 +67,17 @@ Status as of 2026-10-24.
 - ✅ Device pass on the release IPA (build 202610241422, SHA-256 `781fb54b…2cc1`): opened from the Home Screen, JIT from StikDebug in 4 s, Fabric 1.21.11 started, and quitting closed the app to the Home Screen.
 - ✅ Committed and tagged `v2.2`.
 - 👤 Push `main` and `v2.2`. Create the GitHub Release **v2.2** with `build/ipa/Voxelium-2.2-unsigned.ipa`, its `.sha256` and `build/ipa/THIRD_PARTY_NOTICES.txt` (0.38 MB), and paste the release notes.
+
+# Release checklist (Voxelium 2.3)
+
+Status as of 2026-11-01.
+- ✅ Built-in JIT helper (StikJIT in `VoxeliumJITHelper.appex`) merged into `main` (`c655b5b`, pushed by the maintainer). Version 2.3, including `LaunchPlanner.launcherVersion` and the Modrinth User-Agent (`6b71f74`). Release notes: [RELEASE_NOTES_2.3.md](RELEASE_NOTES_2.3.md).
+- ✅ `swift test`: 137 tests pass.
+- ✅ Release IPA from a clean tree at `6b71f74`: `build/ipa/Voxelium-2.3-unsigned.ipa`, build 202611010403, 215,786,994 bytes, SHA-256 `7bd8ea5dec13848def6dc746235b9da5cccaf8dcdc6b38c4278216c1a77386fc`.
+  - No diagnostics in MobileGlues (`MG-GLERR` count 0).
+  - The helper is in `PlugIns`, at version 2.3.
+  - Its notices are identical to the repository's `THIRD_PARTY_NOTICES.txt` (1,070,358 bytes, now including StikJIT, idevice and its crates).
+  - No signing or pairing files are in it.
+- ✅ Device pass on that exact IPA (installed build confirmed as 202611010403 with `devicectl`, 2026-11-01 04:07–04:08Z): built-in helper, JIT on in 1.8 s; Fabric 1.21.11 joined a world (peak 2188 MB) and quit cleanly. The beta of the same code also passed the Airplane Mode prompt on mobile data (2.1 s).
+- ✅ Committed and tagged `v2.3`.
+- 👤 Push `main` and `v2.3`. Create the GitHub Release **v2.3** with `build/ipa/Voxelium-2.3-unsigned.ipa`, its `.sha256` and `build/ipa/THIRD_PARTY_NOTICES.txt` (1.07 MB; check it isn't an older, smaller notices file), and paste the release notes.
