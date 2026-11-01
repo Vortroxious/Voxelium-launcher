@@ -10,21 +10,8 @@ CONFIG="${CONFIG:-Release}"
 DERIVED="$OUT/DerivedData"
 IPA_DIR="$OUT/ipa"
 IPA_NAME="Voxelium-unsigned.ipa"
-# Spike (docs/JIT_INTEGRATION_PLAN.md, Phase 2 step 1): VOXELIUM_JIT_HELPER_SPIKE=1 builds
-# "Voxelium JIT Test" under its own bundle ID with the JIT helper extension, in its own
-# DerivedData so normal builds never contain the extension.
-SPIKE="${VOXELIUM_JIT_HELPER_SPIKE:-0}"
-SPIKE_SETTINGS=()
 SWIFT_CONDITIONS='$(inherited) VOXELIUM_ZINK_EXPERIMENT'
 GCC_DEFINES='$(inherited) VOXELIUM_ZINK_EXPERIMENT=1'
-if [ "$SPIKE" = 1 ]; then
-  DERIVED="$OUT/DerivedData-jitspike"
-  IPA_NAME="Voxelium-jitspike-unsigned.ipa"
-  SWIFT_CONDITIONS="$SWIFT_CONDITIONS VOXELIUM_JIT_HELPER_SPIKE"
-  GCC_DEFINES="$GCC_DEFINES VOXELIUM_JIT_HELPER_SPIKE=1"
-  SPIKE_SETTINGS=(PRODUCT_BUNDLE_IDENTIFIER=io.github.voxelium.launcher.jitspike
-                  "INFOPLIST_KEY_CFBundleDisplayName=Voxelium JIT Test")
-fi
 
 cd "$ROOT"
 mkdir -p "$IPA_DIR" "$OUT/logs"
@@ -53,7 +40,6 @@ xcodebuild \
   HEADER_SEARCH_PATHS='$(inherited) $(PROJECT_DIR)/../build/deps/sdl3-out/include' \
   SWIFT_ACTIVE_COMPILATION_CONDITIONS="$SWIFT_CONDITIONS" \
   GCC_PREPROCESSOR_DEFINITIONS="$GCC_DEFINES" \
-  ${SPIKE_SETTINGS[@]+"${SPIKE_SETTINGS[@]}"} \
   build > "$OUT/logs/xcodebuild-$CONFIG.log" 2>&1 && XCB=0 || XCB=$?
 # (Checking PIPESTATUS after "| grep ... || true" read the status of "true", so a
 # failed build used to go on and package the previous .app.)
@@ -69,12 +55,9 @@ for need in Frameworks/zink Frameworks/sdl3/libSDL3.dylib Frameworks/sdl3/libvul
 done
 [ "$(grep -a -c "VOXELIUM_SDL_VULKAN_OK" "$APP/Voxelium")" -gt 0 ] || { echo "Vulkan code not compiled in (VOXELIUM_ZINK_EXPERIMENT or SDL headers missing)"; exit 1; }
 
-if [ "$SPIKE" = 1 ]; then
-  echo "==> JIT helper extension (spike)"
-  "$ROOT/scripts/build-jit-helper.sh" "$APP"
-else
-  [ ! -e "$APP/PlugIns/VoxeliumJITHelper.appex" ] || { echo "the normal app must not contain the JIT helper"; exit 1; }
-fi
+# 2.3: the built-in JIT helper (StikJIT in an app extension), so Play needs no StikDebug.
+echo "==> JIT helper extension"
+"$ROOT/scripts/build-jit-helper.sh" "$APP"
 
 echo "==> packaging"
 STAGE="$(mktemp -d)"

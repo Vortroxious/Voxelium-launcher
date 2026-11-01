@@ -1,18 +1,23 @@
-#if VOXELIUM_JIT_HELPER_SPIKE
 import SwiftUI
 import UniformTypeIdentifiers
 import VoxeliumCore
 
-/// Spike (docs/JIT_INTEGRATION_PLAN.md, Phase 2): settings for the built-in JIT helper.
+/// The built-in JIT helper (docs/JIT_INTEGRATION_PLAN.md, Phase 2): its settings.
 /// The pairing file is kept in the Keychain, never in Documents, and never logged.
-enum BuiltInJITSpike {
+enum BuiltInJIT {
     private static let keychain = KeychainStore(service: "io.github.voxelium.jithelper")
     private static let pairingAccount = "pairingFile"
     private static let useKey = "VoxeliumBuiltInJIT"
 
+    /// The helper runs StikJIT, which needs iOS 17.4. Older iOS uses StikDebug only.
+    static var supported: Bool {
+        if #available(iOS 17.4, *) { return true }
+        return false
+    }
+
     /// Play asks the helper instead of StikDebug (when a pairing file is imported).
     static var useForPlay: Bool {
-        get { UserDefaults.standard.object(forKey: useKey) as? Bool ?? true }
+        get { supported && (UserDefaults.standard.object(forKey: useKey) as? Bool ?? true) }
         set { UserDefaults.standard.set(newValue, forKey: useKey) }
     }
 
@@ -47,8 +52,8 @@ enum BuiltInJITSpike {
     }
 }
 
-/// The JIT tab (it replaces Logs in the test build; Logs moved to Diagnostics). Also shown
-/// as a sheet from Play's "Import a pairing file" problem.
+/// The JIT tab (Logs moved to Diagnostics). Also shown as a sheet from Play's
+/// "Import a pairing file" problem.
 struct BuiltInJITView: View {
     var showsDone = false
     @Environment(\.dismiss) private var dismiss
@@ -56,21 +61,31 @@ struct BuiltInJITView: View {
     var body: some View {
         NavigationStack {
             List {
-                JITHelperSpikeSection()
-                Section {
-                    Label("LocalDevVPN connected", systemImage: "network")
-                    Label("Internet the first time (Voxelium downloads the developer disk image once)", systemImage: "arrow.down.circle")
-                } header: {
-                    Text("Before you tap Play")
-                } footer: {
-                    Text("The developer disk image adds the debugger service that turns on JIT. It stays mounted until the iPhone restarts; the next Play mounts it again.")
-                }
-                Section {
-                    Text("The pairing file lets Voxelium talk to this iPhone's developer services. Make it once on a computer with the iPhone connected by cable, put it in Files, then import it above. It's kept in the Keychain; you can delete the copy in Files afterwards.")
-                        .font(.callout)
-                    Link(destination: setupGuideURL) { Label("Setup guide", systemImage: "book") }
-                } header: {
-                    Text("Getting a pairing file")
+                if BuiltInJIT.supported {
+                    BuiltInJITSection()
+                    Section {
+                        Label("LocalDevVPN connected", systemImage: "network")
+                        Label("Wi-Fi, or Airplane Mode on mobile data (Voxelium asks when it's needed)", systemImage: "wifi")
+                        Label("Internet the first time (Voxelium downloads the developer disk image once)", systemImage: "arrow.down.circle")
+                    } header: {
+                        Text("Before you tap Play")
+                    } footer: {
+                        Text("The developer disk image adds the debugger service that turns on JIT. It stays mounted until the iPhone restarts; the next Play mounts it again.")
+                    }
+                    Section {
+                        Text("The pairing file lets Voxelium talk to this iPhone's developer services. Make it once on a computer with the iPhone connected by cable, put it in Files, then import it above. It's kept in the Keychain; you can delete the copy in Files afterwards.")
+                            .font(.callout)
+                        Link(destination: setupGuideURL) { Label("Setup guide", systemImage: "book") }
+                    } header: {
+                        Text("Getting a pairing file")
+                    }
+                } else {
+                    Section {
+                        LabeledContent("Play turns on JIT with", value: JITCoordinator.stikDebugInstalled ? "StikDebug" : "Nothing: StikDebug isn't installed")
+                        Link(destination: setupGuideURL) { Label("Setup guide", systemImage: "book") }
+                    } footer: {
+                        Text("The built-in JIT helper needs iOS 17.4 or later. On this iOS, Play asks StikDebug for JIT.")
+                    }
                 }
             }
             .navigationTitle("JIT")
@@ -82,14 +97,14 @@ struct BuiltInJITView: View {
 }
 
 /// The pairing file, the Play switch, and the helper check.
-struct JITHelperSpikeSection: View {
+struct BuiltInJITSection: View {
     @State private var lines: [String] = []
     @State private var importing = false
-    @State private var hasPairing = BuiltInJITSpike.pairingData != nil
-    @State private var useForPlay = BuiltInJITSpike.useForPlay
+    @State private var hasPairing = BuiltInJIT.pairingData != nil
+    @State private var useForPlay = BuiltInJIT.useForPlay
 
     private var method: String {
-        if useForPlay && hasPairing { return "Built-in StikJIT" }
+        if useForPlay && hasPairing { return "Built-in helper" }
         if JITCoordinator.stikDebugInstalled { return "StikDebug" }
         return useForPlay ? "Nothing yet: import a pairing file" : "Nothing: StikDebug isn't installed"
     }
@@ -103,24 +118,24 @@ struct JITHelperSpikeSection: View {
             }
             if hasPairing {
                 Button(role: .destructive) {
-                    try? BuiltInJITSpike.deletePairingFile()
+                    try? BuiltInJIT.deletePairingFile()
                     hasPairing = false
-                    Logger.shared.info("jitspike", "Pairing file deleted")
+                    Logger.shared.info("jit", "Pairing file deleted")
                 } label: { Label("Delete the pairing file", systemImage: "trash") }
             }
             Toggle("Use the built-in helper for Play", isOn: Binding(
                 get: { useForPlay },
                 set: { on in
                     useForPlay = on
-                    BuiltInJITSpike.useForPlay = on
-                    Logger.shared.info("jitspike", "Built-in helper for Play: \(on)")
+                    BuiltInJIT.useForPlay = on
+                    Logger.shared.info("jit", "Built-in helper for Play: \(on)")
                 }))
             Button {
                 lines = []
-                Logger.shared.info("jitspike", "Check started")
-                VXJITHelperSpikeRun { line in
+                Logger.shared.info("jit", "Helper check started")
+                VXJITHelperCheck { line in
                     lines.append(line)
-                    Logger.shared.info("jitspike", line)
+                    Logger.shared.info("jit", line)
                 }
             } label: {
                 Label("Check the JIT helper", systemImage: "stethoscope")
@@ -130,7 +145,7 @@ struct JITHelperSpikeSection: View {
                     .foregroundStyle(line.contains("FAIL") ? Color.red : Color.primary)
             }
         } header: {
-            Text("Built-in StikJIT (test)")
+            Text("Built-in JIT (StikJIT)")
         } footer: {
             Text("With a pairing file imported and the switch on, Play turns on JIT here, without StikDebug. Without a pairing file, Play uses StikDebug if it's installed.")
         }
@@ -138,17 +153,16 @@ struct JITHelperSpikeSection: View {
             switch result {
             case .success(let url):
                 do {
-                    let size = try BuiltInJITSpike.importPairingFile(from: url)
+                    let size = try BuiltInJIT.importPairingFile(from: url)
                     hasPairing = true
-                    Logger.shared.info("jitspike", "Pairing file imported (\(size) bytes)")
+                    Logger.shared.info("jit", "Pairing file imported (\(size) bytes)")
                 } catch {
                     lines.append("FAIL: \(error.localizedDescription)")
-                    Logger.shared.error("jitspike", "Pairing file import failed: \(error.localizedDescription)")
+                    Logger.shared.error("jit", "Pairing file import failed: \(error.localizedDescription)")
                 }
             case .failure(let error):
-                Logger.shared.error("jitspike", "Pairing file picker: \(error.localizedDescription)")
+                Logger.shared.error("jit", "Pairing file picker: \(error.localizedDescription)")
             }
         }
     }
 }
-#endif

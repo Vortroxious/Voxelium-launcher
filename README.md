@@ -2,7 +2,7 @@
 
 An experimental iOS launcher for Minecraft: Java Edition, inspired by [ZalithLauncher2](https://github.com/ZalithLauncher/ZalithLauncher2) 2.6.1.
 
-> **Experimental.** Voxelium runs Minecraft: Java Edition **1.13 – 26.3** on an iPhone (tested on an iPhone 15 Pro Max / iOS 27): Java 8/17/21/25 in-process, OpenGL via MobileGlues or gl4es on ANGLE (Metal), or Vulkan (Mesa KosmicKrisp, with Zink for OpenGL versions; iOS 26+), with on-screen touch controls, custom layouts, haptics, sound and Microsoft sign-in. It needs JIT through StikDebug and is sideloaded (no App Store build). Performance is unmeasured; 26.2+ and 1.12.2 and older are not supported yet. See [docs/FINAL_BUILD_REPORT.md](docs/FINAL_BUILD_REPORT.md).
+> **Experimental.** Voxelium runs Minecraft: Java Edition **1.13 – 26.3** on an iPhone (tested on an iPhone 15 Pro Max / iOS 27): Java 8/17/21/25 in-process, OpenGL via MobileGlues or gl4es on ANGLE (Metal), or Vulkan (Mesa KosmicKrisp, with Zink for OpenGL versions; iOS 26+), with on-screen touch controls, custom layouts, haptics, sound and Microsoft sign-in. It turns on JIT itself (a built-in StikJIT helper, with LocalDevVPN and a pairing file) and is sideloaded (no App Store build). Performance is unmeasured; 26.2+ and 1.12.2 and older are not supported yet. See [docs/FINAL_BUILD_REPORT.md](docs/FINAL_BUILD_REPORT.md).
 
 ## Feature status
 | Feature | Status | Evidence |
@@ -65,52 +65,60 @@ This takes about 15 minutes the first time. You need a Mac for steps 1–3; afte
 | What | Where to get it |
 |---|---|
 | **Sideloadly**: installs apps on your iPhone with your Apple ID | [sideloadly.io](https://sideloadly.io/index.html) |
-| **idevice_pair**: makes the pairing file StikDebug needs | [github.com/jkcoxson/idevice_pair/releases](https://github.com/jkcoxson/idevice_pair/releases) |
-| **StikDebug** (`.ipa`): turns on JIT, which Java needs | [github.com/StikDebug/StikDebug/releases/latest](https://github.com/StikDebug/StikDebug/releases/latest) |
-| **Voxelium** (`Voxelium-2.2-unsigned.ipa`) | [github.com/Vortroxious/Voxelium-launcher/releases/latest](https://github.com/Vortroxious/Voxelium-launcher/releases/latest) |
+| **idevice_pair**: makes the pairing file Voxelium needs to turn on JIT | [github.com/jkcoxson/idevice_pair/releases](https://github.com/jkcoxson/idevice_pair/releases) |
+| **Voxelium** (`Voxelium-2.3-unsigned.ipa`) | [github.com/Vortroxious/Voxelium-launcher/releases/latest](https://github.com/Vortroxious/Voxelium-launcher/releases/latest) |
 | *Optional:* **GetMoreRam** (`.ipa`): only if the game keeps closing from low memory (see [Troubleshooting](#troubleshooting)) | [github.com/hugeBlack/GetMoreRam/releases](https://github.com/hugeBlack/GetMoreRam/releases) |
 
 Also: a USB cable for your iPhone, and an Apple ID (a free one works).
 
 **On your iPhone**
 
+- **iOS 17.4 or later**
 - **LocalDevVPN** from the App Store: [apps.apple.com/app/localdevvpn/id6755608044](https://apps.apple.com/us/app/localdevvpn/id6755608044)
 - **Developer Mode** turned on (step 2 shows where)
 - A Minecraft: Java Edition account (Microsoft account)
 
-### Step 1: Install StikDebug and Voxelium with Sideloadly
+You don't need StikDebug any more: Voxelium 2.3 turns on JIT itself, with a built-in helper (StikJIT). If you already use StikDebug, it still works; see [Using StikDebug instead](#using-stikdebug-instead).
+
+### Step 1: Install Voxelium with Sideloadly
 1. Connect your iPhone to the Mac with the cable. If the phone asks **Trust This Computer?**, tap **Trust**.
-2. Open **Sideloadly**, sign in with your Apple ID, drag the **StikDebug** `.ipa` into it, and click **Start**. Wait until it says it's done.
-3. Do the same with the **Voxelium** `.ipa`.
+2. Open **Sideloadly**, sign in with your Apple ID, choose your iPhone in the device list, drag the **Voxelium** `.ipa` into it, and click **Start**. Wait until it says it's done.
 
-> With a free Apple ID, sideloaded apps stop opening after 7 days. Sideload them again with Sideloadly to refresh them.
+> Voxelium contains a helper extension, so it uses two App IDs on your Apple ID. A free Apple ID can register 10 App IDs a week. With a free Apple ID, sideloaded apps also stop opening after 7 days: sideload Voxelium again with Sideloadly to refresh it.
 
-### Step 2: Allow the apps on your iPhone
+### Step 2: Allow Voxelium on your iPhone
 1. Turn on **Developer Mode**: **Settings → Privacy & Security → Developer Mode**. The iPhone restarts; after the restart, confirm with **Turn On**. (The option only appears once you've sideloaded an app.)
 2. Trust your Apple ID: **Settings → General → VPN & Device Management**, tap your Apple ID under *Developer App*, then **Trust**.
 
-### Step 3: Give StikDebug a pairing file
+### Step 3: Give Voxelium a pairing file
+The pairing file lets Voxelium talk to your iPhone's developer services, which turn on JIT. You make it once.
 1. Keep the iPhone connected and unlocked. On the Mac, open **idevice_pair** and select your iPhone.
-2. Create the pairing file and send it to StikDebug. idevice_pair can place it in StikDebug directly; if you save it as a `.plist` file instead, AirDrop it to your iPhone or put it in the Files app.
-3. On the iPhone, open **StikDebug → Settings → Import Pairing File** and choose the `.plist`. (Skip this if idevice_pair already placed it in StikDebug.)
+2. Create the pairing file and save it as a file. AirDrop it to your iPhone, or put it in the Files app.
+3. On the iPhone, open **Voxelium → JIT** tab → **Import the pairing file**, and choose the file.
+4. Voxelium keeps it in the iOS Keychain. Delete the copy in Files, and on the Mac: anyone with the file can use your iPhone's developer services.
+
+Make a new pairing file if you erase the iPhone or reset *Trust This Computer*. Voxelium says so ("This pairing file doesn't work") when that's needed.
 
 ### Step 4: Open Voxelium (every time)
 1. Open **LocalDevVPN** and turn the VPN **on**.
 2. Open **Voxelium** from the Home Screen, like any app.
 
-You don't need to assign a script in StikDebug or open Voxelium from it any more. Voxelium asks StikDebug for JIT when you start a game (step 5). Opening Voxelium from StikDebug, as before, still works.
-
 ### Step 5: Play
 1. **Account** tab: **Sign in with Microsoft**, copy the code and finish signing in on the page that opens.
 2. **Versions** tab: install a version (1.13 – 26.2, or 26.3 on iOS 26+). For mods, choose Fabric, Quilt, Forge or NeoForge when installing, or tap **Modpacks**.
-3. Under **Installed**, tap **Play** and choose how to start.
-   1. **StikDebug opens** and asks to enable JIT for Voxelium. Tap to confirm.
-   2. **StikDebug switches back** to Voxelium, and Minecraft starts.
-   3. **On iPhones with iOS 26,** Voxelium also sends StikDebug the JIT script it needs, so there's nothing to assign by hand.
-   4. **On mobile data:** StikDebug's connection needs **Airplane Mode on**. Turn it on just before tapping Play, and off again once the game has started.
+3. Under **Installed**, tap **Play** and choose how to start. Voxelium turns on JIT, then Minecraft starts. You stay in Voxelium the whole time.
+   - **The first time** (and after each restart of the iPhone), Voxelium also prepares your iPhone's developer disk image. The first time it downloads it, which needs internet and took about 40 seconds in testing. After that, JIT takes about 2 seconds.
+   - **On mobile data,** LocalDevVPN only works in **Airplane Mode**. Voxelium asks you to turn it on when you tap Play, goes on by itself, and tells you when you can turn Airplane Mode off again (about 2 seconds later).
+   - **Without internet,** Voxelium uses your saved Microsoft sign-in: single-player works, servers and Realms need internet.
+
+### Using StikDebug instead
+If no pairing file is imported in Voxelium, or you turn off **Use the built-in helper for Play** in the JIT tab, Play asks StikDebug for JIT, as in Voxelium 2.2: StikDebug opens, asks you to confirm and switches back. StikDebug needs its own pairing file. Starting Voxelium from StikDebug also still works.
 
 ### Troubleshooting
-- **StikDebug opens but Minecraft doesn't start:** make sure LocalDevVPN is on (and Airplane Mode, on mobile data), close Voxelium completely, open it again and tap Play. If it keeps failing, open StikDebug directly once, wait for it to connect, then try again. Starting Voxelium from StikDebug also works.
+- **"LocalDevVPN isn't connected":** open LocalDevVPN, connect it (it should say *Connected*), then tap Play again. On mobile data, also turn on Airplane Mode.
+- **"This pairing file doesn't work":** the file isn't a pairing file for this iPhone, or it's out of date. Make a new one (step 3) and import it in the JIT tab.
+- **"Import a pairing file":** there is none in Voxelium yet, and StikDebug isn't installed. See step 3.
+- **Something else about JIT:** check LocalDevVPN, close Voxelium completely, open it again and tap Play. **JIT → Check the JIT helper** shows whether the helper can reach your iPhone. If you use StikDebug: open it directly once, wait for it to connect, then try again.
 - **The game closes after a while (low memory):** lower the render distance to 8–10, especially with shaders. The gauge under **More** in game shows how full memory is. If it still happens, **GetMoreRam** can add Apple's *Increased Memory Limit* to Voxelium: install GetMoreRam with Sideloadly, sign in there with the same Apple ID, open **App IDs**, refresh, select Voxelium and add *Increased Memory Limit*, then install Voxelium again with the same Apple ID. GetMoreRam's own guide uses SideStore or AltStore for that reinstall; doing it with Sideloadly has not been tested.
 - **Getting your worlds in or out:** use **Play → Worlds…** or Files → On My iPhone → Voxelium, with Minecraft closed. See [Bringing your worlds](docs/INSTALL.md#bringing-your-worlds).
 - **The versions list doesn't load:** check your internet connection (and Airplane Mode, see step 5), then tap **Refresh**.
@@ -118,7 +126,7 @@ You don't need to assign a script in StikDebug or open Voxelium from it any more
 More about mods, shaders and memory: [docs/INSTALL.md](docs/INSTALL.md).
 
 ### Building from source
-Open `App/Voxelium.xcodeproj` in Xcode, choose your Personal Team and a unique bundle ID on the Voxelium target, and Run on a phone with Developer Mode on; then start the app from StikDebug for JIT. `scripts/build-ipa.sh` builds the unsigned IPA. The native dependencies come from the `scripts/build-*.sh` and `scripts/fetch-runtime.sh` scripts, run before the first build; `scripts/collect-licenses.sh` refreshes the notices.
+Open `App/Voxelium.xcodeproj` in Xcode, choose your Personal Team and a unique bundle ID on the Voxelium target, and Run on a phone with Developer Mode on; then start the app from StikDebug for JIT. `scripts/build-ipa.sh` builds the unsigned IPA, with the JIT helper extension (`scripts/build-jit-helper.sh`, which fetches StikJIT); Xcode's Run doesn't add the helper. The native dependencies come from the `scripts/build-*.sh` and `scripts/fetch-runtime.sh` scripts, run before the first build; `scripts/collect-licenses.sh` refreshes the notices.
 
 ## Licence
 GPL-3.0. See [LICENSE](LICENSE), [NOTICE.md](NOTICE.md) and [THIRD_PARTY_NOTICES.txt](THIRD_PARTY_NOTICES.txt) (the licences of everything the app bundles; also in the app under Diagnostics → About). The project is not affiliated with ZalithLauncher, Mojang or Microsoft.
@@ -138,5 +146,6 @@ Design notes: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md). Progress and evidenc
 | Release 1.0 | Forge and NeoForge | ✅ [Published](https://github.com/Vortroxious/Voxelium-launcher/releases/tag/v1.0) 2026-10-21 |
 | Release 2.0 | Vulkan renderer (KosmicKrisp, Zink), Minecraft 26.3 (SDL3), renderer choice, bigger hotbar | ✅ [Published](https://github.com/Vortroxious/Voxelium-launcher/releases/tag/v2.0) 2026-10-24 |
 | Release 2.1 | Minecraft 26.2 on MobileGlues (patch 0015: base-vertex draws through ANGLE's OES/EXT functions) and on Vulkan | ✅ Tagged 2026-10-24 ([release notes](docs/RELEASE_NOTES_2.1.md)) |
-| Release 2.2 | Open Voxelium from the Home Screen: Play asks StikDebug for JIT (like Amethyst); smooth close after quitting | ⏳ Being prepared ([release notes](docs/RELEASE_NOTES_2.2.md)) |
+| Release 2.2 | Open Voxelium from the Home Screen: Play asks StikDebug for JIT (like Amethyst); smooth close after quitting | ✅ Tagged 2026-10-24 ([release notes](docs/RELEASE_NOTES_2.2.md)) |
+| Release 2.3 | Built-in JIT: StikJIT inside Voxelium, so Play needs only LocalDevVPN and a pairing file (StikDebug optional); Airplane Mode prompt and offline play on mobile data | ⏳ Being prepared ([release notes](docs/RELEASE_NOTES_2.3.md)) |
 | Later | CurseForge (with your own API key), game controllers and keyboards on the OpenGL path, launcher update checks | Ideas |

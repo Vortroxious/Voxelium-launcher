@@ -73,17 +73,15 @@ final class MinecraftLauncher: ObservableObject {
             identity = OfflineIdentity.identity(for: settings.playerName)
         }
 
-        // Java needs JIT. Opened from the Home Screen, ask StikDebug to turn it on for this
-        // running app first; it switches back here when done (opening Voxelium from
-        // StikDebug, as before, skips this). JITCoordinator also asks again when the
+        // Java needs JIT. Opened from the Home Screen, turn it on for this running app first:
+        // with the built-in helper, or by asking StikDebug, which switches back here when
+        // done (opening Voxelium from StikDebug, as before, skips this). JITCoordinator also asks again when the
         // debugger was attached earlier but the JIT script has gone (TXM devices).
         state = .starting("Checking JIT…")
         switch await jit.ensureJIT(status: { [weak self] in self?.state = .waitingForJIT($0) }) {
         case .ready:
             var note = playingOffline ? " Offline: single-player works; servers and Realms need internet." : ""
-            #if VOXELIUM_JIT_HELPER_SPIKE
             if jit.airplaneModeAsked { note = " JIT is on: you can turn Airplane Mode off now." + note }
-            #endif
             state = .starting("Starting \(versionID)…" + note)
         case .cancelled:
             state = .idle

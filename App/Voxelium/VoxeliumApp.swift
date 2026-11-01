@@ -16,9 +16,7 @@ struct VoxeliumApp: App {
                 .environmentObject(controls)
                 .environmentObject(accounts)
                 .task {
-                    #if VOXELIUM_JIT_HELPER_SPIKE
                     _ = NetworkRouteMonitor.shared  // knows the route by the time Play asks
-                    #endif
                     await model.start()
                 }
                 // Keep the Microsoft token current while online, for Play in Airplane Mode.
@@ -43,13 +41,8 @@ struct ContentView: View {
                 .tabItem { Label("Controls", systemImage: "gamecontroller") }
             DiagnosticsView()
                 .tabItem { Label("Diagnostics", systemImage: "stethoscope") }
-            #if VOXELIUM_JIT_HELPER_SPIKE
             BuiltInJITView()
                 .tabItem { Label("JIT", systemImage: "bolt") }
-            #else
-            LogView()
-                .tabItem { Label("Logs", systemImage: "doc.plaintext") }
-            #endif
         }
     }
 }

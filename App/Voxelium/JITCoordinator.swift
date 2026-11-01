@@ -3,10 +3,11 @@ import Network
 import UIKit
 import VoxeliumCore
 
-/// Gets JIT before a game starts (docs/JIT_INTEGRATION_PLAN.md, Phase 1).
+/// Gets JIT before a game starts (docs/JIT_INTEGRATION_PLAN.md, Phases 1 and 2).
 ///
 /// - Already debugged (opened from StikDebug, or a hand-off earlier in this launch) and,
 ///   on TXM devices, the JIT script still answers: nothing to do.
+/// - With a pairing file imported (iOS 17.4+), the built-in helper turns JIT on here.
 /// - Otherwise opens StikDebug's `enable-jit` link for this process (with UniversalJIT26.js
 ///   on TXM devices) and waits until JIT is ready, the player cancels, or 2 minutes pass.
 ///   Coming back to Voxelium checks again at once.
@@ -28,10 +29,8 @@ final class JITCoordinator {
 
     private let log = Logger.shared
     private var wait: JITWait?
-    #if VOXELIUM_JIT_HELPER_SPIKE
     /// The last Play asked for Airplane Mode (mobile data): the game start says it can go off.
     private(set) var airplaneModeAsked = false
-    #endif
 
     func cancel() { wait?.cancel() }
 
@@ -66,9 +65,8 @@ final class JITCoordinator {
             return .problem(.missingGetTaskAllow)
         }
 
-        #if VOXELIUM_JIT_HELPER_SPIKE
-        if BuiltInJITSpike.useForPlay {
-            if let pairing = BuiltInJITSpike.pairingData {
+        if BuiltInJIT.useForPlay {
+            if let pairing = BuiltInJIT.pairingData {
                 return await ensureWithHelper(pairing: pairing, status: status)
             }
             // No pairing file: StikDebug can still turn on JIT if it's installed.
@@ -78,7 +76,6 @@ final class JITCoordinator {
             }
             log.info("jit", "No pairing file imported: asking StikDebug instead")
         }
-        #endif
 
         let bundleID = Bundle.main.bundleIdentifier ?? "io.github.voxelium.launcher"
         let needsScript = VXJITNeedsScript()
@@ -152,9 +149,8 @@ private final class ReturnTime {
     var date: Date?
 }
 
-#if VOXELIUM_JIT_HELPER_SPIKE
 extension JITCoordinator {
-    /// Spike (docs/JIT_INTEGRATION_PLAN.md, Phase 2): JIT from the built-in helper
+    /// JIT from the built-in helper (docs/JIT_INTEGRATION_PLAN.md, Phase 2)
     /// extension (StikJIT), with no switch to StikDebug. Readiness is the same check as
     /// for StikDebug; the helper's own answer only matters when it fails, because on TXM
     /// devices it answers only after the JIT script detached, which is after the JVM
@@ -215,7 +211,7 @@ extension JITCoordinator {
                 // The helper reports a stage with every progress update; log only changes.
                 guard stage != failure.lastStage else { return }
                 failure.lastStage = stage
-                let text = BuiltInJITSpike.stageText(stage)
+                let text = BuiltInJIT.stageText(stage)
                 log.info("jit", "Helper stage \(stage): \(text)")
                 status(text)
             }
@@ -292,4 +288,3 @@ final class NetworkRouteMonitor: @unchecked Sendable {
         return current.map { "\($0.route) (\($0.detail))" } ?? "unknown yet"
     }
 }
-#endif

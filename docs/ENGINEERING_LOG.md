@@ -1860,3 +1860,25 @@ Requested by the user through the main session, as the candidate for Voxelium 2.
     - The world joined at 03:31:29Z, peak memory was 1555 MB, and the game quit cleanly with `exit(0)` at 03:32:22Z.
   - Every path of the built-in helper has now passed on a phone.
   - **Found:** the stage callback fires for every progress update, so "Helper stage 4: Mounting…" was logged 241 times. Only changes should be logged.
+
+## 2026-11-01 — Voxelium 2.3: the built-in JIT helper in the real app (branch `built-in-jit`, from `spike/jit-helper`)
+- **What changed from the test build:**
+  - The `VOXELIUM_JIT_HELPER_SPIKE` switch and the separate "Voxelium JIT Test" bundle ID are gone. `scripts/build-ipa.sh` always builds `VoxeliumJITHelper.appex` (`io.github.voxelium.launcher.JITHelper`), and `scripts/collect-licenses.sh` now requires the StikJIT and idevice notices.
+  - Renamed: `JITHelperSpike.{h,m}` → `JITHelper.{h,m}` (`VXJITHelperSpikeRun` → `VXJITHelperCheck`), `JITHelperSpikeView.swift` → `BuiltInJITView.swift` (`BuiltInJITSpike` → `BuiltInJIT`). The log category is `jit`.
+  - The JIT tab replaces Logs in every build; Logs are under Diagnostics. The unused `LogView` was removed.
+  - **iOS 17.4 check:** the app still supports iOS 16, but the helper (StikJIT) needs 17.4. `BuiltInJIT.supported` keeps older iOS on StikDebug, and the JIT tab says so.
+  - Messages: `.stikDebugMissing` now explains the helper isn't in use; `.helperFailed` points to the JIT tab, not Diagnostics.
+  - Version 2.3. README (install guide without StikDebug, troubleshooting by message), INSTALL.md, NOTICE.md and `docs/RELEASE_NOTES_2.3.md` (draft) are updated.
+- **Build:**
+  - `swift test`: 137 pass.
+  - IPA `build/ipa/Voxelium-2.3-beta-202611010343-unsigned.ipa`, build 202611010343, SHA-256 `4292b7ac47bd17f9ce9e11b84e5bf160461771b88a647a0d4f9973bf9521370b`.
+  - Its `THIRD_PARTY_NOTICES.txt` is identical to the repo's.
+- **Phone test** (iPhone 15 Pro Max, iOS 27.0, logs read 2026-11-01 ~04:00Z):
+  - Installed over Voxelium 2.2 with Sideloadly. `devicectl device info apps` showed Voxelium 2.3 (202611010343), with the JIT test app still installed next to it.
+  - **No import was needed.** The launcher log has no "Pairing file imported" line, yet the helper used a pairing file. Most likely Sideloadly signs both apps with the same Keychain access group for the team, so the item the test app stored (service `io.github.voxelium.jithelper`) is visible to the real app. This isn't proven, and it may differ with other signing tools.
+  - **The Airplane Mode prompt, first time on a phone:**
+    - 03:53:47Z: the route was `mobileDataOnly`, so Play asked for Airplane Mode.
+    - 4 s later the route was offline, and the helper started. The disk image was already mounted, so there was no download.
+    - **JIT on after 2.1 s.**
+  - Fabric 1.21.11 joined a world at 03:54:20Z (peak memory 2514 MB) and quit cleanly with `exit(0)`.
+  - The stage log now has one line per stage (no repeats).

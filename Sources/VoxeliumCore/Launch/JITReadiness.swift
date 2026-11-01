@@ -13,18 +13,18 @@ public enum JITProblem: Equatable, Sendable {
     case scriptNotAttached
     /// A different JIT script answered the probe (its reply is kept for the log).
     case wrongScript(reply: UInt64)
-    /// Built-in JIT (spike) is chosen but no pairing file is imported, and StikDebug
+    /// Built-in JIT is chosen but no pairing file is imported, and StikDebug
     /// isn't installed to fall back on.
     case pairingFileMissing
     /// On mobile data, the player didn't turn on Airplane Mode (or join Wi-Fi) in time.
     case needsAirplaneMode
-    /// The built-in JIT helper (spike) couldn't use the imported pairing file: it isn't
+    /// The built-in JIT helper couldn't use the imported pairing file: it isn't
     /// one, or it no longer matches this iPhone.
     case pairingFileInvalid
-    /// The built-in JIT helper (spike) couldn't connect to the iPhone's developer services:
+    /// The built-in JIT helper couldn't connect to the iPhone's developer services:
     /// LocalDevVPN is off or not connected.
     case vpnNotConnected
-    /// The built-in JIT helper (spike) reported an error.
+    /// The built-in JIT helper reported an error.
     case helperFailed(String)
 
     /// The problem for an error the helper reported. Connection failures become
@@ -56,7 +56,7 @@ public enum JITProblem: Equatable, Sendable {
     public var message: String {
         switch self {
         case .stikDebugMissing:
-            "Minecraft needs JIT, and Voxelium gets it from StikDebug. Install StikDebug and LocalDevVPN and import a pairing file (see the setup guide), then tap Play again."
+            "Minecraft needs JIT. The built-in helper isn't in use (it's off in the JIT tab, or this iOS is older than 17.4), and StikDebug, the other way to get JIT, isn't installed. Turn the helper on in the JIT tab and import a pairing file, or install StikDebug (see the setup guide), then tap Play again."
         case .timedOut:
             "StikDebug didn't turn on JIT for Voxelium. You may have declined its prompt, or it couldn't connect: check that LocalDevVPN is connected and StikDebug has a pairing file (on mobile data, turn on Airplane Mode just before Play). Then tap Play again."
         case .missingGetTaskAllow:
@@ -74,7 +74,7 @@ public enum JITProblem: Equatable, Sendable {
         case .vpnNotConnected:
             "Voxelium turns on JIT through LocalDevVPN, and couldn't reach it. Open LocalDevVPN, connect it (it should say Connected), then tap Play again."
         case .helperFailed(let reason):
-            "\(reason) Check that LocalDevVPN is connected and the pairing file is current, then close Voxelium and tap Play again. To use StikDebug instead, turn off the built-in helper in Diagnostics."
+            "\(reason) Check that LocalDevVPN is connected and the pairing file is current, then close Voxelium and tap Play again. To use StikDebug instead, turn off the built-in helper in the JIT tab."
         }
     }
 

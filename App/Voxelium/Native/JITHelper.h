@@ -3,13 +3,12 @@
 
 NS_ASSUME_NONNULL_BEGIN
 
-/// Spike (docs/JIT_INTEGRATION_PLAN.md, Phase 2): the JIT helper extension
-/// (VoxeliumJITHelper.appex, StikJIT inside), started with the private NSExtension API.
-/// Only compiled into the test build (VOXELIUM_JIT_HELPER_SPIKE); elsewhere the calls
-/// report that and return. Callbacks run on the main queue.
+/// The built-in JIT helper (docs/JIT_INTEGRATION_PLAN.md, Phase 2): the extension
+/// VoxeliumJITHelper.appex, with StikJIT inside, started with the private NSExtension API.
+/// It needs iOS 17.4 (StikJIT's minimum). Callbacks run on the main queue.
 
 /// Starts the helper with a "check" request and reports each step and its reply.
-void VXJITHelperSpikeRun(void (^report)(NSString *line));
+void VXJITHelperCheck(void (^report)(NSString *line));
 
 /// Asks the helper to turn on JIT for `hostPid` with StikJIT. `stage` gets the helper's
 /// progress (1 checking connection … 6 device ready, 7 attaching, 8 finished). `done` runs

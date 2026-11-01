@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
-# Spike (docs/JIT_INTEGRATION_PLAN.md, Phase 2): builds App/JITHelper together with
-# StikJIT's sources into VoxeliumJITHelper.appex and puts it in <app>/PlugIns.
+# The built-in JIT helper (docs/JIT_INTEGRATION_PLAN.md, Phase 2): builds App/JITHelper
+# together with StikJIT's sources into VoxeliumJITHelper.appex and puts it in <app>/PlugIns.
+# Run by scripts/build-ipa.sh.
 # Unsigned, like the rest of the IPA; the signing tool signs it with the app.
 #   scripts/build-jit-helper.sh path/to/Voxelium.app
 #

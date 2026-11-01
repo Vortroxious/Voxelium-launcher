@@ -22,7 +22,7 @@ The complete licence texts are in **[THIRD_PARTY_NOTICES.txt](THIRD_PARTY_NOTICE
 | FreeType | 2.13.3 | FTL (chosen from FTL/GPL-2.0) | `libfreetype.dylib` |
 | OpenAL Soft | 1.25.2 | **LGPL-2.0+**, dynamically linked, rebuildable (`scripts/build-openal.sh`) | `libopenal.dylib` |
 | UniversalJIT26.js, UniversalJIT26Extension.js; JIT helpers in `JITSupport.m` | Amethyst-iOS | GPL-3.0 | app bundle / compiled in |
-| StikJIT (built-in JIT helper; JIT test build only so far) | StikDebug/StikJIT `0129e21955011a9aee47706d7ce178683208e88a`, unmodified, fetched by `scripts/build-jit-helper.sh` | **MPL-2.0**; source at that commit | compiled into `PlugIns/VoxeliumJITHelper.appex` |
+| StikJIT (built-in JIT helper) | StikDebug/StikJIT `0129e21955011a9aee47706d7ce178683208e88a`, unmodified, fetched by `scripts/build-jit-helper.sh` | **MPL-2.0**; source at that commit | compiled into `PlugIns/VoxeliumJITHelper.appex` |
 | idevice (`libidevice_ffi.a`, prebuilt in StikJIT) | jkcoxson/idevice v0.1.68 | MIT; 278 Rust crates from its Cargo.lock (`scripts/idevice-crates.txt`), MIT/Apache-2.0/BSD/ISC and others, notices from `scripts/fetch-idevice-licenses.sh` | linked into the helper |
-| Helper start-up (`JITHelperSpike.m`, the extension's Info.plist) | written for Voxelium; follows how LiveContainer (AGPL-3.0) starts LiveProcess, using the same private NSExtension method names. No LiveContainer code is included | GPL-3.0 | compiled in |
+| Helper start-up (`JITHelper.m`, the extension's Info.plist) | written for Voxelium; follows how LiveContainer (AGPL-3.0) starts LiveProcess, using the same private NSExtension method names. No LiveContainer code is included | GPL-3.0 | compiled in |
 | Khronos EGL/GLES headers, GLFW 3.4 header, `jni.h` | build-time headers only | Apache-2.0 / MIT / zlib / GPL-2.0+CE | not shipped as code |

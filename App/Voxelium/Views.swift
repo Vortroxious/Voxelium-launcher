@@ -35,11 +35,9 @@ struct VersionsView: View {
                         if p.showsSetupGuide {
                             Link(destination: setupGuideURL) { Label("Open the setup guide", systemImage: "book") }
                         }
-                        #if VOXELIUM_JIT_HELPER_SPIKE
                         if p == .pairingFileMissing || p == .pairingFileInvalid {
                             Button { showJITSettings = true } label: { Label("Import a pairing file", systemImage: "doc.badge.plus") }
                         }
-                        #endif
                     }
                 case .finished(let ok, let m):
                     Section {
@@ -104,14 +102,12 @@ struct VersionsView: View {
                 InstallVersionSheet(entry: target.entry, initialLoader: target.loader)
             }
             .sheet(isPresented: $showModpacks, onDismiss: { model.refreshInstalled() }) { ModpackBrowseView() }
-            #if VOXELIUM_JIT_HELPER_SPIKE
             .sheet(isPresented: $showJITSettings) { BuiltInJITView(showsDone: true) }
-            #endif
         }
     }
 }
 
-/// README section on installing Voxelium, StikDebug and LocalDevVPN.
+/// README section on installing Voxelium and LocalDevVPN and making the pairing file.
 let setupGuideURL = URL(string: "https://github.com/Vortroxious/Voxelium-launcher#installing-on-your-iphone")!
 
 /// Starts Minecraft for an installed version (vanilla or modded).
@@ -506,9 +502,7 @@ struct DiagnosticsView: View {
                     Link(destination: setupGuideURL) { Label("Setup guide", systemImage: "book") }
                 }
                 Section {
-                    #if VOXELIUM_JIT_HELPER_SPIKE
                     NavigationLink { LogList() } label: { Label("Logs", systemImage: "doc.plaintext") }
-                    #endif
                     NavigationLink { AboutView() } label: { Label("About Voxelium & licences", systemImage: "info.circle") }
                 }
                 JavaTestSection(test: javaTest, paths: model.paths)
@@ -522,7 +516,7 @@ struct DiagnosticsView: View {
                     }
                 }
                 Section("Status") {
-                    Text("This build downloads and verifies game files and starts Minecraft Java (Java 17 versions, offline profile) in the app. Starting the game needs JIT: Play asks StikDebug for it, or open Voxelium from StikDebug.")
+                    Text("This build downloads and verifies game files and starts Minecraft Java (Java 17 versions, offline profile) in the app. Starting the game needs JIT: Play turns it on with the built-in helper (JIT tab) or asks StikDebug, or open Voxelium from StikDebug.")
                         .font(.footnote)
                 }
                 if let root = model.paths?.root {
@@ -534,13 +528,7 @@ struct DiagnosticsView: View {
     }
 }
 
-struct LogView: View {
-    var body: some View {
-        NavigationStack { LogList() }
-    }
-}
-
-/// The log, newest first; pushed from Diagnostics in the JIT test build.
+/// The log, newest first; pushed from Diagnostics.
 struct LogList: View {
     @EnvironmentObject var model: LauncherModel
     @State private var entries: [LogEntry] = []

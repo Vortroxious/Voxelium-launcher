@@ -1,10 +1,8 @@
 // Starts the JIT helper extension the way LiveContainer starts LiveProcess
 // (LCUtils.m, AppSceneViewController.m, AGPL-3.0; private NSExtension methods as
-// declared in its FoundationPrivate.h). Spike only.
+// declared in its FoundationPrivate.h).
 
-#import "JITHelperSpike.h"
-
-#if VOXELIUM_JIT_HELPER_SPIKE
+#import "JITHelper.h"
 #import <objc/message.h>
 #include <notify.h>
 #include <unistd.h>
@@ -83,9 +81,9 @@ static void sendRequest(NSDictionary *userInfo, void (^started)(int pid),
     ((void (*)(id, SEL, NSArray *, id))objc_msgSend)(ext, NSSelectorFromString(@"beginExtensionRequestWithInputItems:completion:"), @[item], begun);
 }
 
-void VXJITHelperSpikeRun(void (^report)(NSString *line)) {
+void VXJITHelperCheck(void (^report)(NSString *line)) {
     void (^say)(NSString *) = ^(NSString *line) {
-        NSLog(@"[JITHelperSpike] %@", line);
+        NSLog(@"[JITHelper] %@", line);
         report(line);
     };
     say(@"Starting the helper…");
@@ -113,7 +111,7 @@ void VXJITHelperEnableJIT(int hostPid, NSData *pairingFile, NSData *script, BOOL
     NSDictionary *request = @{ @"action": @"enableJIT", @"hostPid": @(hostPid), @"pairingFile": pairingFile,
                                @"script": script, @"forceScript": @(forceScript) };
     sendRequest(request, ^(int pid) {
-        NSLog(@"[JITHelperSpike] helper pid %d enabling JIT for %d", pid, hostPid);
+        NSLog(@"[JITHelper] helper pid %d enabling JIT for %d", pid, hostPid);
     }, ^(NSDictionary *u, NSString *failure) {
         stageHandler = nil;
         NSArray *log = [u[@"log"] isKindOfClass:NSArray.class] ? u[@"log"] : @[];
@@ -123,16 +121,3 @@ void VXJITHelperEnableJIT(int hostPid, NSData *pairingFile, NSData *script, BOOL
     });
 }
 
-#else
-
-void VXJITHelperSpikeRun(void (^report)(NSString *line)) {
-    report(@"This build has no JIT helper (spike builds only).");
-}
-
-void VXJITHelperEnableJIT(int hostPid, NSData *pairingFile, NSData *script, BOOL forceScript,
-                          void (^stage)(int stage),
-                          void (^done)(BOOL ok, NSString *_Nullable error, NSArray<NSString *> *log)) {
-    done(NO, @"This build has no JIT helper (spike builds only).", @[]);
-}
-
-#endif
