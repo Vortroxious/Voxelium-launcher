@@ -94,6 +94,35 @@ import Testing
         await #expect(throws: ModpackError.alreadyInstalled(id)) { try await installer.install(try fixture("test-vanilla.mrpack")) }
     }
 
+    @Test func samePackNameWithAnotherLoaderGetsItsOwnID() throws {
+        let tmp = try TempDir()
+        let game = GameInstaller(paths: tmp.paths)
+        func pack(_ loader: String) throws -> ModpackIndex {
+            try ModpackIndex.decode(Data("""
+                {"formatVersion":1,"game":"minecraft","versionId":"1.0","name":"Universalized Optimized 1.21.1","files":[],
+                 "dependencies":{"minecraft":"1.21.1","\(loader)":"1"}}
+                """.utf8))
+        }
+        let quilt = try pack("quilt-loader"), neo = try pack("neoforge")
+        let installer = ModpackInstaller(game: game)
+        let id = ModpackInstaller.versionID(for: quilt)
+        #expect(installer.installID(for: quilt) == id)   // nothing installed yet
+
+        // The Quilt pack is installed under the default id.
+        let marker = try game.completionMarker(id)
+        try FileManager.default.createDirectory(at: marker.deletingLastPathComponent(), withIntermediateDirectories: true)
+        try Data().write(to: marker)
+        let instance = try tmp.paths.instanceDir(id)
+        try FileManager.default.createDirectory(at: instance, withIntermediateDirectories: true)
+        try JSONEncoder().encode(InstalledModpack(name: quilt.name, versionNumber: "1.0", minecraft: "1.21.1", loader: "Quilt",
+                                                  projectID: nil, versionID: nil))
+            .write(to: instance.appendingPathComponent(InstalledModpack.fileName))
+
+        // The NeoForge file gets its own id; the Quilt one again keeps the default, which install refuses.
+        #expect(installer.installID(for: neo) == "\(id) (NeoForge)")
+        #expect(installer.installID(for: quilt) == id)
+    }
+
     @Test func readsForgeAndNeoForgePacksAndRefusesOtherZips() async throws {
         let neo = try ModpackInstaller.read(try fixture("test-neoforge.mrpack")).index
         #expect(neo.loader?.loader == .neoforge)

@@ -161,9 +161,21 @@ public struct ModpackInstaller: Sendable {
         return out
     }
 
+    /// The id a new install of the pack gets: `versionID(for:)`, or "<id> (<Loader>)" when
+    /// that id is already installed with another loader. Some packs give their files for
+    /// different loaders the same name and version (Simply Optimized Reloaded's 1.21.1 Quilt
+    /// and NeoForge files). The same pack again keeps its id, so `install` refuses it.
+    public func installID(for index: ModpackIndex) -> String {
+        let id = Self.versionID(for: index)
+        guard game.isInstalled(id), let loader = index.loader?.loader.displayName,
+              let instance = try? game.paths.instanceDir(id),
+              Self.installedModpack(in: instance)?.loader != loader else { return id }
+        return "\(id) (\(loader))"
+    }
+
     public enum Stage: Sendable, Equatable { case minecraft, loader, modpackFiles, overrides }
 
-    /// Installs the pack as version `id` (default: name + version). Minecraft and the
+    /// Installs the pack as version `id` (default: `installID(for:)`). Minecraft and the
     /// loader are installed first when missing. Returns the version id and the
     /// download report of the pack's own files; nothing is marked installed unless
     /// every file downloaded and verified.
@@ -172,7 +184,7 @@ public struct ModpackInstaller: Sendable {
         progress: (@Sendable (Stage, DownloadProgress) -> Void)? = nil
     ) async throws -> (id: String, report: DownloadReport) {
         let (index, zip) = try Self.read(mrpack)
-        let versionID = id ?? Self.versionID(for: index)
+        let versionID = id ?? installID(for: index)
         guard !game.isInstalled(versionID) else { throw ModpackError.alreadyInstalled(versionID) }
         let minecraft = index.minecraft!
         let instance = try game.paths.instanceDir(versionID)
