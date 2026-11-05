@@ -92,6 +92,15 @@ import Testing
         #expect(ua.hasPrefix("Voxelium/"))
     }
 
+    @Test func loaderBuildsAreSortedNewestFirst() async throws {
+        let http = MockHTTP()
+        let unordered = ["0.20.0-beta.9", "0.24.0", "0.20.2-beta.1", "0.30.0-beta.8", "0.30.2", "0.30.0", "0.30.10", "0.31.0-beta.10", "0.31.0-beta.2"]
+        http.on("https://meta.quiltmc.org/v3/versions/loader/1.21.1", 200, unordered.map { ["loader": ["version": $0]] })
+        let q = try await ModLoaderMeta(http: http).versions(for: .quilt, minecraft: "1.21.1")
+        #expect(q.map(\.version) == ["0.31.0-beta.10", "0.31.0-beta.2", "0.30.10", "0.30.2", "0.30.0", "0.30.0-beta.8", "0.24.0", "0.20.2-beta.1", "0.20.0-beta.9"])
+        #expect(ModLoaderMeta.recommended(q)?.version == "0.30.10")
+    }
+
     @Test func fillsInMissingChecksumsFromMaven() async throws {
         let tmp = try TempDir()
         let http = MockHTTP()

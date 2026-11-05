@@ -96,7 +96,8 @@ public struct ModLoaderMeta: Sendable {
         s.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed.subtracting(CharacterSet(charactersIn: "/"))) ?? s
     }
 
-    /// Loader builds for `minecraft`, newest first as the meta server lists them.
+    /// Loader builds for `minecraft`, newest first. Quilt's meta server doesn't list them
+    /// in order (for 1.21.1 it starts with 0.20.0-beta.9), so they are sorted here.
     public func versions(for loader: ModLoader, minecraft: String) async throws -> [LoaderVersion] {
         if loader.usesForgeInstaller { return try await ForgeMeta(http: http).versions(for: loader, minecraft: minecraft) }
         let url = URL(string: "\(try Self.base(loader))/\(Self.escape(minecraft))")!
@@ -111,7 +112,41 @@ public struct ModLoaderMeta: Sendable {
             return LoaderVersion(version: v, stable: stable)
         }
         if builds.isEmpty { throw ModLoaderError.noBuilds(loader, minecraft) }
-        return builds
+        return builds.sorted { Self.compareVersions($0.version, $1.version) > 0 }
+    }
+
+    /// Orders loader versions like `0.30.2`, `0.30.0-beta.8`: numbers part by part, and a
+    /// pre-release (`-beta.8`, `-rc.1`) before its release. Parts that aren't numbers compare as text.
+    public static func compareVersions(_ a: String, _ b: String) -> Int {
+        func split(_ v: String) -> (release: String, pre: String?) {
+            let p = v.split(separator: "-", maxSplits: 1, omittingEmptySubsequences: false)
+            return (String(p[0]), p.count > 1 ? String(p[1]) : nil)
+        }
+        func parts(_ x: String, _ y: String) -> Int {
+            let xs = x.split(separator: ".", omittingEmptySubsequences: false).map(String.init)
+            let ys = y.split(separator: ".", omittingEmptySubsequences: false).map(String.init)
+            for i in 0..<max(xs.count, ys.count) {
+                guard i < xs.count else { return -1 }
+                guard i < ys.count else { return 1 }
+                let c: Int
+                if let xn = Int64(xs[i]), let yn = Int64(ys[i]) {
+                    c = xn < yn ? -1 : (xn > yn ? 1 : 0)
+                } else {
+                    c = xs[i] < ys[i] ? -1 : (xs[i] > ys[i] ? 1 : 0)
+                }
+                if c != 0 { return c }
+            }
+            return 0
+        }
+        let (releaseA, preA) = split(a), (releaseB, preB) = split(b)
+        let c = parts(releaseA, releaseB)
+        if c != 0 { return c }
+        switch (preA, preB) {
+        case (nil, nil): return 0
+        case (nil, _): return 1
+        case (_, nil): return -1
+        case let (x?, y?): return parts(x, y)
+        }
     }
 
     /// The default build to offer: the recommended one (Forge), else the first
