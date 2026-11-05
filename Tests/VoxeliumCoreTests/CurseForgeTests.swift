@@ -116,6 +116,12 @@ import Testing
         #expect(plan.downloadable.count == 2)
         // The optional dependency (5005) is not asked for.
         #expect(!http.requests.contains { $0.url?.path.contains("5005") == true })
+
+        // A dependency installed from Modrinth or a file (its mod id matches the slug) is not planned again.
+        let again = try await CurseForgeInstaller(api: api)
+            .plan(file, of: root, gameVersion: "1.21.11", gameLoader: "fabric", installed: [4004], installedModIDs: ["fabricapi"])
+        #expect(again.items.map(\.mod.name) == ["Cool", "Blocked"])
+        #expect(again.alreadyInstalled == [2002])
     }
 
     @Test func installRecordsFilesAndReplacesOldOnes() async throws {

@@ -244,9 +244,12 @@ public struct ModrinthInstaller: Sendable {
 
     /// The chosen version plus every required dependency (recursively), using the
     /// exact dependency version when the author pinned one, else the preferred
-    /// compatible version. Dependencies already installed are skipped.
+    /// compatible version. Dependencies already installed are skipped: those in `installed`
+    /// (project ids, matched by SHA-1) and those whose slug is in `installedModIDs` (see
+    /// `ContentManager.installedModIDs()`; files from CurseForge or the Files app).
     public func plan(_ version: ModrinthAPI.Version, title: String, kind: ContentKind, gameVersion: String,
-                     gameLoader: String?, installed: Set<String>) async throws -> ModrinthInstallPlan {
+                     gameLoader: String?, installed: Set<String>,
+                     installedModIDs: Set<String> = []) async throws -> ModrinthInstallPlan {
         var plan = ModrinthInstallPlan()
         var seen: Set<String> = [version.projectId]
         var queue: [(ModrinthAPI.Version, String, Bool)] = [(version, title, false)]
@@ -267,7 +270,11 @@ public struct ModrinthInstaller: Sendable {
                 guard !seen.contains(pid) else { continue }
                 seen.insert(pid)
                 if installed.contains(pid) { plan.alreadyInstalled.append(pid); continue }
-                let depTitle = await projectTitle(pid)
+                let project = try? await api.project(id: pid)
+                if let slug = project?.slug.lowercased(), installedModIDs.contains(slug) {
+                    plan.alreadyInstalled.append(pid); continue
+                }
+                let depTitle = project?.title ?? pid
                 // Shader packs and resource packs can depend on mods (e.g. Iris); those resolve as mods.
                 var chosen = pinned
                 if chosen == nil {

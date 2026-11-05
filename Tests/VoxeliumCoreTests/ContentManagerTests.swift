@@ -55,8 +55,10 @@ import Testing
         #expect(cm.list(.mods).map(\.name) == ["Example Mod", "Quilt Example"])
 
         // Disabling renames to .disabled; the id stays the same.
+        #expect(cm.installedModIDs() == ["examplemod", "quiltexample"])
         let off = try cm.setEnabled(added, false)
         #expect(!off.isEnabled && off.fileName == "fabric-example-1.2.3.jar.disabled" && off.id == added.id)
+        #expect(cm.installedModIDs() == ["quiltexample"])   // switched-off mods don't count
         #expect(cm.list(.mods).first { $0.id == added.id }?.isEnabled == false)
         let on = try cm.setEnabled(off, true)
         #expect(on.isEnabled && on.fileName == "fabric-example-1.2.3.jar")

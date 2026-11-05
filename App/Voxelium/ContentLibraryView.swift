@@ -197,7 +197,8 @@ struct ContentLibraryView: View {
         for update in list {
             do {
                 let plan = try await installer.plan(update.latest, title: update.name, kind: kind, gameVersion: version.base,
-                                                    gameLoader: loaderID, installed: installedMods.subtracting([update.projectID]))
+                                                    gameLoader: loaderID, installed: installedMods.subtracting([update.projectID]),
+                                                    installedModIDs: manager.installedModIDs())
                 let report = try await installer.install(plan, kind: kind, into: manager, replacing: [update.projectID: [update.file]])
                 if report.succeeded {
                     done.append(update.name)

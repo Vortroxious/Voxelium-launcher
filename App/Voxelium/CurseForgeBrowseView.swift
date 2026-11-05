@@ -382,8 +382,9 @@ struct CurseForgeProjectView: View {
     private func makePlan() async {
         guard let chosen else { plan = nil; return }
         plan = nil
+        let modIDs = model.gameDirectory(for: version.id).map { ContentManager(gameDirectory: $0).installedModIDs() } ?? []
         plan = try? await installer.plan(chosen, of: mod, gameVersion: version.base, gameLoader: gameLoader,
-                                         installed: installed.subtracting([mod.id]))
+                                         installed: installed.subtracting([mod.id]), installedModIDs: modIDs)
     }
 
     private func install() async {

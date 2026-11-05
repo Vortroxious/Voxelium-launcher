@@ -85,6 +85,13 @@ public struct ContentManager: Sendable {
     }
 
     /// Everything in the kind's folder, sorted by name.
+    /// Ids of the switched-on mods (from their metadata, e.g. "fabric-api"), lowercased.
+    /// Modrinth and CurseForge slugs usually match them, so the planners can skip a
+    /// dependency installed from the other site or a file (Fabric refuses duplicate mods).
+    public func installedModIDs() -> Set<String> {
+        Set(list(.mods).filter(\.isEnabled).compactMap { $0.mod?.id.lowercased() })
+    }
+
     public func list(_ kind: ContentKind) -> [ContentItem] {
         let dir = folder(kind)
         let fm = FileManager.default

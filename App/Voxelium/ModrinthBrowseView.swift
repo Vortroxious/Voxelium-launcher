@@ -282,8 +282,10 @@ struct ModrinthProjectView: View {
     private func makePlan() async {
         guard let chosen else { plan = nil; return }
         plan = nil
+        let modIDs = model.gameDirectory(for: version.id).map { ContentManager(gameDirectory: $0).installedModIDs() } ?? []
         plan = try? await installer.plan(chosen, title: hit.title, kind: kind, gameVersion: version.base,
-                                         gameLoader: gameLoader, installed: installed.subtracting([hit.projectId]))
+                                         gameLoader: gameLoader, installed: installed.subtracting([hit.projectId]),
+                                         installedModIDs: modIDs)
     }
 
     private func install() async {

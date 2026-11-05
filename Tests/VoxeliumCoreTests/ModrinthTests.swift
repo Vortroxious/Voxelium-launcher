@@ -54,6 +54,10 @@ import Testing
         // Already-installed dependencies are skipped.
         let again = try await installer.plan(iris, title: "Iris Shaders", kind: .mods, gameVersion: "1.21.11", gameLoader: "fabric", installed: ["AANobbMI"])
         #expect(again.items.map(\.title) == ["Iris Shaders"] && again.alreadyInstalled == ["AANobbMI"])
+        // So are those installed from CurseForge or a file, found by the mod id matching the project's slug.
+        let fromElsewhere = try await installer.plan(iris, title: "Iris Shaders", kind: .mods, gameVersion: "1.21.11", gameLoader: "fabric",
+                                                     installed: [], installedModIDs: ["sodium"])
+        #expect(fromElsewhere.items.map(\.title) == ["Iris Shaders"] && fromElsewhere.alreadyInstalled == ["AANobbMI"])
         #expect(ModrinthAPI.preferred(try decode("dep-sodium-versions", as: [ModrinthAPI.Version].self))?.versionNumber == "mc1.21.11-0.8.14-fabric")
     }
 

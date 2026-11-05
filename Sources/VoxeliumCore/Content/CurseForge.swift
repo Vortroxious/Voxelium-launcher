@@ -310,9 +310,13 @@ public struct CurseForgeInstaller: Sendable {
     }
 
     /// The chosen file plus every required dependency (recursively), each the preferred
-    /// file for this game version and loader. Dependencies are mods.
+    /// file for this game version and loader. Dependencies are mods. Dependencies already
+    /// installed are skipped: those in `installed` (from `CurseForgeIndex`) and those whose
+    /// slug is in `installedModIDs` (see `ContentManager.installedModIDs()`; files from
+    /// Modrinth or the Files app).
     public func plan(_ file: CurseForgeAPI.File, of mod: CurseForgeAPI.Mod, gameVersion: String,
-                     gameLoader: String?, installed: Set<Int>) async throws -> CurseForgeInstallPlan {
+                     gameLoader: String?, installed: Set<Int>,
+                     installedModIDs: Set<String> = []) async throws -> CurseForgeInstallPlan {
         var plan = CurseForgeInstallPlan()
         var seen: Set<Int> = [mod.id]
         var queue: [(CurseForgeAPI.Mod, CurseForgeAPI.File, Bool)] = [(mod, file, false)]
@@ -328,6 +332,7 @@ public struct CurseForgeInstaller: Sendable {
                 seen.insert(dep.modId)
                 if installed.contains(dep.modId) { plan.alreadyInstalled.append(dep.modId); continue }
                 guard let depMod = try? await api.mod(id: dep.modId) else { plan.unavailable.append("mod \(dep.modId)"); continue }
+                if installedModIDs.contains(depMod.slug.lowercased()) { plan.alreadyInstalled.append(dep.modId); continue }
                 let list = (try? await api.files(modID: dep.modId, kind: .mods, gameVersion: gameVersion, gameLoader: gameLoader)) ?? []
                 guard let chosen = CurseForgeAPI.preferred(list) else { plan.unavailable.append(depMod.name); continue }
                 queue.append((depMod, chosen, true))
