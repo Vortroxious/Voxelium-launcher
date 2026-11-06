@@ -2,15 +2,14 @@ import SwiftUI
 import UniformTypeIdentifiers
 import VoxeliumCore
 
-/// Mods, resource packs and shader packs of one installed version (its own game
-/// folder for modded versions, the shared one for vanilla): add from Files, switch
-/// on/off, remove.
-struct ContentLibraryView: View {
+/// One kind of content (mods, resource packs or shader packs) of one installed version, a
+/// tab of the version page (its own game folder for modded versions, the shared one for
+/// vanilla): browse or import, switch on/off, update, remove.
+struct ContentPane: View {
     @EnvironmentObject var model: LauncherModel
-    @Environment(\.dismiss) private var dismiss
     let version: InstalledVersion
+    let kind: ContentKind
 
-    @State private var kind: ContentKind = .mods
     @State private var items: [ContentItem] = []
     @State private var importing = false
     @State private var message: (text: String, isError: Bool)?
@@ -23,107 +22,104 @@ struct ContentLibraryView: View {
     @State private var checkingUpdates = false
     @State private var updating: Set<String> = []
 
-    private var kinds: [ContentKind] { version.isModded ? ContentKind.allCases : [.resourcePacks] }
     private var manager: ContentManager? { model.gameDirectory(for: version.id).map(ContentManager.init(gameDirectory:)) }
     private var loaderID: String? { version.loader.map { $0.lowercased() } }
 
     var body: some View {
-        NavigationStack {
-            List {
-                if kinds.count > 1 {
-                    Picker("Show", selection: $kind) {
-                        ForEach(kinds) { Text($0.title).tag($0) }
-                    }
-                    .pickerStyle(.segmented)
-                    .listRowBackground(Color.clear)
+        List {
+            Section {
+                HStack(spacing: 8) {
+                    addButton("Modrinth", "globe") { browsing = true }
+                    addButton("CurseForge", "flame") { browsingCurseForge = true }
+                    addButton("Import file", "folder") { importing = true }
                 }
-                if let message {
-                    Text(message.text).font(.callout).foregroundStyle(message.isError ? Color.red : Color.green)
-                }
-                if kind == .shaderPacks, let iris, iris.exists {
-                    Section {
-                        Toggle(isOn: Binding(get: { iris.shadersEnabled }, set: { setShaders($0) })) {
-                            VStack(alignment: .leading, spacing: 3) {
-                                Text("Shaders in game")
-                                Text(iris.shaderPack.map { "Iris pack: \($0)" } ?? "No pack chosen in Iris yet")
-                                    .font(.caption).foregroundStyle(.secondary)
-                            }
+                .listRowInsets(EdgeInsets()).listRowBackground(Color.clear)
+            }
+            if let message {
+                Text(message.text).font(.callout).foregroundStyle(message.isError ? VX.error : VX.primary).vxRow()
+            }
+            if kind == .shaderPacks, let iris, iris.exists {
+                Section {
+                    Toggle(isOn: Binding(get: { iris.shadersEnabled }, set: { setShaders($0) })) {
+                        VStack(alignment: .leading, spacing: 3) {
+                            Text("Shaders in game").font(.vxHeadline)
+                            Text(iris.shaderPack.map { "Iris pack: \($0)" } ?? "No pack chosen in Iris yet")
+                                .font(.caption).foregroundStyle(VX.onSurfaceVariant)
                         }
-                    } footer: {
-                        Text("If a shader pack leaves the screen black, switch this off and start again. Choose packs in Minecraft's Options → Video Settings → Shader Packs.")
                     }
+                    .vxRow()
+                } footer: {
+                    Text("If a shader pack leaves the screen black, switch this off and start again. Choose packs in Minecraft's Options → Video Settings → Shader Packs.")
                 }
-                if !updates.isEmpty || checkingUpdates {
-                    Section {
-                        if checkingUpdates && updates.isEmpty {
-                            HStack(spacing: 8) { ProgressView(); Text("Checking Modrinth for updates…").font(.callout) }
-                        } else {
+            }
+            if !updates.isEmpty || checkingUpdates {
+                Section {
+                    if checkingUpdates && updates.isEmpty {
+                        HStack(spacing: 8) { ProgressView(); Text("Checking Modrinth for updates…").font(.callout) }.vxRow()
+                    } else {
+                        HStack {
                             Label("\(updates.count) update\(updates.count == 1 ? "" : "s") available", systemImage: "arrow.down.circle")
+                            Spacer()
                             if updates.count > 1 {
                                 Button("Update all") { Task { await installUpdates(Array(updates.values)) } }
-                                    .disabled(!updating.isEmpty)
+                                    .font(.footnote.weight(.bold)).disabled(!updating.isEmpty)
                             }
                         }
+                        .vxRow()
                     }
                 }
-                Section {
-                    if items.isEmpty {
-                        Text("No \(kind.title.lowercased()) yet. Tap + to browse Modrinth or CurseForge, or import .\(kind.fileExtension) files from Files.")
-                            .foregroundStyle(.secondary)
-                    }
-                    ForEach(items) { item in row(item) }
-                        .onDelete { offsets in pendingDelete = offsets.first.map { items[$0] } }
-                } header: {
-                    Text("\(kind.title) (\(items.filter(\.isEnabled).count) of \(items.count) on)")
-                } footer: {
-                    Text(footer)
+            }
+            Section {
+                if items.isEmpty {
+                    Text("No \(kind.title.lowercased()) yet. Browse Modrinth or CurseForge, or import .\(kind.fileExtension) files from Files.")
+                        .foregroundStyle(VX.onSurfaceVariant).vxRow()
                 }
-            }
-            .navigationTitle(version.isModded ? "\(version.loader ?? "Modded") \(version.base)" : version.id)
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .cancellationAction) { Button("Done") { dismiss() } }
-                ToolbarItem(placement: .primaryAction) {
-                    Menu {
-                        Button { browsing = true } label: { Label("Browse Modrinth", systemImage: "globe") }
-                        Button { browsingCurseForge = true } label: { Label("Browse CurseForge", systemImage: "flame") }
-                        Button { importing = true } label: { Label("Import from Files", systemImage: "folder") }
-                    } label: { Label("Add", systemImage: "plus") }
-                }
-            }
-            .navigationDestination(isPresented: $browsing) {
-                ModrinthBrowseView(version: version, kind: kind) { reload() }
-            }
-            .navigationDestination(isPresented: $browsingCurseForge) {
-                CurseForgeBrowseView(version: version, kind: kind) { reload() }
-            }
-            .fileImporter(isPresented: $importing, allowedContentTypes: allowedTypes, allowsMultipleSelection: true) { result in
-                importFiles(result)
-            }
-            .confirmationDialog(pendingDelete.map { "Remove \($0.name)?" } ?? "", isPresented: Binding(
-                get: { pendingDelete != nil }, set: { if !$0 { pendingDelete = nil } }), titleVisibility: .visible) {
-                Button("Remove", role: .destructive) { if let item = pendingDelete { remove(item) } }
-            } message: {
-                Text("The file is deleted from this version's \(kind.folderName) folder.")
-            }
-            .onAppear {
-                if !kinds.contains(kind) { kind = kinds[0] }
-                reload()
-                Task { await checkUpdates() }
-            }
-            .onChange(of: kind) { _ in
-                message = nil
-                updates = [:]
-                reload()
-                Task { await checkUpdates() }
+                ForEach(items) { item in row(item).vxRow() }
+                    .onDelete { offsets in pendingDelete = offsets.first.map { items[$0] } }
+            } header: {
+                Text("\(kind.title) · \(items.filter(\.isEnabled).count) of \(items.count) on")
+            } footer: {
+                Text(footer + (items.isEmpty ? "" : " Swipe left to remove one."))
             }
         }
+        .vxList()
+        .navigationDestination(isPresented: $browsing) {
+            ModrinthBrowseView(version: version, kind: kind) { reload() }
+        }
+        .navigationDestination(isPresented: $browsingCurseForge) {
+            CurseForgeBrowseView(version: version, kind: kind) { reload() }
+        }
+        .fileImporter(isPresented: $importing, allowedContentTypes: allowedTypes, allowsMultipleSelection: true) { result in
+            importFiles(result)
+        }
+        .confirmationDialog(pendingDelete.map { "Remove \($0.name)?" } ?? "", isPresented: Binding(
+            get: { pendingDelete != nil }, set: { if !$0 { pendingDelete = nil } }), titleVisibility: .visible) {
+            Button("Remove", role: .destructive) { if let item = pendingDelete { remove(item) } }
+        } message: {
+            Text("The file is deleted from this version's \(kind.folderName) folder.")
+        }
+        .onAppear {
+            reload()
+            Task { await checkUpdates() }
+        }
+    }
+
+    private func addButton(_ title: String, _ icon: String, _ action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            VStack(spacing: 4) {
+                Image(systemName: icon).font(.body.weight(.semibold)).foregroundStyle(VX.primary)
+                Text(title).font(.caption.weight(.bold)).foregroundStyle(VX.onSurface)
+            }
+            .frame(maxWidth: .infinity, minHeight: 56)
+            .background(VX.surfaceHigh, in: RoundedRectangle(cornerRadius: VX.Radius.small + 2))
+        }
+        .buttonStyle(.plain)
     }
 
     @ViewBuilder private func row(_ item: ContentItem) -> some View {
         Toggle(isOn: Binding(get: { item.isEnabled }, set: { setEnabled(item, $0) })) {
             VStack(alignment: .leading, spacing: 3) {
-                Text(item.name).font(.body.weight(.medium)).foregroundStyle(item.isEnabled ? Color.primary : Color.secondary)
+                Text(item.name).font(.body.weight(.medium)).foregroundStyle(item.isEnabled ? VX.onSurface : VX.onSurfaceVariant)
                 Text([item.version, ByteCountFormatter.string(fromByteCount: item.size, countStyle: .file), item.isFolder ? "folder" : nil]
                         .compactMap { $0 }.joined(separator: " · "))
                     .font(.caption).foregroundStyle(.secondary)

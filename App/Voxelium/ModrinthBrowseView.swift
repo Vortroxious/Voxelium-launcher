@@ -80,6 +80,7 @@ struct ModrinthBrowseView: View {
                 Text(total > 0 ? "\(total) on Modrinth for \(version.base)\(gameLoader.map { " · \($0.capitalized)" } ?? "")" : "Modrinth")
             }
         }
+        .vxList()
         .navigationTitle(kind.title)
         .searchable(text: $query, prompt: "Search Modrinth")
         .onSubmit(of: .search) { Task { await search(reset: true) } }
@@ -259,6 +260,7 @@ struct ModrinthProjectView: View {
                 }
             }
         }
+        .vxList()
         .navigationTitle(hit.title)
         .navigationBarTitleDisplayMode(.inline)
         .toolbar { ToolbarItem(placement: .cancellationAction) { Button(result?.ok == true ? "Done" : "Cancel") { dismiss() } } }

@@ -3,12 +3,11 @@ import UIKit
 import UniformTypeIdentifiers
 import VoxeliumCore
 
-/// The worlds of one installed version (its own game folder for modded versions, the
-/// shared one for vanilla): import a world folder or .zip from Files, share one as a
-/// .zip, delete.
-struct WorldsView: View {
+/// The worlds of one installed version, a tab of the version page (its own game folder for
+/// modded versions, the shared one for vanilla): import a world folder or .zip from Files,
+/// share one as a .zip, delete.
+struct WorldsPane: View {
     @EnvironmentObject var model: LauncherModel
-    @Environment(\.dismiss) private var dismiss
     let version: InstalledVersion
 
     @State private var worlds: [WorldItem] = []
@@ -21,66 +20,72 @@ struct WorldsView: View {
     private var manager: WorldManager? { model.gameDirectory(for: version.id).map(WorldManager.init(gameDirectory:)) }
 
     var body: some View {
-        NavigationStack {
-            List {
-                if let working {
-                    HStack(spacing: 8) { ProgressView(); Text(working).font(.callout) }
+        List {
+            Section {
+                Button { importing = true } label: {
+                    SwiftUI.Label("Import a world", systemImage: "square.and.arrow.down")
+                        .font(.subheadline.weight(.bold)).foregroundStyle(VX.onSurface)
+                        .frame(maxWidth: .infinity, minHeight: 50)
+                        .background(VX.surfaceHigh, in: RoundedRectangle(cornerRadius: VX.Radius.small + 2))
                 }
-                if let message {
-                    Text(message.text).font(.callout).foregroundStyle(message.isError ? Color.red : Color.green)
+                .buttonStyle(.plain)
+                .disabled(working != nil)
+                .listRowInsets(EdgeInsets()).listRowBackground(Color.clear)
+            }
+            if let working {
+                HStack(spacing: 8) { ProgressView(); Text(working).font(.callout) }.vxRow()
+            }
+            if let message {
+                Text(message.text).font(.callout).foregroundStyle(message.isError ? VX.error : VX.primary).vxRow()
+            }
+            Section {
+                if worlds.isEmpty {
+                    Text("No worlds yet. Import a world folder or .zip from Files, or create one in Minecraft.")
+                        .foregroundStyle(VX.onSurfaceVariant).vxRow()
                 }
-                Section {
-                    if worlds.isEmpty {
-                        Text("No worlds yet. Tap + to import a world folder or .zip from Files, or create one in Minecraft.")
-                            .foregroundStyle(.secondary)
-                    }
-                    ForEach(worlds) { world in
+                ForEach(worlds) { world in
+                    HStack {
                         row(world)
-                            .swipeActions(edge: .trailing) {
-                                Button(role: .destructive) { pendingDelete = world } label: { Label("Delete", systemImage: "trash") }
-                                Button { share(world) } label: { Label("Share", systemImage: "square.and.arrow.up") }.tint(.blue)
-                            }
-                            .contextMenu {
-                                Button { share(world) } label: { Label("Share as .zip", systemImage: "square.and.arrow.up") }
-                                Button(role: .destructive) { pendingDelete = world } label: { Label("Delete", systemImage: "trash") }
-                            }
+                        Spacer()
+                        Button { share(world) } label: { Image(systemName: "square.and.arrow.up").foregroundStyle(VX.primary) }
+                            .buttonStyle(.borderless).accessibilityLabel("Share \(world.name) as .zip")
                     }
-                } header: {
-                    Text("Worlds (\(worlds.count))")
-                } footer: {
-                    Text("You can also drop world folders into Files → On My iPhone → Voxelium → \(savesPath). Copy worlds only while Minecraft is closed.")
+                    .vxRow()
+                    .swipeActions(edge: .trailing) {
+                        Button(role: .destructive) { pendingDelete = world } label: { Label("Delete", systemImage: "trash") }
+                    }
+                    .contextMenu {
+                        Button { share(world) } label: { Label("Share as .zip", systemImage: "square.and.arrow.up") }
+                        Button(role: .destructive) { pendingDelete = world } label: { Label("Delete", systemImage: "trash") }
+                    }
                 }
+            } header: {
+                Text("Worlds · \(worlds.count)")
+            } footer: {
+                Text("Swipe left to delete. You can also drop world folders into Files → On My iPhone → Voxelium → \(savesPath). Copy worlds only while Minecraft is closed.")
             }
-            .navigationTitle("Worlds")
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .cancellationAction) { Button("Done") { dismiss() } }
-                ToolbarItem(placement: .primaryAction) {
-                    Button { importing = true } label: { Label("Import", systemImage: "plus") }
-                        .disabled(working != nil)
-                }
-            }
-            .fileImporter(isPresented: $importing, allowedContentTypes: [.folder, .zip], allowsMultipleSelection: true) { result in
-                importWorlds(result)
-            }
-            .confirmationDialog(pendingDelete.map { "Delete \($0.name)?" } ?? "", isPresented: Binding(
-                get: { pendingDelete != nil }, set: { if !$0 { pendingDelete = nil } }), titleVisibility: .visible) {
-                Button("Delete world", role: .destructive) { if let world = pendingDelete { delete(world) } }
-            } message: {
-                Text("The world is deleted from this version's saves folder. Share it as a .zip first if you want a copy.")
-            }
-            .sheet(item: $shared) { file in ActivitySheet(url: file.url) }
-            .onAppear { reload() }
         }
+        .vxList()
+        .fileImporter(isPresented: $importing, allowedContentTypes: [.folder, .zip], allowsMultipleSelection: true) { result in
+            importWorlds(result)
+        }
+        .confirmationDialog(pendingDelete.map { "Delete \($0.name)?" } ?? "", isPresented: Binding(
+            get: { pendingDelete != nil }, set: { if !$0 { pendingDelete = nil } }), titleVisibility: .visible) {
+            Button("Delete world", role: .destructive) { if let world = pendingDelete { delete(world) } }
+        } message: {
+            Text("The world is deleted from this version's saves folder. Share it as a .zip first if you want a copy.")
+        }
+        .sheet(item: $shared) { file in ActivitySheet(url: file.url) }
+        .onAppear { reload() }
     }
 
     private func row(_ world: WorldItem) -> some View {
         VStack(alignment: .leading, spacing: 3) {
-            Text(world.name).font(.body.weight(.medium))
+            Text(world.name).font(.vxHeadline).foregroundStyle(VX.onSurface)
             Text([world.lastPlayed.map { "Played \($0.formatted(date: .abbreviated, time: .shortened))" },
                   ByteCountFormatter.string(fromByteCount: world.size, countStyle: .file)]
                     .compactMap { $0 }.joined(separator: " · "))
-                .font(.caption).foregroundStyle(.secondary)
+                .font(.caption).foregroundStyle(VX.onSurfaceVariant)
         }
     }
 

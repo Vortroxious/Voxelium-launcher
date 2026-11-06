@@ -341,7 +341,7 @@ final class LauncherModel: ObservableObject {
 }
 
 /// A row in the Installed section.
-struct InstalledVersion: Identifiable, Equatable {
+struct InstalledVersion: Identifiable, Hashable {
     let id: String
     /// The Minecraft version it runs (itself for vanilla).
     let base: String

@@ -54,6 +54,7 @@ struct ModpackBrowseView: View {
                     Text(total > 0 ? "\(total) modpacks on Modrinth" : "Modrinth modpacks")
                 }
             }
+            .vxList()
             .navigationTitle("Modpacks")
             .navigationBarTitleDisplayMode(.inline)
             .searchable(text: $query, prompt: "Search modpacks")
@@ -208,6 +209,7 @@ struct ModpackDetailView: View {
                 if let chosen { await model.installModpack(chosen) }
             }
         }
+        .vxList()
         .navigationTitle(hit.title)
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
@@ -271,6 +273,7 @@ struct ModpackImportView: View {
                 Section { Label(problem, systemImage: "exclamationmark.triangle").foregroundStyle(.red) }
             }
         }
+        .vxList()
         .navigationTitle(file.deletingPathExtension().lastPathComponent)
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {

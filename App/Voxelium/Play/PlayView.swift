@@ -46,6 +46,7 @@ struct PlayView: View {
             .vxPage()
             .toolbar(.hidden, for: .navigationBar)
             .refreshable { model.refreshInstalled() }
+            .navigationDestination(for: InstalledVersion.self) { VersionView(version: $0) }
         }
         .launchFlowDialogs(flow)
         .sheet(isPresented: $showJITSettings) { BuiltInJITView(showsDone: true) }
@@ -162,12 +163,12 @@ struct LastPlayedCard: View {
                     SwiftUI.Label("Play", systemImage: "play.fill")
                 }
                 .buttonStyle(PrimaryButtonStyle())
-                VersionMenu(version: version) {
+                NavigationLink(value: version) {
                     Image(systemName: "ellipsis").font(.title3.weight(.bold)).foregroundStyle(VX.onSecondaryContainer)
                         .frame(width: 52, height: 52)
                         .overlay { Circle().stroke(VX.highlightBorder, lineWidth: 1) }
                 }
-                .accessibilityLabel("More for \(version.title)")
+                .accessibilityLabel("Mods, worlds and settings of \(version.title)")
             }
         }
         .padding(16)
@@ -185,7 +186,7 @@ struct InstalledVersionRow: View {
 
     var body: some View {
         RowCard {
-            VersionMenu(version: version) {
+            NavigationLink(value: version) {
                 HStack(spacing: 10) {
                     LoaderBadge(loader: version.loader, isModpack: version.isModpack)
                     VStack(alignment: .leading, spacing: 2) {

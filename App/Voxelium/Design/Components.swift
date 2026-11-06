@@ -341,4 +341,16 @@ extension View {
     func vxPage() -> some View {
         background(VX.background.ignoresSafeArea())
     }
+
+    /// A `List` or `Form` on Voxelium's background with its rows on cards.
+    func vxList() -> some View {
+        scrollContentBackground(.hidden)
+            .background(VX.background.ignoresSafeArea())
+            .tint(VX.primary)
+    }
+
+    /// A row of a `vxList`.
+    func vxRow() -> some View {
+        listRowBackground(VX.surface)
+    }
 }

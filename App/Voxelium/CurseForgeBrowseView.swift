@@ -56,6 +56,7 @@ struct CurseForgeBrowseView: View {
                 CurseForgeKeyView(builtInRejected: builtInRejected) { self.key = $0 }
             }
         }
+        .vxList()
         .navigationTitle(kind.title)
     }
 }
@@ -355,6 +356,7 @@ struct CurseForgeProjectView: View {
                 }
             }
         }
+        .vxList()
         .navigationTitle(mod.name)
         .navigationBarTitleDisplayMode(.inline)
         .toolbar { ToolbarItem(placement: .cancellationAction) { Button(result?.ok == true ? "Done" : "Cancel") { dismiss() } } }

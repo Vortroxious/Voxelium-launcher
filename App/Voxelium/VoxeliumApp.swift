@@ -48,7 +48,7 @@ struct ContentView: View {
         TabView(selection: $tab) {
             PlayView(tab: $tab)
                 .tabItem { Label("Play", systemImage: "play.fill") }.tag(AppTab.play)
-            VersionsView()
+            InstallView()
                 .tabItem { Label("Install", systemImage: "arrow.down.circle") }.tag(AppTab.install)
             AccountView()
                 .tabItem { Label("Accounts", systemImage: "person.crop.circle") }.tag(AppTab.accounts)
