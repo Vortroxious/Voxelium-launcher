@@ -3,6 +3,7 @@ import VoxeliumCore
 
 @main
 struct VoxeliumApp: App {
+    @UIApplicationDelegateAdaptor(VoxeliumAppDelegate.self) private var appDelegate
     @StateObject private var model = LauncherModel()
     @StateObject private var minecraft = MinecraftLauncher()
     @StateObject private var controls = ControlsModel()
@@ -36,19 +37,48 @@ struct VoxeliumApp: App {
     }
 }
 
+/// The five places of the tab bar.
+enum AppTab: Hashable { case play, install, accounts, controls, settings }
+
 struct ContentView: View {
+    @EnvironmentObject var minecraft: MinecraftLauncher
+    @State private var tab: AppTab = .play
+
     var body: some View {
-        TabView {
+        TabView(selection: $tab) {
+            PlayView(tab: $tab)
+                .tabItem { Label("Play", systemImage: "play.fill") }.tag(AppTab.play)
             VersionsView()
-                .tabItem { Label("Versions", systemImage: "square.stack.3d.up") }
+                .tabItem { Label("Install", systemImage: "arrow.down.circle") }.tag(AppTab.install)
             AccountView()
-                .tabItem { Label("Account", systemImage: "person.crop.circle") }
+                .tabItem { Label("Accounts", systemImage: "person.crop.circle") }.tag(AppTab.accounts)
             ControlsView()
-                .tabItem { Label("Controls", systemImage: "gamecontroller") }
-            DiagnosticsView()
-                .tabItem { Label("Diagnostics", systemImage: "stethoscope") }
-            BuiltInJITView()
-                .tabItem { Label("JIT", systemImage: "bolt") }
+                .tabItem { Label("Controls", systemImage: "gamecontroller") }.tag(AppTab.controls)
+            InterimSettingsView()
+                .tabItem { Label("Settings", systemImage: "gearshape") }.tag(AppTab.settings)
         }
+        .tint(VX.primary)
+        // Back to portrait once the game's landscape window is gone.
+        .onChange(of: minecraft.gameActive) { active in
+            if !active { OrientationLock.restorePortrait() }
+        }
+    }
+}
+
+/// Settings until its own pages arrive: JIT and Diagnostics, as before.
+struct InterimSettingsView: View {
+    @State private var showJIT = false
+    @State private var showDiagnostics = false
+
+    var body: some View {
+        NavigationStack {
+            List {
+                Button { showJIT = true } label: { Label("JIT", systemImage: "bolt") }
+                Button { showDiagnostics = true } label: { Label("Diagnostics", systemImage: "stethoscope") }
+            }
+            .navigationTitle("Settings")
+        }
+        .sheet(isPresented: $showJIT) { BuiltInJITView(showsDone: true) }
+        .sheet(isPresented: $showDiagnostics) { DiagnosticsView() }
     }
 }

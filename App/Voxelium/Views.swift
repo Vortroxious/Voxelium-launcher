@@ -126,6 +126,7 @@ let setupGuideURL = URL(string: "https://github.com/Vortroxious/Voxelium-launche
 func launchVersion(_ id: String, model: LauncherModel, minecraft: MinecraftLauncher, accounts: AccountModel,
                    renderer: GameRenderer? = nil) {
     guard let paths = model.paths else { return }
+    model.settings.selectedVersion = id  // the Play page's "Last played"
     let renderer = renderer ?? RendererMemory.last(for: id) ?? .mobileGlues
     Task { await minecraft.launch(versionID: id, paths: paths, settings: model.settings, accounts: accounts, renderer: renderer) }
 }
