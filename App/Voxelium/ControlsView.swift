@@ -59,6 +59,26 @@ final class ControlsModel: ObservableObject {
         }
     }
 
+    /// The saved layout file, to share; nil while the default is used.
+    var layoutFile: URL? { isCustom ? store?.url : nil }
+
+    /// Replaces the layout with a Voxelium controls file (a shared layout.json).
+    func importLayout(from url: URL) throws {
+        let scoped = url.startAccessingSecurityScopedResource()
+        defer { if scoped { url.stopAccessingSecurityScopedResource() } }
+        let data = try Data(contentsOf: url)
+        guard let object = try JSONSerialization.jsonObject(with: data) as? [String: Any], object["buttons"] != nil else {
+            throw ImportError.notVoxelium
+        }
+        layout = try JSONDecoder().decode(ControlLayout.self, from: data).clamped(width: screen.width, height: screen.height)
+        log.info("controls", "Control layout imported from \(url.lastPathComponent) (\(layout.buttons.count) buttons)")
+    }
+
+    enum ImportError: LocalizedError {
+        case notVoxelium
+        var errorDescription: String? { "This isn't a Voxelium controls file. Share one from Voxelium's Controls page." }
+    }
+
     func button(_ id: UUID) -> ControlButton? { layout.buttons.first { $0.id == id } }
 
     func update(_ button: ControlButton) {
@@ -120,76 +140,8 @@ final class ControlsModel: ObservableObject {
     }
 }
 
-// MARK: - Controls tab
-
-struct ControlsView: View {
-    @EnvironmentObject var controls: ControlsModel
-    @State private var showEditor = false
-    @State private var confirmReset = false
-    @State private var newButton: UUID?
-
-    var body: some View {
-        NavigationStack {
-            List {
-                Section {
-                    Button { showEditor = true } label: {
-                        Label("Edit layout on screen", systemImage: "rectangle.and.hand.point.up.left")
-                    }
-                } footer: {
-                    Text("Drag buttons into place in landscape. Changes are saved right away and used the next time you launch Minecraft.")
-                }
-                if let error = controls.saveError {
-                    Section { Label(error, systemImage: "exclamationmark.triangle").foregroundStyle(.red) }
-                }
-                Section {
-                    ForEach(controls.layout.buttons) { b in
-                        NavigationLink {
-                            ControlButtonForm(id: b.id)
-                        } label: {
-                            VStack(alignment: .leading, spacing: 2) {
-                                Text(b.name.isEmpty ? "Unnamed" : b.name)
-                                Text("\(b.actionSummary) · \(Self.visibility(b))").font(.caption).foregroundStyle(.secondary)
-                            }
-                        }
-                    }
-                    .onDelete { offsets in
-                        let ids = offsets.map { controls.layout.buttons[$0].id }
-                        ids.forEach(controls.delete)
-                    }
-                    Button { newButton = controls.addButton() } label: { Label("Add button", systemImage: "plus.circle") }
-                } header: {
-                    Text("Buttons (\(controls.layout.buttons.count))")
-                }
-                Section {
-                    VStack(alignment: .leading) {
-                        Text("Button opacity: \(Int((controls.layout.opacity * 100).rounded()))%")
-                        Slider(value: Binding(get: { controls.layout.opacity }, set: { controls.setOpacity($0) }),
-                               in: ControlLayout.opacityRange, step: 0.05)
-                    }
-                    Stepper("Joystick size: \(Int(controls.layout.joystick.size)) pt",
-                            value: Binding(get: { controls.layout.joystick.size }, set: { controls.setJoystickSize($0) }),
-                            in: ControlLayout.joystickSizeRange, step: 8)
-                } header: {
-                    Text("Appearance")
-                }
-                Section {
-                    Button("Reset to default layout", role: .destructive) { confirmReset = true }
-                        .disabled(!controls.isCustom)
-                } footer: {
-                    Text(controls.isCustom ? "Using your saved layout." : "Using the default layout (Amethyst's).")
-                }
-            }
-            .navigationTitle("Controls")
-            .navigationDestination(isPresented: Binding(get: { newButton != nil }, set: { if !$0 { newButton = nil } })) {
-                if let id = newButton { ControlButtonForm(id: id) }
-            }
-            .confirmationDialog("Reset all controls to the default layout?", isPresented: $confirmReset, titleVisibility: .visible) {
-                Button("Reset", role: .destructive) { controls.resetToDefault() }
-            }
-            .fullScreenCover(isPresented: $showEditor) { ControlsEditorView() }
-        }
-    }
-
+extension ControlsView {
+    /// Where a button shows, for lists: "in game", "game and menus", "in the More drawer".
     static func visibility(_ b: ControlButton) -> String {
         if b.inDrawer { return "in the More drawer" }
         switch (b.showInGame, b.showInMenu) {
@@ -310,6 +262,7 @@ struct ControlButtonForm: View {
                 }
             }
         }
+        .vxList()
         .navigationTitle(button.wrappedValue.name.isEmpty ? "Button" : button.wrappedValue.name)
         .navigationBarTitleDisplayMode(.inline)
     }
@@ -334,8 +287,11 @@ struct ControlsEditorView: View {
     @State private var dragID: UUID??          // .some(nil) = joystick
     @State private var dragOffset: CGSize = .zero
 
-    private var visible: [ControlButton] {
-        controls.layout.buttons.filter { b in
+    private var visible: [ControlButton] { Self.visible(controls.layout.buttons, in: mode) }
+
+    /// The buttons shown on screen in a mode.
+    static func visible(_ buttons: [ControlButton], in mode: Mode) -> [ControlButton] {
+        buttons.filter { b in
             switch mode {
             case .game: b.showInGame && !b.inDrawer
             case .menu: b.showInMenu && !b.inDrawer
@@ -401,7 +357,7 @@ struct ControlsEditorView: View {
             .background(Color.black.opacity(0.3), in: RoundedRectangle(cornerRadius: min(b.width, b.height) / 2))
             .opacity(controls.layout.opacity)
             .overlay(RoundedRectangle(cornerRadius: min(b.width, b.height) / 2)
-                .stroke(highlighted ? Color.accentColor : Color.white.opacity(0.6), lineWidth: highlighted ? 2 : 1))
+                .stroke(highlighted ? VX.primary : Color.white.opacity(0.6), lineWidth: highlighted ? 2 : 1))
             .position(x: b.x * W + b.width / 2 + o.width, y: b.y * H + b.height / 2 + o.height)
             .onTapGesture { editing = EditTarget(id: b.id) }
             .gesture(drag(b.id))

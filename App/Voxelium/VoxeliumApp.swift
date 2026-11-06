@@ -50,7 +50,7 @@ struct ContentView: View {
                 .tabItem { Label("Play", systemImage: "play.fill") }.tag(AppTab.play)
             InstallView()
                 .tabItem { Label("Install", systemImage: "arrow.down.circle") }.tag(AppTab.install)
-            AccountView()
+            AccountsView()
                 .tabItem { Label("Accounts", systemImage: "person.crop.circle") }.tag(AppTab.accounts)
             ControlsView()
                 .tabItem { Label("Controls", systemImage: "gamecontroller") }.tag(AppTab.controls)
@@ -65,7 +65,7 @@ struct ContentView: View {
     }
 }
 
-/// Settings until its own pages arrive: JIT and Diagnostics, as before.
+/// Settings until its own pages arrive (I4): Game, then JIT and Diagnostics as before.
 struct InterimSettingsView: View {
     @State private var showJIT = false
     @State private var showDiagnostics = false
@@ -73,6 +73,7 @@ struct InterimSettingsView: View {
     var body: some View {
         NavigationStack {
             List {
+                NavigationLink { GameSettingsView() } label: { Label("Game", systemImage: "slider.horizontal.3") }
                 Button { showJIT = true } label: { Label("JIT", systemImage: "bolt") }
                 Button { showDiagnostics = true } label: { Label("Diagnostics", systemImage: "stethoscope") }
             }
