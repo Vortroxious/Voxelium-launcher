@@ -4,14 +4,15 @@ import UIKit
 /// Voxelium's colours, shared with Voxelium for Android: dark slate surfaces with one green
 /// accent. Every colour follows the system's light or dark appearance.
 enum VX {
-    // MARK: Colours (dark / light, the same values as the Android app)
-    static let primary = dynamic(0x3DDC97, 0x0F7B5A)
-    static let onPrimary = dynamic(0x04241A, 0xFFFFFF)
-    static let primaryContainer = dynamic(0x1F3A31, 0xC9F0DE)
-    static let onPrimaryContainer = dynamic(0xCFE9DD, 0x00382A)
-    static let secondary = dynamic(0x7CEBBB, 0x2F6B55)
-    static let secondaryContainer = dynamic(0x23423A, 0xD7EDE3)
-    static let onSecondaryContainer = dynamic(0xCFE9DD, 0x0C2E23)
+    // MARK: Colours (dark / light, the same values as the Android app). The accent colours
+    // (primary, secondary, highlight) follow Settings → Appearance; see Design/Accent.swift.
+    static var primary: Color { AccentStore.palette.primary }
+    static var onPrimary: Color { AccentStore.palette.onPrimary }
+    static var primaryContainer: Color { AccentStore.palette.primaryContainer }
+    static var onPrimaryContainer: Color { AccentStore.palette.onPrimaryContainer }
+    static var secondary: Color { AccentStore.palette.secondary }
+    static var secondaryContainer: Color { AccentStore.palette.secondaryContainer }
+    static var onSecondaryContainer: Color { AccentStore.palette.onSecondaryContainer }
     static let tertiary = dynamic(0xF2B84B, 0x8A5A00)
     static let tertiaryContainer = dynamic(0x3A3524, 0xFFE1A8)
     static let onTertiaryContainer = dynamic(0xF2DFA6, 0x3A2A00)
@@ -30,9 +31,9 @@ enum VX {
     static let errorContainer = dynamic(0x5A2E2E, 0xF9DEDC)
 
     /// The Last played card.
-    static let highlight = dynamic(0x1A2F28, 0xDDF3E9)
-    static let onHighlight = dynamic(0xB6C6BF, 0x2F4A40)
-    static let highlightBorder = dynamic(0x2A4A3E, 0xB4DDC9)
+    static var highlight: Color { AccentStore.palette.highlight }
+    static var onHighlight: Color { AccentStore.palette.onHighlight }
+    static var highlightBorder: Color { AccentStore.palette.highlightBorder }
 
     // MARK: Corners
     enum Radius {

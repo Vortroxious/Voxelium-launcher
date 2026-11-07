@@ -8,3 +8,4 @@
 - **Version page:** tap "…" on a version to see its mods, resource packs, shader packs, worlds and settings.
 - **Controls:** edit your layout in portrait on a small preview, or use the full-screen editor. You can now import and share layout files.
 - **Logs:** a new page with filters and Share. If Minecraft stops with an error, Voxelium shows why and lets you share the logs.
+- **Appearance:** choose your accent colour in Settings → Appearance. There are 25 colours, from red and orange to blue, purple, white and black, and each one has a shade for light mode and one for dark mode.

@@ -5,6 +5,7 @@ import VoxeliumCore
 struct SettingsView: View {
     @EnvironmentObject var model: LauncherModel
     @EnvironmentObject var updates: UpdateModel
+    @EnvironmentObject var appearance: AppearanceModel
     @Environment(\.horizontalSizeClass) private var sizeClass
 
     var body: some View {
@@ -13,6 +14,10 @@ struct SettingsView: View {
                 VStack(alignment: .leading, spacing: 8) {
                     PageHeader("Settings").padding(.bottom, 4)
                     link("Game", summary: gameSummary, systemImage: "slider.horizontal.3") { GameSettingsView() }
+                    Button { appearance.showPicker = true } label: {
+                        row("Appearance", summary: "Accent colour: \(appearance.accent.name)", systemImage: "paintpalette.fill")
+                    }
+                    .buttonStyle(.plain)
                     link("JIT", summary: JITSettingsList.method, systemImage: "bolt.fill") {
                         JITSettingsList().navigationTitle("JIT").navigationBarTitleDisplayMode(.inline)
                     }
@@ -41,7 +46,11 @@ struct SettingsView: View {
 
     private func link<Destination: View>(_ title: String, summary: String, systemImage: String,
                                          @ViewBuilder destination: @escaping () -> Destination) -> some View {
-        NavigationLink(destination: destination) {
+        NavigationLink(destination: destination) { row(title, summary: summary, systemImage: systemImage) }
+            .buttonStyle(.plain)
+    }
+
+    private func row(_ title: String, summary: String, systemImage: String) -> some View {
             RowCard {
                 Image(systemName: systemImage).font(.body).foregroundStyle(VX.onSecondaryContainer)
                     .frame(width: 40, height: 40)
@@ -53,8 +62,6 @@ struct SettingsView: View {
                 Spacer(minLength: 0)
                 Image(systemName: "chevron.right").font(.footnote.weight(.bold)).foregroundStyle(VX.onSurfaceVariant)
             }
-        }
-        .buttonStyle(.plain)
     }
 }
 

@@ -9,6 +9,7 @@ struct VoxeliumApp: App {
     @StateObject private var controls = ControlsModel()
     @StateObject private var accounts = AccountModel()
     @StateObject private var updates = UpdateModel()
+    @StateObject private var appearance = AppearanceModel()
 
     var body: some Scene {
         WindowGroup {
@@ -18,6 +19,7 @@ struct VoxeliumApp: App {
                 .environmentObject(controls)
                 .environmentObject(accounts)
                 .environmentObject(updates)
+                .environmentObject(appearance)
                 .task {
                     _ = NetworkRouteMonitor.shared  // knows the route by the time Play asks
                     await model.start()
@@ -42,6 +44,7 @@ enum AppTab: Hashable { case play, install, accounts, controls, settings }
 
 struct ContentView: View {
     @EnvironmentObject var minecraft: MinecraftLauncher
+    @EnvironmentObject var appearance: AppearanceModel
     @State private var tab: AppTab = .play
     /// Minecraft reached `.running` in this launch, so a failure after it is the game's own.
     @State private var gameWasRunning = false
@@ -63,6 +66,10 @@ struct ContentView: View {
                 .tabItem { Label("Settings", systemImage: "gearshape") }.tag(AppTab.settings)
         }
         .tint(VX.primary)
+        // A new accent colour redraws every tab (the selected tab stays).
+        .id(appearance.accent.id)
+        .sheet(isPresented: $appearance.showPicker) { AppearanceSheet() }
+        .onAppear { appearance.applyToWindows() }
         // Back to portrait once the game's landscape window is gone.
         .onChange(of: minecraft.gameActive) { active in
             if !active { OrientationLock.restorePortrait() }
