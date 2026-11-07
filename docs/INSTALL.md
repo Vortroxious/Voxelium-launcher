@@ -5,17 +5,17 @@ Voxelium runs Minecraft: Java Edition on iPhone. Java needs JIT, which iOS only 
 The built-in JIT helper was tested on an iPhone 15 Pro Max (iOS 27.0) and an iPhone 14 Pro Max (iOS 26.1); StikDebug on the iPhone 15 Pro Max with StikDebug 3.1.14. Other devices and iOS versions are not tested yet.
 
 ## Installing
-Follow the step-by-step guide in the README: **[Installing on your iPhone](../README.md#installing-on-your-iphone)**. It covers what to download (Sideloadly, idevice_pair, LocalDevVPN, optionally GetMoreRam), Developer Mode, importing the pairing file in Voxelium's JIT tab, and the Airplane Mode step on mobile data.
+Follow the step-by-step guide in the README: **[Installing on your iPhone](../README.md#installing-on-your-iphone)**. It covers what to download (Sideloadly, idevice_pair, LocalDevVPN, optionally GetMoreRam), Developer Mode, importing the pairing file in Voxelium's Settings → JIT, and the Airplane Mode step on mobile data.
 
 You also need a Minecraft: Java Edition account (Microsoft account), and about 2–4 GB of free space: the app is about 0.5 GB, plus Minecraft versions, mods and worlds. Voxelium does not include Minecraft; it downloads the game from Mojang for your own account.
 
 ## Sign in and play
-1. **Account tab:** Sign in with Microsoft. Copy the code and open the sign-in page. Tokens are kept in the iOS Keychain; passwords never reach Voxelium.
-2. **Versions tab:** Install a version (1.13 – 26.2, or 26.3 on iOS 26+). For mods, pick Fabric, Quilt, Forge or NeoForge in the install sheet, or tap **Modpacks** to install a whole pack.
-3. Under **Installed**, tap **Play → Launch Minecraft**.
+1. **Accounts tab:** Sign in with Microsoft. Tokens are kept in the iOS Keychain; passwords never reach Voxelium.
+2. **Install tab:** Install a version (1.13 – 26.2, or 26.3 on iOS 26+). For mods, pick Fabric, Quilt, Forge or NeoForge in the install sheet, or tap **Modpacks** to install a whole pack.
+3. On the **Play** tab, tap **Play**.
 
 ## Mods, packs and shaders
-- Installed version → **Play → Mods & packs…**. Tap **+** to browse Modrinth or CurseForge, or import files. Switch mods on and off, and update them when Voxelium finds newer versions.
+- On **Play**, tap **…** on a version, then **Mods**. Browse Modrinth or CurseForge, or import files. Switch mods on and off, and update them when Voxelium finds newer versions.
 - Shader packs need **Iris** (offered when missing). BSL and MakeUp Ultra Fast work. Packs that need compute shaders, such as Photon, cannot run on iOS's OpenGL ES 3.0.
 - **Memory:** keep the render distance at **8–10** with shaders. Higher values can use more memory than iOS allows, and the game closes. The gauge under **More** in game turns orange, then red, as memory fills.
 
@@ -50,5 +50,5 @@ Updating from 0.1.0: the first start moves everything from the old hidden folder
 - The built-in JIT helper needs iOS 17.4 or later. It uses a second App ID on your Apple ID.
 
 ## When something goes wrong
-- **Diagnostics → Logs:** the launcher log. `logs/jvm.log` (Files → On My iPhone → Voxelium → logs) holds the game's output.
-- Report problems with your device, iOS version, Voxelium version (Diagnostics → About) and both logs.
+- **Settings → Logs:** the launcher log, with Share for both log files. `logs/jvm.log` (Files → On My iPhone → Voxelium → logs) holds the game's output.
+- Report problems with your device, iOS version, Voxelium version (Settings → About) and both logs.

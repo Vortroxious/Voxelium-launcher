@@ -21,7 +21,7 @@ An experimental iOS launcher for Minecraft: Java Edition, inspired by [ZalithLau
 | Mod loaders (Fabric, Quilt, Forge, NeoForge) | ✅ Fabric 1.21.11 and 26.1 on device (2026-10-18). ✅ NeoForge 21.1.264 (1.21.1) and Forge 47.4.10 (1.20.1) set up on first launch and joined a world on device (2026-10-21). 🧪 NeoForge 1.21.11 and Forge 1.21.11 reach the title screen on macOS through the same path; not yet run on device. Quilt built, not yet tried on device | Picker on install; modded versions get their own game folder. Forge (Minecraft 1.17+) and NeoForge (1.20.2+) finish setting up inside the game's Java on the first launch (a minute or two) |
 | Mod manager (mods, resource packs, shader packs) | ✅ On device: Fabric API + Essential imported from Files and loaded on Fabric 1.21.11 (50 mods, 2026-10-18) | Add from Files, switch on/off (`.disabled`), remove; reads Fabric/Quilt/Forge/NeoForge metadata |
 | Modrinth browse and install (with dependencies) | ✅ On device (2026-10-18): Sodium, Iris (bringing Sodium as its dependency), Photon, BSL and MakeUp installed from the in-app browser into Fabric 1.21.11 | Search filtered to the version's Minecraft version and loader; required dependencies resolved; SHA-1 verified; replaces older copies. No API key |
-| Modrinth modpacks (`.mrpack`) | ✅ On device (2026-10-18): Fabulously Optimized 13.6.0 (Minecraft 26.1.2, Sodium 0.9 + Iris) installed from the browser, launched and played after MobileGlues patches 0012–0014 | Versions → Modpacks: browse Modrinth or import a .mrpack from Files. Each pack becomes its own version with its own game folder. Forge/NeoForge packs install too (not yet tried on device) |
+| Modrinth modpacks (`.mrpack`) | ✅ On device (2026-10-18): Fabulously Optimized 13.6.0 (Minecraft 26.1.2, Sodium 0.9 + Iris) installed from the browser, launched and played after MobileGlues patches 0012–0014 | Install → Modpacks: browse Modrinth or import a .mrpack from Files. Each pack becomes its own version with its own game folder. Forge/NeoForge packs install too (not yet tried on device) |
 | CurseForge browse and install (mods, resource and shader packs, with dependencies) | ✅ On device (2026-11-01, built-in key): search, and Sound Physics Remastered and Architectury API installed into NeoForge 1.21.11. Files whose authors only allow downloads on CurseForge's website get a link instead | Unit-tested (`CurseForgeTests`) |
 | Launcher update checks | ✅ On device (2026-11-01): a build reporting 2.2 showed "Voxelium 2.3 is available". Reads GitHub's public releases API once a day; nothing is downloaded or sent | `UpdateCheckTests` |
 | Mod update checks | ✅ On device (2026-10-18): Essential 1.4.1.1 → 1.5.1 found and updated in place | Checked by file hash when a mods / packs tab opens; releases are never offered a beta; old file removed only after the new one is verified |
@@ -96,7 +96,7 @@ You don't need StikDebug any more: Voxelium 2.3 turns on JIT itself, with a buil
 The pairing file lets Voxelium talk to your iPhone's developer services, which turn on JIT. You make it once.
 1. Keep the iPhone connected and unlocked. On the Mac, open **idevice_pair** and select your iPhone.
 2. Create the pairing file and save it as a file. AirDrop it to your iPhone, or put it in the Files app.
-3. On the iPhone, open **Voxelium → JIT** tab → **Import the pairing file**, and choose the file.
+3. On the iPhone, open **Voxelium → Settings → JIT** → **Import the pairing file**, and choose the file.
 4. Voxelium keeps it in the iOS Keychain. Delete the copy in Files, and on the Mac: anyone with the file can use your iPhone's developer services.
 
 Make a new pairing file if you erase the iPhone or reset *Trust This Computer*. Voxelium says so ("This pairing file doesn't work") when that's needed.
@@ -106,19 +106,19 @@ Make a new pairing file if you erase the iPhone or reset *Trust This Computer*. 
 2. Open **Voxelium** from the Home Screen, like any app.
 
 ### Step 5: Play
-1. **Account** tab: **Sign in with Microsoft**, copy the code and finish signing in on the page that opens.
-2. **Versions** tab: install a version (1.13 – 26.2, or 26.3 on iOS 26+). For mods, choose Fabric, Quilt, Forge or NeoForge when installing, or tap **Modpacks**.
-3. Under **Installed**, tap **Play** and choose how to start. Voxelium turns on JIT, then Minecraft starts. You stay in Voxelium the whole time.
+1. **Accounts** tab: **Sign in with Microsoft** and finish signing in on the page that opens.
+2. **Install** tab: install a version (1.13 – 26.2, or 26.3 on iOS 26+). For mods, choose Fabric, Quilt, Forge or NeoForge when installing, or tap **Modpacks**.
+3. On the **Play** tab, tap **Play**. Voxelium turns on JIT, then Minecraft starts. You stay in Voxelium the whole time.
    - **The first time** (and after each restart of the iPhone), Voxelium also prepares your iPhone's developer disk image. The first time it downloads it, which needs internet and took about 40 seconds in testing. After that, JIT takes about 2 seconds.
    - **On mobile data,** LocalDevVPN only works in **Airplane Mode**. Voxelium asks you to turn it on when you tap Play, goes on by itself, and tells you when you can turn Airplane Mode off again (about 2 seconds later).
    - **Without internet,** Voxelium uses your saved Microsoft sign-in: single-player works, servers and Realms need internet.
 
 ### Using StikDebug instead
-If no pairing file is imported in Voxelium, or you turn off **Use the built-in helper for Play** in the JIT tab, Play asks StikDebug for JIT, as in Voxelium 2.2: StikDebug opens, asks you to confirm and switches back. StikDebug needs its own pairing file. Starting Voxelium from StikDebug also still works.
+If no pairing file is imported in Voxelium, or you turn off **Use the built-in helper for Play** in Settings → JIT, Play asks StikDebug for JIT, as in Voxelium 2.2: StikDebug opens, asks you to confirm and switches back. StikDebug needs its own pairing file. Starting Voxelium from StikDebug also still works.
 
 ### Troubleshooting
 - **"LocalDevVPN isn't connected":** open LocalDevVPN, connect it (it should say *Connected*), then tap Play again. On mobile data, also turn on Airplane Mode.
-- **"This pairing file doesn't work":** the file isn't a pairing file for this iPhone, or it's out of date. Make a new one (step 3) and import it in the JIT tab.
+- **"This pairing file doesn't work":** the file isn't a pairing file for this iPhone, or it's out of date. Make a new one (step 3) and import it in Settings → JIT.
 - **"Import a pairing file":** there is none in Voxelium yet, and StikDebug isn't installed. See step 3.
 - **Something else about JIT:** check LocalDevVPN, close Voxelium completely, open it again and tap Play. **JIT → Check the JIT helper** shows whether the helper can reach your iPhone. If you use StikDebug: open it directly once, wait for it to connect, then try again.
 - **The game closes after a while (low memory):** lower the render distance to 8–10, especially with shaders. The gauge under **More** in game shows how full memory is. If it still happens, **GetMoreRam** can add Apple's *Increased Memory Limit* to Voxelium: install GetMoreRam with Sideloadly, sign in there with the same Apple ID, open **App IDs**, refresh, select Voxelium and add *Increased Memory Limit*, then install Voxelium again with the same Apple ID. GetMoreRam's own guide uses SideStore or AltStore for that reinstall; doing it with Sideloadly has not been tested.
@@ -131,7 +131,7 @@ More about mods, shaders and memory: [docs/INSTALL.md](docs/INSTALL.md).
 Open `App/Voxelium.xcodeproj` in Xcode, choose your Personal Team and a unique bundle ID on the Voxelium target, and Run on a phone with Developer Mode on; then start the app from StikDebug for JIT. `scripts/build-ipa.sh` builds the unsigned IPA, with the JIT helper extension (`scripts/build-jit-helper.sh`, which fetches StikJIT); Xcode's Run doesn't add the helper. For Browse CurseForge without a player key, put a CurseForge API key in `Config/curseforge.key` (git-ignored; `build-ipa.sh` adds it to the app). Without one, players enter their own key in the app. The native dependencies come from the `scripts/build-*.sh` and `scripts/fetch-runtime.sh` scripts, run before the first build; `scripts/collect-licenses.sh` refreshes the notices.
 
 ## Licence
-GPL-3.0. See [LICENSE](LICENSE), [NOTICE.md](NOTICE.md) and [THIRD_PARTY_NOTICES.txt](THIRD_PARTY_NOTICES.txt) (the licences of everything the app bundles; also in the app under Diagnostics → About). The project is not affiliated with ZalithLauncher, Mojang or Microsoft.
+GPL-3.0. See [LICENSE](LICENSE), [NOTICE.md](NOTICE.md) and [THIRD_PARTY_NOTICES.txt](THIRD_PARTY_NOTICES.txt) (the licences of everything the app bundles; also in the app under Settings → About). The project is not affiliated with ZalithLauncher, Mojang or Microsoft.
 
 ## Roadmap
 Design notes: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md). Progress and evidence: [docs/ENGINEERING_LOG.md](docs/ENGINEERING_LOG.md).

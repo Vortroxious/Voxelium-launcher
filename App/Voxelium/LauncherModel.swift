@@ -275,7 +275,7 @@ final class LauncherModel: ObservableObject {
             log.error("modpack", "\(file.lastPathComponent): \(error)")
             modpackState = .failed(isOffline || Self.looksOffline(error)
                 ? "No internet connection. Please turn on your internet and try again."
-                : "The modpack could not be installed. Details are in Logs.")
+                : "The modpack could not be installed. Details are in Settings → Logs.")
         }
     }
 
@@ -318,7 +318,7 @@ final class LauncherModel: ObservableObject {
         return "Modded"
     }
 
-    /// Builds the JVM command line for inspection (Account tab). It does not start
+    /// Builds the JVM command line for inspection (a version's Settings tab). It does not start
     /// Java; MinecraftLauncher does that.
     func preparePlan(_ id: String) {
         guard let paths else { return }

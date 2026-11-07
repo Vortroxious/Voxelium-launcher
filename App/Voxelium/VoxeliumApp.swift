@@ -43,6 +43,11 @@ enum AppTab: Hashable { case play, install, accounts, controls, settings }
 struct ContentView: View {
     @EnvironmentObject var minecraft: MinecraftLauncher
     @State private var tab: AppTab = .play
+    /// Minecraft reached `.running` in this launch, so a failure after it is the game's own.
+    @State private var gameWasRunning = false
+    @State private var gameEnded: GameEnded?
+
+    struct GameEnded: Identifiable { let id = UUID(); let message: String }
 
     var body: some View {
         TabView(selection: $tab) {
@@ -54,7 +59,7 @@ struct ContentView: View {
                 .tabItem { Label("Accounts", systemImage: "person.crop.circle") }.tag(AppTab.accounts)
             ControlsView()
                 .tabItem { Label("Controls", systemImage: "gamecontroller") }.tag(AppTab.controls)
-            InterimSettingsView()
+            SettingsView()
                 .tabItem { Label("Settings", systemImage: "gearshape") }.tag(AppTab.settings)
         }
         .tint(VX.primary)
@@ -62,24 +67,17 @@ struct ContentView: View {
         .onChange(of: minecraft.gameActive) { active in
             if !active { OrientationLock.restorePortrait() }
         }
-    }
-}
-
-/// Settings until its own pages arrive (I4): Game, then JIT and Diagnostics as before.
-struct InterimSettingsView: View {
-    @State private var showJIT = false
-    @State private var showDiagnostics = false
-
-    var body: some View {
-        NavigationStack {
-            List {
-                NavigationLink { GameSettingsView() } label: { Label("Game", systemImage: "slider.horizontal.3") }
-                Button { showJIT = true } label: { Label("JIT", systemImage: "bolt") }
-                Button { showDiagnostics = true } label: { Label("Diagnostics", systemImage: "stethoscope") }
+        // A game that ran and then ended with an error gets the game-ended sheet; problems
+        // before it starts are shown on Play.
+        .onChange(of: minecraft.state) { state in
+            switch state {
+            case .running: gameWasRunning = true
+            case .finished(let ok, let message):
+                if gameWasRunning && !ok { gameEnded = GameEnded(message: message) }
+                gameWasRunning = false
+            default: break
             }
-            .navigationTitle("Settings")
         }
-        .sheet(isPresented: $showJIT) { BuiltInJITView(showsDone: true) }
-        .sheet(isPresented: $showDiagnostics) { DiagnosticsView() }
+        .sheet(item: $gameEnded) { GameEndedSheet(message: $0.message) }
     }
 }

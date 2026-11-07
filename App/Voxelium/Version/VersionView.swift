@@ -186,7 +186,7 @@ struct InstallRowStatus: View {
                 Text("\(stage): \(done)/\(total)\(failed > 0 ? " · \(failed) failed" : "")").font(.vxCaption).foregroundStyle(VX.onSurfaceVariant)
             }
         case .finished(let ok, let failed):
-            Text(failed == 0 ? "All \(ok) files verified" : "\(failed) files failed — see Logs")
+            Text(failed == 0 ? "All \(ok) files verified" : "\(failed) files failed — see Settings → Logs")
                 .font(.vxCaption).foregroundStyle(failed == 0 ? VX.primary : VX.error)
         case .failed(let msg):
             Text(msg).font(.vxCaption).foregroundStyle(VX.error)

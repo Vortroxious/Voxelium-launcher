@@ -2,7 +2,7 @@ import Foundation
 import VoxeliumCore
 
 /// Launcher update checks: asks GitHub for the latest release at start (at most once a
-/// day, when online) and on request. Shows a row in the Versions tab when a newer
+/// day, when online) and on request. Shows a banner on Play when a newer
 /// release exists; "Not now" hides that version.
 @MainActor
 final class UpdateModel: ObservableObject {
@@ -32,7 +32,7 @@ final class UpdateModel: ObservableObject {
         automatic = UserDefaults.standard.object(forKey: Self.automaticKey) as? Bool ?? true
     }
 
-    /// The release to show in the Versions tab: newer and not dismissed.
+    /// The release to show on Play: newer and not dismissed.
     var banner: UpdateCheck.Release? {
         guard case .available(let r) = status,
               UserDefaults.standard.string(forKey: Self.dismissedKey) != r.version else { return nil }

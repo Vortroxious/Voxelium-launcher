@@ -61,13 +61,13 @@ final class MinecraftLauncher: ObservableObject {
             do {
                 (identity, playingOffline) = try await accounts.launchIdentity()
             } catch {
-                state = .finished(ok: false, message: "Microsoft sign-in: \(error). Sign in again on the Account tab, or choose the offline profile.")
+                state = .finished(ok: false, message: "Microsoft sign-in: \(error). Sign in again in Accounts, or play as the offline profile.")
                 log.error("launch", "Microsoft token refresh failed: \(error)")
                 return
             }
         } else {
             guard OfflineIdentity.isValidName(settings.playerName) else {
-                state = .finished(ok: false, message: "Set a valid player name (3–16 letters, digits or _) on the Account tab.")
+                state = .finished(ok: false, message: "Set a valid player name (3–16 letters, digits or _) in Accounts.")
                 return
             }
             identity = OfflineIdentity.identity(for: settings.playerName)
@@ -271,7 +271,7 @@ final class MinecraftLauncher: ObservableObject {
             let mgDir = paths.logsDir.appendingPathComponent("mobileglues", isDirectory: true)
             try? fm.createDirectory(at: mgDir, withIntermediateDirectories: true)
             setenv("MG_DIR_PATH", mgDir.path, 1)
-            // On-screen controls: the user's layout (Controls tab) or the default, read by VXGLFW.
+            // On-screen controls: the user's layout (Controls) or the default, read by VXGLFW.
             let screen = UIScreen.main.bounds.size
             let controlsLayout = ControlLayoutStore(paths: paths)
                 .effective(width: max(screen.width, screen.height), height: min(screen.width, screen.height), log: log)
@@ -282,10 +282,10 @@ final class MinecraftLauncher: ObservableObject {
             } catch {
                 log.error("launch", "Could not write the control layout, using the built-in one: \(error)")
             }
-            // Render resolution (Account tab; default half the native pixels, since 2796x1290 is a lot for a phone GPU).
+            // Render resolution (Settings → Game; default half the native pixels, since 2796x1290 is a lot for a phone GPU).
             let renderScale = min(max(settings.renderScale, LauncherSettings.renderScaleRange.lowerBound), LauncherSettings.renderScaleRange.upperBound)
             setenv("VOXELIUM_RENDER_SCALE", String(format: "%.2f", renderScale), 1)
-            // Largest Minecraft interface (Account tab switch); VXGLFW reads options.txt for
+            // Largest Minecraft interface (Settings → Game switch); VXGLFW reads options.txt for
             // the player's own GUI scale when mapping hotbar taps.
             setenv("VOXELIUM_LARGE_INTERFACE", settings.largeInterface ? "1" : "0", 1)
             if settings.largeInterface {

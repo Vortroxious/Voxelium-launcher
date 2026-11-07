@@ -52,47 +52,65 @@ enum BuiltInJIT {
     }
 }
 
-/// The JIT tab (Logs moved to Diagnostics). Also shown as a sheet from Play's
-/// "Import a pairing file" problem.
+/// Settings → JIT, also shown as a sheet from Play's "Import a pairing file" problem.
 struct BuiltInJITView: View {
     var showsDone = false
     @Environment(\.dismiss) private var dismiss
 
     var body: some View {
         NavigationStack {
-            List {
-                if BuiltInJIT.supported {
-                    BuiltInJITSection()
-                    Section {
-                        Label("LocalDevVPN connected", systemImage: "network")
-                        Label("Wi-Fi, or Airplane Mode on mobile data (Voxelium asks when it's needed)", systemImage: "wifi")
-                        Label("Internet the first time (Voxelium downloads the developer disk image once)", systemImage: "arrow.down.circle")
-                    } header: {
-                        Text("Before you tap Play")
-                    } footer: {
-                        Text("The developer disk image adds the debugger service that turns on JIT. It stays mounted until the iPhone restarts; the next Play mounts it again.")
-                    }
-                    Section {
-                        Text("The pairing file lets Voxelium talk to this iPhone's developer services. Make it once on a computer with the iPhone connected by cable, put it in Files, then import it above. It's kept in the Keychain; you can delete the copy in Files afterwards.")
-                            .font(.callout)
-                        Link(destination: setupGuideURL) { Label("Setup guide", systemImage: "book") }
-                    } header: {
-                        Text("Getting a pairing file")
-                    }
-                } else {
-                    Section {
-                        LabeledContent("Play turns on JIT with", value: JITCoordinator.stikDebugInstalled ? "StikDebug" : "Nothing: StikDebug isn't installed")
-                        Link(destination: setupGuideURL) { Label("Setup guide", systemImage: "book") }
-                    } footer: {
-                        Text("The built-in JIT helper needs iOS 17.4 or later. On this iOS, Play asks StikDebug for JIT.")
-                    }
+            JITSettingsList()
+                .navigationTitle("JIT")
+                .navigationBarTitleDisplayMode(.inline)
+                .toolbar {
+                    if showsDone { Button("Done") { dismiss() } }
                 }
-            }
-            .navigationTitle("JIT")
-            .toolbar {
-                if showsDone { Button("Done") { dismiss() } }
+        }
+    }
+}
+
+/// The JIT settings: the built-in helper (iOS 17.4+) or StikDebug.
+struct JITSettingsList: View {
+    /// What Play turns JIT on with, for the Settings row.
+    static var method: String {
+        if BuiltInJIT.useForPlay && BuiltInJIT.pairingData != nil { return "Play uses the built-in helper" }
+        if JITCoordinator.stikDebugInstalled { return "Play uses StikDebug" }
+        return BuiltInJIT.supported ? "Import a pairing file to play" : "StikDebug isn't installed"
+    }
+
+    var body: some View {
+        List {
+            if BuiltInJIT.supported {
+                BuiltInJITSection().vxRow()
+                Section {
+                    Label("LocalDevVPN connected", systemImage: "network")
+                    Label("Wi-Fi, or Airplane Mode on mobile data (Voxelium asks when it's needed)", systemImage: "wifi")
+                    Label("Internet the first time (Voxelium downloads the developer disk image once)", systemImage: "arrow.down.circle")
+                } header: {
+                    Text("Before you tap Play")
+                } footer: {
+                    Text("The developer disk image adds the debugger service that turns on JIT. It stays mounted until the iPhone restarts; the next Play mounts it again.")
+                }
+                .vxRow()
+                Section {
+                    Text("The pairing file lets Voxelium talk to this iPhone's developer services. Make it once on a computer with the iPhone connected by cable, put it in Files, then import it above. It's kept in the Keychain; you can delete the copy in Files afterwards.")
+                        .font(.callout)
+                    Link(destination: setupGuideURL) { Label("Setup guide", systemImage: "book") }
+                } header: {
+                    Text("Getting a pairing file")
+                }
+                .vxRow()
+            } else {
+                Section {
+                    LabeledContent("Play turns on JIT with", value: JITCoordinator.stikDebugInstalled ? "StikDebug" : "Nothing: StikDebug isn't installed")
+                    Link(destination: setupGuideURL) { Label("Setup guide", systemImage: "book") }
+                } footer: {
+                    Text("The built-in JIT helper needs iOS 17.4 or later. On this iOS, Play asks StikDebug for JIT.")
+                }
+                .vxRow()
             }
         }
+        .vxList()
     }
 }
 
@@ -142,7 +160,7 @@ struct BuiltInJITSection: View {
             }
             ForEach(Array(lines.enumerated()), id: \.offset) { _, line in
                 Text(line).font(.caption.monospaced())
-                    .foregroundStyle(line.contains("FAIL") ? Color.red : Color.primary)
+                    .foregroundStyle(line.contains("FAIL") ? VX.error : VX.onSurface)
             }
         } header: {
             Text("Built-in JIT (StikJIT)")

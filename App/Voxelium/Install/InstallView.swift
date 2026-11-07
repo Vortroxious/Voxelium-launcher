@@ -76,7 +76,7 @@ struct InstallView: View {
         case .offline:
             Banner(.warning, "No internet connection", message: "Turn on the internet to see Minecraft's versions.") { refresh }
         case .unavailable:
-            Banner(.error, "Couldn't load the version list", message: "Minecraft's servers didn't answer. Try again in a moment; details are in Logs.") { refresh }
+            Banner(.error, "Couldn't load the version list", message: "Minecraft's servers didn't answer. Try again in a moment; details are in Settings → Logs.") { refresh }
         case .startup(let detail):
             Banner(.error, "Voxelium could not start", message: detail)
         case nil:
