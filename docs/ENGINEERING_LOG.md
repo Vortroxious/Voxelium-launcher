@@ -1921,3 +1921,11 @@ Requested by the user through the main session, as the candidate for Voxelium 2.
 - **Release IPA** `Voxelium-2.4-unsigned.ipa` (build 202611011304, from `005be18`, SHA-256 `a19b3c69…aea7`):
   - It passed the release checks (see `docs/RELEASE_CHECKLIST.md`).
   - On the iPhone 15 Pro Max (13:06Z), JIT was on in 1.5 s, and NeoForge 1.21.11 joined a world and quit cleanly.
+
+## 2026-11-07 — Voxelium 2.5: the Android interface on iOS (branch `ios-android-ui`)
+- **What's in it:** the interface from Voxelium for Android, rebuilt in SwiftUI for iPhone in portrait (commits `2d1e0ef`, `1b36f04`, `7ea588d`, `fba8648`): Play, Install, Accounts, Controls and Settings tabs, the version page, Logs and the game-ended sheet. Then the 25 accent colours (`26dc56c`). Three core fixes found while porting the core to Android are under it (`6806e99`, `de21aec`, `f299ac4`). Those commits were each checked in the iPhone 18 Pro simulator.
+- **Version 2.5:** `MARKETING_VERSION` (app and helper), `LaunchPlanner.launcherVersion` and the User-Agent. `docs/RELEASE_NOTES_NEXT.md` became `docs/RELEASE_NOTES_2.5.md`. `swift test`: 153 pass.
+- **Phone test of a test build** (build 202611070110, iPhone 15 Pro Max, iOS 27.0, installed build confirmed with `devicectl`, logs read 2026-11-07 ~02:35Z):
+  - The accent colour changed from the picker (White, Gray, White).
+  - Play on the Last played card: the shader render-distance warning showed, then JIT was on after 1.7 s with the built-in helper.
+  - Fabric 1.21.11 with Iris and BSL joined a world at 02:30:45Z (footprint 3531 MB) and quit cleanly with `exit(0)`.

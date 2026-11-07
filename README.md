@@ -68,7 +68,7 @@ This takes about 15 minutes the first time. You need a Mac for steps 1–3; afte
 |---|---|
 | **Sideloadly**: installs apps on your iPhone with your Apple ID | [sideloadly.io](https://sideloadly.io/index.html) |
 | **idevice_pair**: makes the pairing file Voxelium needs to turn on JIT | [github.com/jkcoxson/idevice_pair/releases](https://github.com/jkcoxson/idevice_pair/releases) |
-| **Voxelium** (`Voxelium-2.3-unsigned.ipa`) | [github.com/Vortroxious/Voxelium-launcher/releases/latest](https://github.com/Vortroxious/Voxelium-launcher/releases/latest) |
+| **Voxelium** (`Voxelium-2.5-unsigned.ipa`) | [github.com/Vortroxious/Voxelium-launcher/releases/latest](https://github.com/Vortroxious/Voxelium-launcher/releases/latest) |
 | *Optional:* **GetMoreRam** (`.ipa`): only if the game keeps closing from low memory (see [Troubleshooting](#troubleshooting)) | [github.com/hugeBlack/GetMoreRam/releases](https://github.com/hugeBlack/GetMoreRam/releases) |
 
 Also: a USB cable for your iPhone, and an Apple ID (a free one works).
@@ -150,5 +150,6 @@ Design notes: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md). Progress and evidenc
 | Release 2.1 | Minecraft 26.2 on MobileGlues (patch 0015: base-vertex draws through ANGLE's OES/EXT functions) and on Vulkan | ✅ Tagged 2026-10-24 ([release notes](docs/RELEASE_NOTES_2.1.md)) |
 | Release 2.2 | Open Voxelium from the Home Screen: Play asks StikDebug for JIT (like Amethyst); smooth close after quitting | ✅ Tagged 2026-10-24 ([release notes](docs/RELEASE_NOTES_2.2.md)) |
 | Release 2.3 | Built-in JIT: StikJIT inside Voxelium, so Play needs only LocalDevVPN and a pairing file (StikDebug optional); Airplane Mode prompt and offline play on mobile data | ✅ [Published](https://github.com/Vortroxious/Voxelium-launcher/releases/tag/v2.3) 2026-11-01 |
-| Release 2.4 | Browse CurseForge (below Browse Modrinth), launcher update checks, fullscreen (F11) no longer breaks taps | ⏳ Being prepared ([release notes](docs/RELEASE_NOTES_2.4.md)) |
+| Release 2.4 | Browse CurseForge (below Browse Modrinth), launcher update checks, fullscreen (F11) no longer breaks taps | ✅ [Published](https://github.com/Vortroxious/Voxelium-launcher/releases/tag/v2.4) 2026-11-01 |
+| Release 2.5 | The Voxelium for Android interface on iPhone (Play, Install, Accounts, Controls, Settings tabs; version pages; Logs), accent colours | ⏳ Being prepared ([release notes](docs/RELEASE_NOTES_2.5.md)) |
 | Later | Game controllers and mice (a first try in 2.4 broke touch with a mouse connected and was removed) | Ideas |
