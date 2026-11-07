@@ -96,3 +96,17 @@ Status as of 2026-11-01.
 - ✅ Device pass on that exact IPA (installed build confirmed as 202611011304 with `devicectl`, 2026-11-01 13:06Z): JIT on in 1.5 s; NeoForge 1.21.11 with CurseForge-installed mods joined a world (peak 1512 MB) and quit cleanly. Earlier test builds of the same features passed CurseForge search and install, the update notice and the fullscreen fix.
 - ✅ Committed and tagged `v2.4`.
 - 👤 Push `main` and `v2.4`. Create the GitHub Release **v2.4** with `build/ipa/Voxelium-2.4-unsigned.ipa`, its `.sha256` and `build/ipa/THIRD_PARTY_NOTICES.txt` (1.07 MB), and paste the release notes.
+
+# Release checklist (Voxelium 2.5)
+
+Status as of 2026-11-07.
+- ✅ The Android interface on iOS (`2d1e0ef`, `1b36f04`, `7ea588d`, `fba8648`), accent colours (`26dc56c`) and three core fixes (`6806e99`, `de21aec`, `f299ac4`), merged into `main` by fast-forward. Version 2.5, including `LaunchPlanner.launcherVersion` and the User-Agent (`be5b64a`). Release notes: [RELEASE_NOTES_2.5.md](RELEASE_NOTES_2.5.md).
+- ✅ `swift test`: 153 tests pass.
+- ✅ Release IPA from a clean tree at `be5b64a`: `build/ipa/Voxelium-2.5-unsigned.ipa`, build 202611070232, 216,379,271 bytes, SHA-256 `a6c21d5b59cd2a676b96ae96a794a6ca221efe3f664aa810ca61be5017535fe4`.
+  - App and helper at version 2.5; the User-Agent is 2.5.
+  - Notices identical to the repository's `THIRD_PARTY_NOTICES.txt` (unchanged since 2.4).
+  - No signing, pairing or key files.
+  - The CurseForge API key is in Info.plist (`VoxeliumCurseForgeKey`), as the maintainer agreed. It comes from the git-ignored `Config/curseforge.key` and is in no tracked file.
+- ✅ Device pass on a test build, not on the release IPA itself; the maintainer chose to count it. Build 202611070110 came from the same code plus uncommitted changes that became `be5b64a`; the only file changed after it was built is the engineering log. The installed build was confirmed with `devicectl`. On 2026-11-07 at 02:29Z and 02:41Z: JIT on in 1.7 s both times, and Fabric 1.21.11 with Iris/BSL joined a world and quit cleanly. Accent colours changed from the picker.
+- ✅ Committed and tagged `v2.5`.
+- 👤 Push `main` and `v2.5`. Create the GitHub Release **v2.5** with `build/ipa/Voxelium-2.5-unsigned.ipa`, its `.sha256` and `build/ipa/THIRD_PARTY_NOTICES.txt` (1.07 MB), and paste the release notes.

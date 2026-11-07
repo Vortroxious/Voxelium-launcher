@@ -20,7 +20,12 @@
 - A required mod you already have (from the other site, or imported from Files) isn't downloaded a second time. Two copies of one mod stopped Fabric from starting.
 
 ## Tested
-TBD after the device pass on the release IPA.
+On an iPhone 15 Pro Max with iOS 27.0, with a test build of this release (build 202611070110, the same code as the release IPA):
+- Accent colours changed from Settings → Appearance.
+- Play on the Last played card: JIT on in 1.7 s with the built-in helper.
+- Fabric 1.21.11 with Iris and BSL joined a world and quit cleanly, twice.
+
+Each new page was also checked in the iPhone simulator.
 
 Everything else is unchanged from [2.4](RELEASE_NOTES_2.4.md).
 

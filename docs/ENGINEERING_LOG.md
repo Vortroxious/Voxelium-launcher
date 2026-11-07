@@ -1929,3 +1929,4 @@ Requested by the user through the main session, as the candidate for Voxelium 2.
   - The accent colour changed from the picker (White, Gray, White).
   - Play on the Last played card: the shader render-distance warning showed, then JIT was on after 1.7 s with the built-in helper.
   - Fabric 1.21.11 with Iris and BSL joined a world at 02:30:45Z (footprint 3531 MB) and quit cleanly with `exit(0)`.
+- **Release IPA** `Voxelium-2.5-unsigned.ipa` (build 202611070232, from `be5b64a`, SHA-256 `a6c21d5b…35fe4`): it passed the release checks (see `docs/RELEASE_CHECKLIST.md`). It wasn't installed on the phone. A second run of the test build at 02:41Z joined a world and quit cleanly, and the maintainer chose to count the test build as the device pass.
